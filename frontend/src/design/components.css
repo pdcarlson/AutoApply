@@ -1,0 +1,2042 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+/* ---- Button ---- */
+.aa-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  min-height: var(--control-height);
+  margin: 0;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.aa-button svg {
+  flex: none;
+}
+
+.aa-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Primary: ink fill, on-ink text */
+.aa-button--primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--on-ink);
+}
+
+.aa-button--primary:hover:not(.aa-button--disabled) {
+  background: var(--ink-muted);
+  border-color: var(--ink-muted);
+}
+
+/* Secondary: surface with a border-strong edge */
+.aa-button--secondary {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+.aa-button--secondary:hover:not(.aa-button--disabled) {
+  background: var(--surface-sunken);
+}
+
+/* Quiet: a text button, underlined on hover */
+.aa-button--quiet {
+  background: none;
+  border: 0;
+  padding: 0 var(--space-2);
+  color: var(--ink);
+}
+
+.aa-button--quiet:hover:not(.aa-button--disabled) {
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
+
+/* Danger: danger text and edge on surface */
+.aa-button--danger {
+  background: var(--surface);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.aa-button--danger:hover:not(.aa-button--disabled) {
+  background: var(--danger-tint);
+}
+
+/* Small: smaller text and padding, same minimum height */
+.aa-button--sm {
+  padding: 0 var(--space-3);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.aa-button--quiet.aa-button--sm {
+  padding: 0 var(--space-1);
+}
+
+/* Disabled: grey, no hover, not clickable */
+.aa-button--disabled,
+.aa-button:disabled {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.aa-button--quiet.aa-button--disabled {
+  background: none;
+}
+
+@media (max-width: 767px) {
+  .aa-button {
+    min-height: var(--tap-target);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aa-button {
+    transition: none;
+  }
+}
+
+/* ---- TextField ---- */
+.aa-text-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.aa-text-field__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.aa-text-field__required {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+.aa-text-field__input {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: var(--control-height);
+  margin: 0;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+}
+
+.aa-text-field__input--multiline {
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+}
+
+.aa-text-field__input::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
+
+.aa-text-field__input:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.aa-text-field__input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.aa-text-field__input:disabled {
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.aa-text-field--error .aa-text-field__input,
+.aa-text-field--error .aa-text-field__input:hover:not(:disabled) {
+  border-color: var(--danger);
+}
+
+.aa-text-field__hint {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.aa-text-field__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--danger);
+}
+
+.aa-text-field__error-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 18px;
+}
+
+@media (max-width: 767px) {
+  .aa-text-field__input {
+    min-height: var(--tap-target);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aa-text-field__input {
+    transition: none;
+  }
+}
+
+/* iPhone Safari zooms into any field under 16px, so fields use 16px on phones. */
+@media (max-width: 767px) {
+  .aa-text-field__input { font-size: 16px; }
+}
+
+/* ---- Notice ---- */
+.aa-notice {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+}
+
+.aa-notice__main {
+  display: flex;
+  flex: 1 1 280px;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.aa-notice__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 22px;
+}
+
+.aa-notice__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.aa-notice__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.aa-notice__body > :first-child {
+  margin-top: 0;
+}
+
+.aa-notice__body > :last-child {
+  margin-bottom: 0;
+}
+
+.aa-notice__action {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* Visually hidden tone word for screen readers */
+.aa-notice__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Tones */
+.aa-notice--info {
+  background: var(--surface-sunken);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+.aa-notice--success {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+.aa-notice--needs {
+  background: var(--needs-tint);
+  border-color: var(--needs-ink);
+  color: var(--needs-ink);
+}
+
+.aa-notice--error {
+  background: var(--danger-tint);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.aa-notice__dot {
+  fill: var(--needs);
+  stroke: var(--needs-ink);
+}
+
+@media (max-width: 767px) {
+  .aa-notice__action {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aa-notice {
+    transition: none;
+  }
+}
+
+/* ---- BetaLabel ---- */
+/* Plain text with a dotted edge. No hover, no pointer, no focus: it must not look clickable. */
+.aa-beta-label {
+  display: inline-block;
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 0;
+  padding: calc(var(--space-1) / 2) var(--space-2);
+  border: 1px dotted var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  vertical-align: middle;
+  cursor: default;
+  user-select: text;
+}
+
+/* ---- StatusPill ---- */
+/* StatusPill: one word plus one symbol. Shape and edge carry the meaning
+   as much as color does, so it still reads in grayscale. Not interactive. */
+.aa-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  max-width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: default;
+}
+
+.aa-status-pill__symbol {
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+
+.aa-status-pill__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sizes. md for rows and pages; sm for the sidebar agent line and tight spots. */
+.aa-status-pill--md {
+  padding: calc(var(--space-1) / 2) var(--space-2);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.aa-status-pill--sm {
+  padding: calc(var(--space-1) / 4) calc(var(--space-1) + var(--space-1) / 2);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* Neutral, outlined: Queued, Filling, Skipped, Stopped */
+.aa-status-pill--queued,
+.aa-status-pill--skipped,
+.aa-status-pill--unknown {
+  border-color: var(--border-strong);
+  color: var(--ink-muted);
+}
+
+.aa-status-pill--filling,
+.aa-status-pill--stopped {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+/* Needs you: the one amber fill, with dark text and an amber-ink edge */
+.aa-status-pill--needs-you {
+  border-color: var(--needs-ink);
+  background: var(--needs);
+  color: var(--on-needs);
+}
+
+/* Submitted: solid ink */
+.aa-status-pill--submitted {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+/* Submitted by you: ink outline */
+.aa-status-pill--submitted-by-you {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* Failed: danger outline */
+.aa-status-pill--failed {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Check before retrying: danger, dashed edge */
+.aa-status-pill--check-before-retrying {
+  border-style: dashed;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ---- PasteBox ---- */
+/* PasteBox: the job-link box at the top of Applications.
+   Label, then the input and Apply in one row, then a polite message line. */
+.aa-paste-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--content-width);
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.aa-paste-box__label {
+  color: var(--ink);
+}
+
+.aa-paste-box__row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.aa-paste-box__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: var(--control-height);
+  margin: 0;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.aa-paste-box__input::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
+
+.aa-paste-box__input:focus {
+  outline: none;
+}
+
+.aa-paste-box__input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.aa-paste-box__input:disabled {
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+/* The live region stays in the page even when empty, and keeps one line
+   of room so the list under it does not jump when a message appears. */
+.aa-paste-box__status {
+  min-height: 18px;
+}
+
+.aa-paste-box__message {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink);
+}
+
+.aa-paste-box__symbol {
+  flex: none;
+  width: 13px;
+  height: 18px;
+}
+
+.aa-paste-box__message--info {
+  color: var(--ink);
+}
+
+.aa-paste-box__message--needs {
+  color: var(--needs-ink);
+}
+
+.aa-paste-box__message--error {
+  color: var(--danger);
+}
+
+.aa-paste-box__dot {
+  fill: var(--needs);
+  stroke: var(--needs-ink);
+}
+
+.aa-paste-box__link {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  border-radius: var(--radius-sm);
+}
+
+.aa-paste-box__link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .aa-paste-box__input {
+    min-height: var(--tap-target);
+  }
+
+  .aa-paste-box__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-target);
+  }
+}
+
+/* iPhone Safari zooms into any field under 16px, so the box uses 16px on phones. */
+@media (max-width: 767px) {
+  .aa-paste-box__input { font-size: 16px; }
+}
+
+/* ---- Sidebar ---- */
+/* Sidebar: left column on a laptop, top bar with a Menu panel below 768px. */
+
+.aa-sidebar {
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.aa-sidebar *,
+.aa-sidebar *::before,
+.aa-sidebar *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- Laptop: the left column ---------- */
+
+.aa-sidebar--auto,
+.aa-sidebar--laptop {
+  display: flex;
+  flex: none;
+  height: 100%;
+}
+
+.aa-sidebar__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: var(--sidebar-width);
+  height: 100%;
+  padding: var(--space-6) var(--space-4);
+  background: var(--surface-sunken);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+/* The app name is plain type, no logo. */
+.aa-sidebar__app-name {
+  padding: 0 var(--space-3);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.aa-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aa-sidebar__item {
+  margin: 0;
+}
+
+.aa-sidebar__link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.aa-sidebar__link:hover {
+  background: var(--bg);
+}
+
+/* Current page: heavier weight, an ink bar and a surface background. Never color alone. */
+.aa-sidebar__link--current,
+.aa-sidebar__link--current:hover {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.aa-sidebar__link--current::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  width: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--ink);
+}
+
+.aa-sidebar__link-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Needs you count: shown only when something waits. */
+.aa-sidebar__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: var(--space-6);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--needs);
+  color: var(--on-needs);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The agent line: read-only, links to the application the agent is on. */
+.aa-sidebar__agent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.aa-sidebar__agent-label {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.aa-sidebar__agent-link,
+.aa-sidebar__agent-text,
+.aa-sidebar__agent-idle {
+  font-size: 13px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.aa-sidebar__agent-link {
+  color: var(--ink);
+  text-decoration-line: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: var(--space-1);
+}
+
+.aa-sidebar__agent-link:hover {
+  text-decoration-color: var(--ink);
+}
+
+.aa-sidebar__agent-text {
+  color: var(--ink);
+}
+
+.aa-sidebar__agent-idle {
+  color: var(--ink-muted);
+}
+
+/* Name, email and Sign out, pinned to the bottom of the column. */
+.aa-sidebar__account {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding: var(--space-4) var(--space-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.aa-sidebar__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.aa-sidebar__user-name {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.aa-sidebar__user-email {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Phone: top bar and Menu panel ---------- */
+
+.aa-sidebar--phone {
+  display: block;
+}
+
+.aa-sidebar--auto .aa-sidebar__bar {
+  display: none;
+}
+
+.aa-sidebar__bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: block;
+}
+
+.aa-sidebar__bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+}
+
+.aa-sidebar__app-name--bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aa-sidebar__bar-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.aa-sidebar__bar-count:hover {
+  background: var(--bg);
+}
+
+.aa-sidebar__menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  min-height: var(--tap-target);
+  margin: 0;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aa-sidebar__menu-button:hover {
+  background: var(--bg);
+}
+
+.aa-sidebar__menu-icon {
+  flex: none;
+}
+
+/* The panel floats over the page, so it is the one place with a shadow. */
+.aa-sidebar__panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: calc(100vh - var(--tap-target) - var(--space-4));
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  overflow-y: auto;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-pop);
+}
+
+.aa-sidebar__panel[hidden] {
+  display: none;
+}
+
+.aa-sidebar__panel .aa-sidebar__list {
+  gap: 0;
+}
+
+.aa-sidebar__panel .aa-sidebar__link {
+  min-height: var(--tap-target);
+}
+
+.aa-sidebar__panel .aa-sidebar__link--current,
+.aa-sidebar__panel .aa-sidebar__link--current:hover {
+  background: var(--surface-sunken);
+}
+
+.aa-sidebar__panel .aa-sidebar__link:hover {
+  background: var(--bg);
+}
+
+.aa-sidebar__panel .aa-sidebar__agent-link {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-target);
+}
+
+.aa-sidebar__panel .aa-sidebar__agent {
+  padding-top: var(--space-3);
+}
+
+.aa-sidebar__panel .aa-sidebar__account {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: 0;
+  padding-top: var(--space-2);
+}
+
+/* Below 768px the auto layout swaps the column for the top bar. */
+@media (max-width: 767px) {
+  .aa-sidebar--auto {
+    display: block;
+    height: auto;
+  }
+
+  .aa-sidebar--auto .aa-sidebar__rail {
+    display: none;
+  }
+
+  .aa-sidebar--auto .aa-sidebar__bar {
+    display: block;
+  }
+
+  /* A forced laptop column on a narrow screen still gets tap-size links. */
+  .aa-sidebar__link {
+    min-height: var(--tap-target);
+  }
+
+  .aa-sidebar__agent-link {
+    display: flex;
+    align-items: center;
+    min-height: var(--tap-target);
+  }
+}
+
+/* ---------- Shared ---------- */
+
+.aa-sidebar__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.aa-sidebar__link:focus-visible,
+.aa-sidebar__agent-link:focus-visible,
+.aa-sidebar__bar-count:focus-visible,
+.aa-sidebar__menu-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aa-sidebar *,
+  .aa-sidebar *::before,
+  .aa-sidebar *::after {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- StepBar ---- */
+/* StepBar: the Setup header. Setup has no sidebar, so this holds the email and Sign out. */
+
+.aa-step-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: calc(var(--control-height) + var(--space-6));
+  padding: var(--space-3) var(--space-8);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.aa-step-bar *,
+.aa-step-bar *::before,
+.aa-step-bar *::after {
+  box-sizing: border-box;
+}
+
+.aa-step-bar__progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+  min-width: 0;
+}
+
+.aa-step-bar__count {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.aa-step-bar__steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aa-step-bar__step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+/* A short rule between steps. */
+.aa-step-bar__step + .aa-step-bar__step::before {
+  content: '';
+  display: block;
+  width: var(--space-4);
+  height: 1px;
+  margin-right: var(--space-1);
+  background: var(--border-strong);
+}
+
+.aa-step-bar__icon {
+  flex: none;
+  color: var(--ink);
+}
+
+.aa-step-bar__icon-check {
+  stroke: var(--on-ink);
+}
+
+/* Done: solid check, regular weight, ink text. */
+.aa-step-bar__step--done {
+  color: var(--ink);
+}
+
+/* Current: ring with a dot, heavier weight. */
+.aa-step-bar__step--current {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Next: hollow ring, muted text. */
+.aa-step-bar__step--next .aa-step-bar__icon {
+  color: var(--border-strong);
+}
+
+.aa-step-bar__account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-left: auto;
+}
+
+.aa-step-bar__email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.aa-step-bar__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 767px) {
+  .aa-step-bar {
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .aa-step-bar__account {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aa-step-bar *,
+  .aa-step-bar *::before,
+  .aa-step-bar *::after {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- QuestionCard ---- */
+/* QuestionCard: one waiting question on the Needs you page. */
+
+.aa-question-card {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  overflow-wrap: anywhere;
+}
+
+.aa-question-card__question {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* Why-line: a small amber dot, then amber words. The words carry the meaning. */
+.aa-question-card__why {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+  color: var(--needs-ink);
+}
+
+.aa-question-card__dot {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--needs);
+  border: 1px solid var(--needs-ink);
+}
+
+.aa-question-card__asked {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-muted);
+}
+
+.aa-question-card__app-link,
+.aa-question-card__app-name {
+  color: var(--ink);
+}
+
+.aa-question-card__app-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.aa-question-card__app-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.aa-question-card__app-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Answer: text and date fields stay a readable width on a laptop. */
+.aa-question-card__answer {
+  margin-top: var(--space-4);
+}
+
+.aa-question-card__answer--text {
+  max-width: calc(var(--content-width) / 2);
+}
+
+.aa-question-card__answer--date {
+  max-width: calc(var(--content-width) / 4);
+}
+
+/* Choice: a real fieldset and legend, with each option as a bordered row. */
+.aa-question-card__fieldset {
+  min-width: 0;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.aa-question-card__legend {
+  padding: 0;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+
+.aa-question-card__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.aa-question-card__option {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.aa-question-card__option:hover {
+  border-color: var(--ink);
+}
+
+.aa-question-card__option--checked {
+  background: var(--surface-sunken);
+  border-color: var(--ink);
+}
+
+.aa-question-card__option--disabled {
+  color: var(--ink-muted);
+  cursor: default;
+}
+
+.aa-question-card__option--disabled:hover {
+  border-color: var(--border-strong);
+}
+
+.aa-question-card__radio {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin: 0;
+  accent-color: var(--ink);
+  cursor: inherit;
+}
+
+.aa-question-card__radio:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.aa-question-card__option-text {
+  color: inherit;
+}
+
+/* Unsure profile field: what was read, shown as a record. */
+.aa-question-card__read {
+  margin: var(--space-4) 0 0;
+  color: var(--ink-muted);
+}
+
+.aa-question-card__read-value {
+  color: var(--ink);
+}
+
+.aa-question-card__beta {
+  margin-top: var(--space-2);
+}
+
+/* Note sits right above the button and says what saving will send. */
+.aa-question-card__note {
+  margin: var(--space-4) 0 0;
+  color: var(--ink);
+}
+
+.aa-question-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.aa-question-card__note + .aa-question-card__actions {
+  margin-top: var(--space-2);
+}
+
+.aa-question-card__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Phone: everything stacks, and every tappable thing is at least --tap-target tall. */
+@media (max-width: 767.98px) {
+  .aa-question-card__answer--text,
+  .aa-question-card__answer--date {
+    max-width: none;
+  }
+
+  .aa-question-card__options {
+    flex-direction: column;
+  }
+
+  .aa-question-card__option {
+    width: 100%;
+    min-height: var(--tap-target);
+  }
+
+  .aa-question-card__app-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-target);
+  }
+
+  .aa-question-card__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .aa-question-card__actions > * {
+    min-height: var(--tap-target);
+  }
+}
+
+/* No motion is used. If any is added later, it stops here. */
+@media (prefers-reduced-motion: reduce) {
+  .aa-question-card,
+  .aa-question-card * {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- ApplicationList ---- */
+/* ApplicationList: a plain, read-only table of every application.
+   The company link is the only way into a row; rows have no hover fill
+   so nothing suggests the whole row is clickable. */
+.aa-application-list {
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.aa-application-list__table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.aa-application-list__th {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.aa-application-list__cell {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+  text-align: left;
+  vertical-align: top;
+}
+
+.aa-application-list__row:last-child .aa-application-list__cell {
+  border-bottom: 0;
+}
+
+.aa-application-list__cell--site,
+.aa-application-list__cell--sent,
+.aa-application-list__cell--proof {
+  white-space: nowrap;
+}
+
+.aa-application-list__cell-label {
+  display: none;
+}
+
+.aa-application-list__company,
+.aa-application-list__company-text {
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.aa-application-list__company,
+.aa-application-list__proof {
+  border-radius: var(--radius-sm);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: var(--space-1);
+}
+
+.aa-application-list__proof {
+  color: var(--ink);
+}
+
+.aa-application-list__company:hover,
+.aa-application-list__proof:hover {
+  text-decoration-color: var(--ink);
+  text-decoration-thickness: 2px;
+}
+
+.aa-application-list__company:focus-visible,
+.aa-application-list__proof:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.aa-application-list__status-line {
+  margin-top: var(--space-1);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.aa-application-list__date {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.aa-application-list__none {
+  color: var(--ink-muted);
+}
+
+.aa-application-list__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Empty state */
+.aa-application-list--empty {
+  padding: var(--space-12) var(--space-4);
+  text-align: center;
+}
+
+.aa-application-list__empty {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+/* Phone: each row becomes a stacked block. Explicit table roles in the
+   markup keep the table readable to screen readers after display changes. */
+@media (max-width: 767.98px) {
+  .aa-application-list__table,
+  .aa-application-list__body,
+  .aa-application-list__row,
+  .aa-application-list__cell {
+    display: block;
+  }
+
+  .aa-application-list__head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .aa-application-list__row {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .aa-application-list__row:last-child {
+    border-bottom: 0;
+  }
+
+  .aa-application-list__cell {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: var(--space-1) 0;
+    border-bottom: 0;
+    white-space: normal;
+  }
+
+  .aa-application-list__cell--company {
+    padding-top: 0;
+  }
+
+  .aa-application-list__cell-label {
+    display: block;
+    flex: 0 0 calc(var(--space-12) * 2);
+    color: var(--ink-muted);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .aa-application-list__value {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .aa-application-list__company,
+  .aa-application-list__proof {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-target);
+  }
+}
+
+/* No motion is used. Kept so a later transition can't slip past it. */
+@media (prefers-reduced-motion: reduce) {
+  .aa-application-list,
+  .aa-application-list * {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- ProofList ---- */
+/* ProofList: the receipt. Mono values, dashed rules between lines,
+   and every value followed by where it came from. Cards use borders,
+   never shadows. */
+.aa-proof-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.aa-proof-list__heading {
+  margin: 0;
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+/* Confirmation screenshot in a frame */
+.aa-proof-list__shot {
+  margin: 0;
+}
+
+.aa-proof-list__frame {
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.aa-proof-list__img,
+.aa-proof-list__placeholder {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-height: calc(var(--space-12) * 8);
+  border-radius: var(--radius-sm);
+}
+
+.aa-proof-list__img {
+  height: auto;
+  object-fit: contain;
+  object-position: top center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.aa-proof-list__placeholder {
+  aspect-ratio: 16 / 10;
+  background: var(--border);
+}
+
+.aa-proof-list__caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-2);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* The receipt */
+.aa-proof-list__receipt {
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.aa-proof-list__subheading {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.aa-proof-list__fields {
+  margin: 0;
+}
+
+.aa-proof-list__row,
+.aa-proof-list__resume {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-top: 1px dashed var(--border);
+}
+
+.aa-proof-list__label {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.aa-proof-list__value {
+  grid-column: 2;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.aa-proof-list__source {
+  grid-column: 2;
+  margin: 0;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.aa-proof-list__resume {
+  padding-bottom: 0;
+}
+
+.aa-proof-list__resume .aa-proof-list__label {
+  grid-row: 1;
+}
+
+.aa-proof-list__link {
+  color: inherit;
+  border-radius: var(--radius-sm);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: var(--space-1);
+}
+
+.aa-proof-list__link--file {
+  color: var(--ink);
+}
+
+.aa-proof-list__link:hover {
+  color: var(--ink);
+  text-decoration-color: var(--ink);
+  text-decoration-thickness: 2px;
+}
+
+.aa-proof-list__link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.aa-proof-list__empty {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-top: 1px dashed var(--border);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.aa-proof-list__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Phone: label, value and source stack; links grow to the tap target. */
+@media (max-width: 767.98px) {
+  .aa-proof-list__row,
+  .aa-proof-list__resume {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aa-proof-list__label,
+  .aa-proof-list__value,
+  .aa-proof-list__source {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .aa-proof-list__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-target);
+  }
+}
+
+/* No motion is used. Kept so a later transition can't slip past it. */
+@media (prefers-reduced-motion: reduce) {
+  .aa-proof-list,
+  .aa-proof-list * {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- StepLog ---- */
+/* StepLog: a printed receipt of what the agent did. Mono, one line per step:
+   time, what happened, where the value came from. Grayscale only: no amber,
+   no red. Status lives in StatusPill, not here. */
+.aa-step-log {
+  position: relative;
+  box-sizing: border-box;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Header shown only while live: the Live marker and the order note. */
+.aa-step-log__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--border-strong);
+}
+
+/* Word plus symbol. Ink, never amber: amber only means "you're needed". */
+.aa-step-log__live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.aa-step-log__live-icon {
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+
+.aa-step-log__order {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.aa-step-log__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* One receipt line: time | what + source | thumbnail. */
+.aa-step-log__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "time what shot";
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.aa-step-log__item + .aa-step-log__item {
+  border-top: 1px dashed var(--border);
+}
+
+.aa-step-log__time {
+  grid-area: time;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.aa-step-log__what {
+  grid-area: what;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  min-width: 0;
+}
+
+.aa-step-log__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.aa-step-log__source {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+/* Screenshot slot. A 16:10 thumbnail on older lines. */
+.aa-step-log__shot {
+  grid-area: shot;
+  display: block;
+  box-sizing: border-box;
+  width: calc(var(--control-height) * 1.6);
+  height: var(--control-height);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+
+.aa-step-log__shot--button {
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.aa-step-log__shot--button:hover {
+  border-color: var(--ink);
+}
+
+.aa-step-log__shot--button:focus {
+  outline: none;
+}
+
+.aa-step-log__shot--button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.aa-step-log__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+}
+
+/* Gray box while a screenshot loads, or in previews. */
+.aa-step-log__placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--border);
+}
+
+/* Newest line while live: bolder text and a large 16:10 framed screenshot. */
+.aa-step-log__item--current {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "time what"
+    "shot shot";
+  padding-bottom: var(--space-3);
+}
+
+.aa-step-log__item--current .aa-step-log__text {
+  font-weight: 600;
+}
+
+.aa-step-log__item--current .aa-step-log__shot {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+}
+
+.aa-step-log__item--current .aa-step-log__img {
+  object-fit: contain;
+  object-position: top center;
+}
+
+.aa-step-log__shot--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  color: var(--ink-muted);
+}
+
+.aa-step-log__empty {
+  margin: 0;
+  padding: var(--space-2) 0;
+  color: var(--ink-muted);
+}
+
+/* Visually hidden, still read by screen readers. */
+.aa-step-log__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Phone: time over text, thumbnail at tap size on the right. */
+@media (max-width: 767.98px) {
+  .aa-step-log__item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "time shot"
+      "what shot";
+    row-gap: 0;
+  }
+
+  .aa-step-log__item--current {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "time"
+      "what"
+      "shot";
+    row-gap: var(--space-1);
+  }
+
+  .aa-step-log__shot {
+    width: calc(var(--tap-target) * 1.6);
+    height: var(--tap-target);
+  }
+
+  .aa-step-log__item--current .aa-step-log__shot {
+    width: 100%;
+    height: auto;
+    margin-top: var(--space-1);
+  }
+}
+
+/* No motion: the Live dot holds still. If any is added later, it stops here. */
+@media (prefers-reduced-motion: reduce) {
+  .aa-step-log,
+  .aa-step-log * {
+    transition: none;
+    animation: none;
+  }
+}

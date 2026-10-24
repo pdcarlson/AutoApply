@@ -1,0 +1,97 @@
+/* AutoApply — generated from tokens.json (design system step 4, 10/23). Edit tokens.json, not this file. */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+:root, [data-theme="light"] {
+  --bg: #f6f5f1;
+  --surface: #ffffff;
+  --surface-sunken: #eeede8;
+  --border: #dddbd3;
+  --border-strong: #85827a;
+  --ink: #1c1b18;
+  --ink-muted: #5c5952;
+  --on-ink: #ffffff;
+  --needs: #f0a830;
+  --on-needs: #1c1b18;
+  --needs-ink: #8a4b00;
+  --needs-tint: #fcf0d8;
+  --danger: #b3261e;
+  --on-danger: #ffffff;
+  --danger-tint: #fbe9e7;
+  --focus: var(--ink);
+  --shadow-pop: 0 4px 16px rgba(28,27,24,0.12);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #141412;
+  --surface: #1c1c1a;
+  --surface-sunken: #252522;
+  --border: #363531;
+  --border-strong: #8d8a82;
+  --ink: #f1efe9;
+  --ink-muted: #a7a49c;
+  --on-ink: #141412;
+  --needs: #f2b347;
+  --on-needs: #141412;
+  --needs-ink: #f4b955;
+  --needs-tint: #3b2c12;
+  --danger: #ff8a7a;
+  --on-danger: #141412;
+  --danger-tint: #3a1d19;
+  --focus: var(--ink);
+  --shadow-pop: 0 4px 16px rgba(0,0,0,0.5);
+  color-scheme: dark;
+}
+
+/* Follow the device setting unless a theme is set on <html data-theme> */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141412;
+    --surface: #1c1c1a;
+    --surface-sunken: #252522;
+    --border: #363531;
+    --border-strong: #8d8a82;
+    --ink: #f1efe9;
+    --ink-muted: #a7a49c;
+    --on-ink: #141412;
+    --needs: #f2b347;
+    --on-needs: #141412;
+    --needs-ink: #f4b955;
+    --needs-tint: #3b2c12;
+    --danger: #ff8a7a;
+    --on-danger: #141412;
+    --danger-tint: #3a1d19;
+    --focus: var(--ink);
+    --shadow-pop: 0 4px 16px rgba(0,0,0,0.5);
+    color-scheme: dark;
+  }
+}
+
+:root {
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-full: 999px;
+  --sidebar-width: 232px;
+  --content-width: 960px;
+  --control-height: 36px;
+  --tap-target: 44px;
+}
+
+.aa-display { font-family: var(--font-sans); font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.01em; }
+.aa-title { font-family: var(--font-sans); font-size: 20px; line-height: 28px; font-weight: 600; }
+.aa-body { font-family: var(--font-sans); font-size: 15px; line-height: 22px; font-weight: 400; }
+.aa-body-strong { font-family: var(--font-sans); font-size: 15px; line-height: 22px; font-weight: 600; }
+.aa-small { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 400; }
+.aa-label { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.aa-mono { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; }
+
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 15px; line-height: 22px; }

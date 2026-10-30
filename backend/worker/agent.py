@@ -11,6 +11,7 @@ import os
 from playwright.sync_api import sync_playwright
 
 from app.config import settings
+from features.protected_handoff.detector import ProtectedFieldDetector, needs_you_reason
 
 
 class AgentResult:
@@ -37,10 +38,15 @@ def run_application(app_id: int, url: str) -> AgentResult:
             page.goto(url, timeout=30_000)
             page.screenshot(path=shot_path, full_page=True)
 
+            # US8: never type into CAPTCHA, password, login or SSN fields
+            handoffs = ProtectedFieldDetector().scan_page(page)
+            if handoffs:
+                return AgentResult("needs_you", needs_you_reason(handoffs), shot_path)
+
             # TODO(US6): find each form field (label, type, required, options)
             # TODO(US9): look up an answer in the profile / answer bank
             # TODO(US7): score confidence; under the user's threshold -> needs_you
-            # TODO(US8): never type into CAPTCHA, password, login or SSN fields
+            # US8: call ProtectedFieldDetector().check_field(field) before typing in each one
             # TODO(US6): attach resume, submit, wait for confirmation page
             # TODO(US12): screenshot the confirmation page as the record
 

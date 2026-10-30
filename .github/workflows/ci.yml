@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - run: pylint --rcfile=../.pylintrc app worker
+      - run: pylint --rcfile=../.pylintrc app worker features
       - run: pytest
 
   frontend:

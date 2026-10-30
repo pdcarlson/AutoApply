@@ -44,7 +44,8 @@ def run_application(app_id: int, url: str) -> AgentResult:
                 return AgentResult("needs_you", needs_you_reason(handoffs), shot_path)
 
             # TODO(US6): find each form field (label, type, required, options)
-            # TODO(US9): look up an answer in the profile / answer bank
+            # TODO(US9): look up an answer in the profile, then the answer bank via
+            # features.answer_reuse.AnswerReuse(db, user_id).reuse(question)
             # TODO(US7): score confidence; under the user's threshold -> needs_you
             # US8: call ProtectedFieldDetector().check_field(field) before typing in each one
             # TODO(US6): attach resume, submit, wait for confirmation page

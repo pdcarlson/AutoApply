@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import Base, engine
 from app.routers import answers, applications, profile, users
+from features.answer_reuse import router as answer_reuse
 from features.protected_handoff import router as protected_handoff
 
 
@@ -36,4 +37,5 @@ app.include_router(users.router)
 app.include_router(profile.router)
 app.include_router(answers.router)
 app.include_router(applications.router)
+app.include_router(answer_reuse.router)
 app.include_router(protected_handoff.router)

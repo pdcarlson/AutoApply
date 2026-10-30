@@ -1,0 +1,59 @@
+# Local development: database, API, agent worker and the React dev server.
+#   docker compose up --build
+# API docs: http://localhost:8000/docs   App: http://localhost:5173
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: autoapply
+      POSTGRES_PASSWORD: autoapply
+      POSTGRES_DB: autoapply
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://autoapply:autoapply@db:5432/autoapply
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+
+  worker:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://autoapply:autoapply@db:5432/autoapply
+    command: python -m worker.run
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+
+  web:
+    image: node:20
+    working_dir: /web
+    command: sh -c "npm install && npm run dev -- --host"
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/web
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

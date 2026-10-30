@@ -1,0 +1,12 @@
+[MASTER]
+init-hook="import sys; sys.path.append('backend')"
+
+[MESSAGES CONTROL]
+# docstrings on every tiny route/schema add noise; keep them on modules and real logic
+disable=
+    missing-function-docstring,
+    missing-class-docstring,
+    too-few-public-methods
+
+[FORMAT]
+max-line-length=100

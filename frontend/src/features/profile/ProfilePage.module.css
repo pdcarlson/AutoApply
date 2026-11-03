@@ -1,0 +1,66 @@
+.narrow {
+  width: 100%;
+  max-width: 760px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 760px;
+  padding: 26px 0 30px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 16px;
+}
+
+.narrow + .section {
+  border-top: none;
+}
+
+.sectionHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sectionHead h2 {
+  font-size: 20px;
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.noResume {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.picker {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.picker select {
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15px;
+}
+
+@media (width <= 899px) {
+  .picker {
+    display: flex;
+  }
+}

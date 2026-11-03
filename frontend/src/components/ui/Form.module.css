@@ -1,0 +1,174 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field > label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14.5px;
+}
+
+.input:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--line-soft);
+  outline: none;
+}
+
+.input:disabled {
+  background: var(--surface2);
+  color: var(--muted);
+}
+
+select.input {
+  padding-right: 8px;
+}
+
+.textarea {
+  height: auto;
+  padding: 10px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.short {
+  max-width: 260px;
+}
+
+.radio,
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.radio {
+  min-height: 32px;
+}
+
+.check {
+  min-height: 40px;
+}
+
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.segBtn {
+  min-width: 64px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segBtn.on {
+  background: var(--ink-btn);
+  border-color: var(--ink-btn);
+  color: var(--ink-btn-fg);
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 6px 0 12px;
+  border: 1.3px solid var(--ink2);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13.5px;
+}
+
+.pill button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pill button:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.pillAdd {
+  height: 28px;
+  padding: 0 12px;
+  border: 1.3px dashed var(--ink2);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink2);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.pillInput {
+  width: 170px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1.3px solid var(--ink);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 14px;
+  outline: none;
+}
+
+.dateField {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  max-width: 260px;
+  cursor: pointer;
+}
+
+.dateField > svg {
+  position: absolute;
+  left: 12px;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.dateInput {
+  padding-left: 40px;
+  cursor: pointer;
+}
+
+.dateInput::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+}

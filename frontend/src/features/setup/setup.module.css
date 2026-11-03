@@ -1,0 +1,222 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ===== Resume upload ===== */
+.uploadColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 760px;
+}
+
+.dropZone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 44px 24px;
+  border: 2px dashed var(--line2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+
+.dragging {
+  border-color: var(--ink);
+  background: var(--accent-tint);
+}
+
+.dropZone > label {
+  margin-top: 6px;
+}
+
+.dropIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 5px;
+  background: var(--surface2);
+  color: var(--ink);
+}
+
+.dropTitle {
+  font-family: var(--f-display);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.uploading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  margin-top: 6px;
+  color: var(--ink2);
+  font-size: 14px;
+}
+
+.alternatives {
+  display: flex;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.parse {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.parseHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.parseHeadText {
+  display: flex;
+  flex-direction: column;
+}
+
+.parseList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.parseList li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink2);
+  font-size: 14px;
+  animation: fade-in 0.25s;
+}
+
+.parseList svg {
+  color: var(--ink);
+}
+
+.parseList li.warn svg {
+  color: var(--ink2);
+}
+
+/* ===== Profile review ===== */
+.review {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+
+.reviewAside {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reviewSections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.unplaced {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1.5px dashed var(--ink2);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.unplacedTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unplaced q {
+  font-size: 14px;
+  quotes: '“' '”';
+}
+
+/* ===== Common questions ===== */
+.questionList {
+  display: flex;
+  flex-direction: column;
+  max-width: 820px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.question {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.question:last-child {
+  border-bottom: none;
+}
+
+.question > button {
+  align-self: start;
+}
+
+.questionLabel {
+  font-weight: 700;
+}
+
+.questionHint {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.questionControl {
+  grid-column: 1 / -1;
+}
+
+.skipped .questionLabel,
+.skipped .questionControl {
+  opacity: 0.45;
+}
+
+@media (width <= 1179px) {
+  .review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reviewAside {
+    position: static;
+  }
+}
+
+@media (width <= 899px) {
+  .question {
+    padding: 16px;
+  }
+}

@@ -1,0 +1,101 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar {
+  padding: 0 4px 0 10px;
+}
+
+.card {
+  padding: 12px 14px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pausedNote {
+  padding: 8px 10px;
+  border: 1.5px dashed var(--ink2);
+  border-radius: var(--radius);
+  color: var(--ink2);
+  font-size: 12.5px;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  border-top: 1px solid var(--line);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:first-of-type {
+  border-top: none;
+}
+
+.item:hover .name b {
+  text-decoration: underline;
+}
+
+.name {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.name b {
+  font-weight: 700;
+}
+
+.name span {
+  color: var(--ink2);
+  font-size: 12px;
+}
+
+.status {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.limit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.limitRow {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.limitRow b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.link {
+  align-self: flex-start;
+  font-size: 12.5px;
+  font-weight: 600;
+}

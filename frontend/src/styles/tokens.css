@@ -1,0 +1,124 @@
+/*
+ * Design tokens. Grayscale wireframe palette with one link blue and one red for destructive
+ * and error states. Light is the default; dark applies when the user picks it, or when they
+ * pick "Match my device" (no data-theme attribute) and the OS prefers dark.
+ */
+:root {
+  --bg: #fff;
+  --surface: #fff;
+  --surface2: #f0f0f0;
+  --sidebar: #f3f3f3;
+  --ink: #1e1e1e;
+  --ink2: #454545;
+  --muted: #6e6e6e;
+  --line: #d6d6d6;
+  --line-soft: #e7e7e7;
+  --line2: #8f8f8f;
+  --frame: #5a5a5a;
+  --link: #1d4ed8;
+  --accent: #262626;
+  --accent-hover: #000;
+  --accent-fg: #fff;
+  --accent-tint: #ededed;
+  --red-tint: #fbecea;
+  --red-text: #b3261e;
+  --red-dot: #c62828;
+  --red-solid: #c62828;
+  --red-fg: #fff;
+  --mark: #5c5c5c;
+  --ink-btn: #262626;
+  --ink-btn-fg: #fff;
+  --toast-bg: #262626;
+  --toast-fg: #fff;
+  --scrim: #1e1e1e59;
+  --shadow-lg: 0 2px 4px #0000000f, 0 16px 40px #00000024;
+
+  --f-display: 'Lato', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-body: 'Lato', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --radius: 4px;
+  --nav-width: 212px;
+  --bottom-nav-height: 64px;
+  --gutter: 40px;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #161616;
+    --surface: #1c1c1c;
+    --surface2: #2a2a2a;
+    --sidebar: #202020;
+    --ink: #ececec;
+    --ink2: #c6c6c6;
+    --muted: #9c9c9c;
+    --line: #343434;
+    --line-soft: #282828;
+    --line2: #6c6c6c;
+    --frame: #8a8a8a;
+    --link: #8fb0ff;
+    --accent: #ececec;
+    --accent-hover: #fff;
+    --accent-fg: #161616;
+    --accent-tint: #2a2a2a;
+    --red-tint: #3a1d1b;
+    --red-text: #f19a92;
+    --red-dot: #e5534b;
+    --red-solid: #e5534b;
+    --red-fg: #160806;
+    --mark: #bdbdbd;
+    --ink-btn: #ececec;
+    --ink-btn-fg: #161616;
+    --toast-bg: #ececec;
+    --toast-fg: #161616;
+    --scrim: #0000008c;
+    --shadow-lg: 0 2px 6px #0006, 0 20px 50px #0000008c;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #161616;
+  --surface: #1c1c1c;
+  --surface2: #2a2a2a;
+  --sidebar: #202020;
+  --ink: #ececec;
+  --ink2: #c6c6c6;
+  --muted: #9c9c9c;
+  --line: #343434;
+  --line-soft: #282828;
+  --line2: #6c6c6c;
+  --frame: #8a8a8a;
+  --link: #8fb0ff;
+  --accent: #ececec;
+  --accent-hover: #fff;
+  --accent-fg: #161616;
+  --accent-tint: #2a2a2a;
+  --red-tint: #3a1d1b;
+  --red-text: #f19a92;
+  --red-dot: #e5534b;
+  --red-solid: #e5534b;
+  --red-fg: #160806;
+  --mark: #bdbdbd;
+  --ink-btn: #ececec;
+  --ink-btn-fg: #161616;
+  --toast-bg: #ececec;
+  --toast-fg: #161616;
+  --scrim: #0000008c;
+  --shadow-lg: 0 2px 6px #0006, 0 20px 50px #0000008c;
+  color-scheme: dark;
+}
+
+@media (width <= 1179px) {
+  :root {
+    --nav-width: 190px;
+    --gutter: 28px;
+  }
+}
+
+@media (width <= 899px) {
+  :root {
+    --gutter: max(16px, env(safe-area-inset-left, 0px));
+  }
+}

@@ -1,0 +1,139 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 760px;
+  padding: 16px;
+  border: 1.5px dashed var(--ink2);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.askQuestion {
+  font-family: var(--f-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.draft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.draft p {
+  line-height: 1.55;
+}
+
+.gap {
+  padding: 0 3px;
+  border-bottom: 2px dashed var(--ink2);
+  border-radius: 3px;
+  background: var(--surface2);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.messageAgent {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.messageAgent p {
+  padding-top: 3px;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--ink2);
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.messageYou {
+  align-self: flex-end;
+  max-width: 80%;
+  padding: 9px 13px;
+  border-radius: var(--radius);
+  background: var(--ink-btn);
+  color: var(--ink-btn-fg);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.reply {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.reply textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.reply textarea:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--line-soft);
+  outline: none;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.resultValue {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}

@@ -1,0 +1,125 @@
+.frame {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.top {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  grid-template-areas:
+    'brand brand . exit'
+    'count steps steps steps'
+    'bar bar bar bar';
+  align-items: center;
+  row-gap: 6px;
+  column-gap: 16px;
+  padding: 16px var(--gutter) 14px;
+  border-bottom: 1px solid var(--frame);
+  background: var(--surface);
+}
+
+.top > :first-child {
+  grid-area: brand;
+}
+
+.exit {
+  grid-area: exit;
+  justify-self: end;
+}
+
+.count {
+  grid-area: count;
+  margin-top: 8px;
+  color: var(--ink2);
+  font-size: 13px;
+}
+
+.compact {
+  display: none;
+}
+
+.steps {
+  grid-area: steps;
+  display: flex;
+  margin-top: 8px;
+  color: var(--ink2);
+  font-size: 13px;
+}
+
+.steps li + li::before {
+  content: '→';
+  margin: 0 8px;
+}
+
+.steps li.current {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.bar {
+  grid-area: bar;
+  display: block;
+  max-width: 360px;
+  height: 11px;
+  overflow: hidden;
+  border: 1.3px solid var(--ink2);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--mark);
+  transition: width 0.25s;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 40px var(--gutter) 48px;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+
+.footRight {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+
+@media (width <= 899px) {
+  .steps {
+    display: none;
+  }
+
+  .compact {
+    display: inline;
+  }
+
+  .main {
+    padding: 24px var(--gutter) 32px;
+  }
+
+  .footNote {
+    display: none;
+  }
+}

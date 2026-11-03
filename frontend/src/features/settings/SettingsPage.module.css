@@ -1,0 +1,96 @@
+.narrow {
+  width: 100%;
+  max-width: 760px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.range {
+  flex: 1;
+  min-width: 180px;
+  height: 28px;
+  accent-color: var(--mark);
+}
+
+.numberBox {
+  width: 84px;
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.numberBox:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--line-soft);
+  outline: none;
+}
+
+.invalid {
+  border-color: var(--red-dot);
+}
+
+.error {
+  color: var(--red-text);
+  font-size: 13px;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.stepper button {
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.stepper button:hover {
+  background: var(--surface2);
+}
+
+.stepper button:disabled {
+  background: none;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.stepper output {
+  min-width: 56px;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}

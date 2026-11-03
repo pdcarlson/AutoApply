@@ -1,0 +1,102 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.teal {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.amber {
+  background: transparent;
+  border: 1.5px dashed var(--ink2);
+  color: var(--ink);
+}
+
+.red {
+  background: transparent;
+  border-color: var(--red-text);
+  color: var(--red-text);
+}
+
+.grey {
+  background: var(--surface2);
+  border-color: var(--line);
+  color: var(--ink2);
+}
+
+.dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot-mark {
+  background: var(--ink);
+}
+
+.dot-ink {
+  background: var(--ink2);
+}
+
+.dot-amber {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ink2);
+}
+
+.dot-red {
+  background: var(--red-dot);
+}
+
+.dot-none {
+  background: none;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1.3px solid var(--ink);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.countWarn {
+  border-style: dashed;
+}
+
+.miniTag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--line2);
+  border-radius: 3px;
+  color: var(--ink2);
+  font-size: 11px;
+}
+
+.miniFilled {
+  border-color: transparent;
+  background: var(--accent-tint);
+  color: var(--ink);
+  font-weight: 600;
+}

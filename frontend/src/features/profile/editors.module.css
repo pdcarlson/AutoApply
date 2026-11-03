@@ -1,0 +1,189 @@
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field > label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.add {
+  align-self: flex-start;
+}
+
+/* ===== Contact ===== */
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.address {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.street {
+  grid-column: span 4;
+}
+
+.street2 {
+  grid-column: span 2;
+}
+
+.city,
+.country {
+  grid-column: span 3;
+}
+
+.state {
+  grid-column: span 1;
+}
+
+.zip {
+  grid-column: span 2;
+}
+
+/* ===== Key/value rows (links, custom fields) ===== */
+.kvList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kvRow {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 10px;
+}
+
+.kvLabel {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kvHead {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ===== Entries ===== */
+.entryList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.entryText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.entryText b {
+  font-weight: 700;
+}
+
+.entryText > span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.entryCourse {
+  color: var(--ink2) !important;
+}
+
+.thinHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink) !important;
+  font-weight: 600;
+}
+
+.bullets {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+  color: var(--ink2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.entryEdit {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+@media (width <= 899px) {
+  .grid2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .address {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .address > * {
+    grid-column: auto;
+  }
+
+  .address > .street,
+  .address > .street2 {
+    grid-column: 1 / -1;
+  }
+
+  .kvRow {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+
+  .kvRow > :nth-child(2) {
+    grid-column: 1 / 2;
+  }
+
+  .kvHead {
+    display: none;
+  }
+}

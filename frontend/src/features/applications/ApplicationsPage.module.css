@@ -1,0 +1,169 @@
+.page {
+  max-width: calc(1180px + 2 * var(--gutter));
+  width: 100%;
+  margin: 0 auto;
+}
+
+.list {
+  overflow: hidden;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 150px 110px minmax(0, 1.5fr) auto;
+  grid-template-areas: 'main status date confirm actions';
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.listHead {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--frame);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.listHead > span {
+  font-size: 11px;
+}
+
+.ready {
+  box-shadow: inset 3px 0 0 var(--ink);
+}
+
+.main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.main b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.status {
+  grid-area: status;
+}
+
+.status select {
+  width: 100%;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.date {
+  grid-area: date;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.confirm {
+  grid-area: confirm;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.listHead.row .confirm {
+  display: block;
+}
+
+.confirm > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.confirm b {
+  font-weight: 700;
+}
+
+.confirm > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.ok > svg {
+  color: var(--ink);
+}
+
+.pending > svg {
+  color: var(--ink2);
+}
+
+.actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+@media (width <= 1179px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1.2fr) auto;
+    grid-template-areas: 'main status confirm actions';
+  }
+
+  .date {
+    display: none;
+  }
+}
+
+@media (width <= 899px) {
+  .listHead {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'main status'
+      'confirm confirm'
+      'actions actions';
+    gap: 10px 12px;
+    padding: 14px;
+  }
+
+  .status select {
+    width: auto;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+}

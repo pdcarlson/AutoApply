@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Job Application for Software Engineering Intern at Fake Company</title>
+</head>
+<body>
+  <h1>Software Engineering Intern</h1>
+  <form id="application-form">
+    <label for="first_name">First Name *</label>
+    <input id="first_name" name="first_name" required>
+
+    <label for="last_name">Last Name *</label>
+    <input id="last_name" name="last_name" required>
+
+    <label for="email">Email *</label>
+    <input id="email" name="email" required>
+
+    <label for="country">Country *</label>
+    <select id="country" name="country" required>
+      <option value="">Select...</option>
+      <option>Canada</option>
+      <option>United States</option>
+    </select>
+
+    <label for="phone">Phone</label>
+    <input id="phone" name="phone">
+
+    <label for="resume">Resume/CV *</label>
+    <input id="resume" name="resume" type="file" required>
+
+    <label for="question_2001">LinkedIn Profile</label>
+    <input id="question_2001" name="question_2001">
+
+    <label for="question_2002">Will you now or in the future require visa sponsorship to work in the United States? *</label>
+    <select id="question_2002" name="question_2002" required>
+      <option value="">Select...</option>
+      <option value="1">Yes</option>
+      <option value="0">No</option>
+    </select>
+
+    <label for="question_2003">How did you hear about this job?</label>
+    <input id="question_2003" name="question_2003">
+
+    <label for="question_2004">Why do you want to work here? *</label>
+    <textarea id="question_2004" name="question_2004" required></textarea>
+
+    <label for="question_2005">Anything else we should know?</label>
+    <textarea id="question_2005" name="question_2005"></textarea>
+
+    <button type="submit">Submit application</button>
+  </form>
+  <script>
+    document.getElementById("application-form").addEventListener("submit", event => {
+      event.preventDefault();
+      document.body.innerHTML = "<h1>Thank you for applying to Fake Company!</h1>";
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "first_name": "Jordan",
+  "last_name": "Rivera",
+  "email": "jordan.rivera@example.com",
+  "phone": "555-010-0123",
+  "preferred_name": "",
+  "city": "Troy",
+  "state": "New York",
+  "country": "United States",
+  "linkedin": "https://www.linkedin.com/in/jordan-rivera-example",
+  "github": "https://github.com/jordan-rivera-example",
+  "website": "",
+  "resume_path": "example_resume.pdf",
+  "current_company": "Contoso",
+  "current_title": "Software Engineering Intern",
+  "school": "Example State University",
+  "degree": "Bachelor's",
+  "major": "Computer Science",
+  "gpa": "3.6",
+  "graduation": "May 2027",
+  "earliest_start": "June 2027",
+  "work_authorized_us": true,
+  "needs_sponsorship": false,
+  "willing_to_relocate": true,
+  "eeo": "decline",
+  "answers": [
+    {
+      "question": "How did you hear about this job?",
+      "answer": "LinkedIn"
+    }
+  ]
+}

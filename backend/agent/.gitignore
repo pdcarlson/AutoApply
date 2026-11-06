@@ -1,0 +1,5 @@
+.env
+private/
+runs/
+__pycache__/
+.pytest_cache/

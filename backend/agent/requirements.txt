@@ -1,0 +1,7 @@
+playwright
+anthropic
+python-dotenv
+
+# dev / test
+pytest
+pylint

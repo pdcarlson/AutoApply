@@ -1,0 +1,34 @@
+{
+  "id": 1001,
+  "title": "Software Engineering Intern",
+  "company_name": "Fake Company",
+  "questions": [
+    {"label": "First Name", "required": true, "fields": [{"name": "first_name", "type": "input_text", "values": []}]},
+    {"label": "Last Name", "required": true, "fields": [{"name": "last_name", "type": "input_text", "values": []}]},
+    {"label": "Email", "required": true, "fields": [{"name": "email", "type": "input_text", "values": []}]},
+    {"label": "Phone", "required": false, "fields": [{"name": "phone", "type": "input_text", "values": []}]},
+    {
+      "label": "Resume/CV",
+      "required": true,
+      "fields": [
+        {"name": "resume", "type": "input_file", "values": []},
+        {"name": "resume_text", "type": "textarea", "values": []}
+      ]
+    },
+    {"label": "LinkedIn Profile", "required": false, "fields": [{"name": "question_2001", "type": "input_text", "values": []}]},
+    {
+      "label": "Will you now or in the future require visa sponsorship to work in the United States?",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_2002",
+          "type": "multi_value_single_select",
+          "values": [{"label": "Yes", "value": 1}, {"label": "No", "value": 0}]
+        }
+      ]
+    },
+    {"label": "How did you hear about this job?", "required": false, "fields": [{"name": "question_2003", "type": "input_text", "values": []}]},
+    {"label": "Why do you want to work here?", "required": true, "fields": [{"name": "question_2004", "type": "textarea", "values": []}]},
+    {"label": "Anything else we should know?", "required": false, "fields": [{"name": "question_2005", "type": "textarea", "values": []}]}
+  ]
+}

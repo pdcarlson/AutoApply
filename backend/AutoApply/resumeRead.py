@@ -2,6 +2,22 @@ import os
 
 from pypdf import PdfReader
 
+MAX_HEADER_WORDS = 3
+KNOWN_HEADERS = ["Education", "Experience", "Service", "Hobbies", "Projects",
+                 "Skills", "Awards", "Honors", "Relevant", "Coursework",
+                 "Certifications", "Activities", "Leadership", "Summary",
+                 "Objective", "Publications", "Volunteer",]
+
+
+def isHeader(text):
+    words = text.split()
+    headWord = False
+    for word in words:
+        if word in KNOWN_HEADERS:
+            headWord = True
+            break
+    return 1 <= len(words) <= MAX_HEADER_WORDS and headWord
+
 
 def readResume(path):
     if not os.path.exists(path):
@@ -9,7 +25,9 @@ def readResume(path):
         return None
     if path.endswith(".pdf"):
         return readResumePDF(path)
-
+    if path.endswith(".docx"):
+        print("docx support not yet implemented.")
+        return None
     pass
 
 
@@ -18,20 +36,24 @@ def readResumePDF(pdf_path):
     reader = PdfReader(pdf_path)
 
     # printing number of pages in pdf file
-    print(len(reader.pages))
+    # print(len(reader.pages))
 
     # creating a page object
     text = []
-    #create a dictionary: headers as keys, else as value for most recent key
+
+    # create a dictionary: headers as keys, else as value for most recent key
     sections = {"Other": []}
     curKey = "Other"
+
     for page in reader.pages:
-        page_text = page.extract_text(extraction_mode="layout")
-        words = page_text.split(sep="\n")
-        for word in words:
-            word.strip()
-            if word == "" or word == ",":
+        for line in page.extract_text(extraction_mode="layout").split("\n"):
+            line = line.strip()
+            if not line:
                 continue
-            text.append(word)
-    print(text[1])
-    return text
+
+            if isHeader(line):
+                curKey = line
+                sections.setdefault(curKey, [])
+            else:
+                sections[curKey].append(line)
+    return sections

@@ -1,8 +1,10 @@
 import resumeRead
 import Onboarding
+import tests
 
 
-
-Onboarding.askQuestions()
-
+res = tests.resumeTest()
+tests.answerBankSaveDictTest(res)
+tests.answerBankLoadTest()
+tests.onboardingTest()
 

@@ -3,6 +3,7 @@ import json
 import re
 from urllib.request import urlopen
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from agent.forms.base_form import AtsForm
@@ -75,6 +76,43 @@ def choose_option(page, value):
         page.get_by_role("option").filter(has_text=starts).first.click()
 
 
+US_STATES = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+    "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+    "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire",
+    "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York", "NC": "North Carolina",
+    "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
+    "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee",
+    "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia",
+}
+
+
+def choose_location(page, value):
+    """Click the city suggestion for a "City, State" value.
+
+    Greenhouse suggests places like "Mechanicville, New York, United States", so a state
+    written as "NY" is matched by its full name. Never picks a same-named city in another
+    state: with no match it raises, so the run stops instead of sending a wrong location.
+    """
+    page.get_by_role("option").first.wait_for()
+    city, _, state = (part.strip() for part in value.partition(","))
+    states = {state.lower(), US_STATES.get(state.upper(), state).lower()} - {""}
+    options = page.get_by_role("option")
+    seen = []
+    for index in range(options.count()):
+        text = options.nth(index).inner_text()
+        seen.append(text)
+        parts = [part.strip().lower() for part in text.split(",")]
+        if parts[0] == city.lower() and (not states or (len(parts) > 1 and parts[1] in states)):
+            options.nth(index).click()
+            return
+    raise PlaywrightError(f'No location suggestion matches "{value}". Suggestions: {seen}')
+
+
 class GreenhouseForm(AtsForm):
     """A Greenhouse form. Its questions come from Greenhouse's public Job Board API."""
 
@@ -122,7 +160,7 @@ class GreenhouseForm(AtsForm):
             # pick the suggestion that matches, like "Troy, New York, United States"
             box.click()
             box.press_sequentially(value.split(",")[0], delay=50)
-            choose_option(page, value)
+            choose_location(page, value)
         else:
             box.fill(value)
 

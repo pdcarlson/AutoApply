@@ -169,3 +169,13 @@ def test_export_includes_answers(signed_in):
     _add(signed_in)
     exported = signed_in.get("/api/account/export").json()
     assert len(exported["answers"]) == 1 and set(exported["answers"][0]) == ANSWER_KEYS
+
+
+def test_bank_starts_empty_by_default(make_app, tmp_path, monkeypatch):
+    """The example profile's answers are test data; they must never appear in a user's bank."""
+    monkeypatch.delenv("SEED_BANK_FROM_PROFILE", raising=False)
+    from server.config import load_config  # pylint: disable=import-outside-toplevel
+    config = load_config(tmp_path / "data")
+    assert config.seed_bank_from_profile is False
+    app = make_app(config=config)
+    assert app.state.answer_bank.list() == []

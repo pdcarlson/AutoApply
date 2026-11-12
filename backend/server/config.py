@@ -48,7 +48,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
     show_browser: bool = False
     slow_mo_ms: int = 0
     resume_parse_step_ms: int = 300
-    seed_bank_from_profile: bool = True
+    seed_bank_from_profile: bool = False
 
 
 def load_config(data_dir: Path | str | None = None) -> Config:
@@ -69,7 +69,7 @@ def load_config(data_dir: Path | str | None = None) -> Config:
         show_browser=_env_bool("AGENT_SHOW_BROWSER", False),
         slow_mo_ms=_env_int("AGENT_SLOW_MO_MS", 0),
         resume_parse_step_ms=_env_int("RESUME_PARSE_STEP_MS", 300),
-        seed_bank_from_profile=_env_bool("SEED_BANK_FROM_PROFILE", True),
+        seed_bank_from_profile=_env_bool("SEED_BANK_FROM_PROFILE", False),
     )
 
 

@@ -84,8 +84,10 @@ Everything (profile, resume, answers, jobs, applications, screenshots) is in `ba
 which has its own `.gitignore`, so none of it is committed. Set `AUTOAPPLY_DATA_DIR` to use
 another folder. Run one server per data folder.
 
-The first start copies the `answers` from `PROFILE_PATH` (the example profile by default) into the
-Answer bank. Set `SEED_BANK_FROM_PROFILE=false` to start with an empty bank.
+The Answer bank starts empty and only holds answers you give: your setup answers, replies to the
+agent's questions, and answers you add yourself. `SEED_BANK_FROM_PROFILE=true` is a developer
+option that copies the `answers` from `PROFILE_PATH` into a new bank once. Leave it off for real
+use: the example profile's answers are test data, not yours.
 
 To start over, stop the server and delete `backend/data/` (or run `.\scripts\demo.ps1 -Reset`).
 **Settings → Delete account** in the app does the same while the server runs.

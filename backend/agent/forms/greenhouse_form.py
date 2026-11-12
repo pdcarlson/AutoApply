@@ -30,6 +30,9 @@ PROFILE_FIELDS = {
     "resume": "resume_path",
 }
 CONFIRMATION = re.compile(r"thank you for applying|application (has been )?received", re.IGNORECASE)
+# After Submit, Greenhouse sometimes emails a code: "A verification code was sent to ...
+# Enter the 8-character code to confirm you're a human."
+CODE_PROMPT = re.compile(r"verification code|enter the \d+-character code", re.IGNORECASE)
 
 
 def fields_from_api(job):
@@ -168,10 +171,21 @@ class GreenhouseForm(AtsForm):
         """Press Submit application."""
         page.get_by_role("button", name=re.compile("submit", re.IGNORECASE)).first.click()
 
-    def is_confirmed(self, page):
-        """Wait for Greenhouse's thank-you message."""
+    def is_confirmed(self, page, timeout_ms=None):
+        """Wait for Greenhouse's thank-you message, up to timeout_ms (the page's default if None)."""
         try:
-            page.get_by_text(CONFIRMATION).first.wait_for()
+            page.get_by_text(CONFIRMATION).first.wait_for(timeout=timeout_ms)
             return True
         except PlaywrightTimeout:
             return "confirmation" in page.url
+
+    def is_open(self, page):
+        """Return True while the application form is still on the page."""
+        return page.locator("#application-form").count() > 0
+
+    def asks_for_code(self, page):
+        """Return True if Greenhouse is asking for the verification code it emailed."""
+        try:
+            return page.get_by_text(CODE_PROMPT).first.is_visible()
+        except PlaywrightError:
+            return False

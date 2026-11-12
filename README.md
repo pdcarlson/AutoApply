@@ -73,8 +73,13 @@ file.
   Applications (with the screenshot taken when it was filled), with no confirmation and a "Not
   sent: SUBMIT_REAL_FORM is off" line in its timeline, so you can walk through the whole flow
   without sending anything.
-- `true`: Submit fills the form again, presses its Submit button and checks for the confirmation
-  page. With
+- `true`: Submit presses the Submit button on the form the agent filled for your review (the
+  browser stays open from the fill until you submit, skip it, or the server stops), then waits up
+  to `CONFIRM_TIMEOUT_S` seconds (default 90) for the confirmation page. If the site emails you a
+  verification code, type it into that window meanwhile (run with `AGENT_SHOW_BROWSER=true` to
+  see it). If the window is gone (closed, or the server restarted), Submit fills the form again
+  first and says so in the timeline. At most `HELD_FORMS_MAX` (default 5) filled forms stay open;
+  past that the oldest one closes. With
   `FAKE_GREENHOUSE=true` and the fakecompany link that's the local fake form, which shows a
   confirmation reference. **With any other link it really applies to that job.**
 

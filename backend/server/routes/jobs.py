@@ -222,15 +222,21 @@ def apply_jobs(body: JobIdsBody, request: Request, store: Store = Depends(get_st
         if not db.state.get("profileConfirmed"):
             raise ApiError(409, "profile_not_confirmed", "Confirm your profile before applying.")
         queued, deferred = jobs.apply(db, body.jobIds, store.now())
-    request.app.state.worker.wake()
+    worker = request.app.state.worker
+    for job_id in queued + deferred:  # a fresh run gets a fresh window
+        worker.close_form(job_id)
+    worker.wake()
     return {"queued": queued, "deferred": deferred}
 
 
 @router.post("/jobs/cancel", status_code=204)
 def cancel_jobs(body: JobIdsBody, request: Request, store: Store = Depends(get_store)):
     with store.tx() as db:
-        jobs.cancel(db, body.jobIds)
-    request.app.state.worker.wake()
+        cancelled = jobs.cancel(db, body.jobIds)
+    worker = request.app.state.worker
+    for job_id in cancelled:
+        worker.close_form(job_id)
+    worker.wake()
     return Response(status_code=204)
 
 
@@ -241,6 +247,7 @@ def skip_job(job_id: str, request: Request, store: Store = Depends(get_store)):
         if job is None or not jobs.visible(job):
             raise not_found("Job")
         jobs.skip(db, job)
+    request.app.state.worker.close_form(job_id)  # the window held for its review, if any
     request.app.state.worker.wake()
     return Response(status_code=204)
 

@@ -10,8 +10,10 @@ Extension points for later packages:
     app.state.store        Store  (server.store)
     app.state.answer_bank  AnswerBank (server.answer_bank) over <data_dir>/answer_bank.json
     app.state.worker       AgentWorker (server.worker); routes call `.wake()`, DELETE /account
-                         calls `.cancel_current()`, tests call `.run_next()` directly
-  The lifespan calls `worker.start()` when `start_worker` is true and `worker.stop()` on shutdown.
+                         calls `.cancel_current()` and `.close_forms()`, cancel, skip and apply
+                         call `.close_form(job_id)`, tests call `.run_next()` directly
+  The lifespan calls `worker.start()` when `start_worker` is true and `worker.stop()` on shutdown
+  (which also closes the browsers held open for review).
 """
 import logging
 from contextlib import asynccontextmanager
@@ -48,6 +50,12 @@ class NullWorker:
 
     def cancel_current(self) -> None:
         """Asks the run in progress (if any) to stop at the next field. Used by DELETE /account."""
+
+    def close_form(self, job_id: str) -> None:
+        """Closes the browser held open for `job_id`'s review, if any."""
+
+    def close_forms(self) -> None:
+        """Closes every browser held open for a review."""
 
     def run_next(self) -> None:
         return None

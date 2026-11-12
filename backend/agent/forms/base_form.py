@@ -29,5 +29,16 @@ class AtsForm(ABC):
         """Press the form's submit button."""
 
     @abstractmethod
-    def is_confirmed(self, page):
-        """Return True once the site shows that the application went through."""
+    def is_confirmed(self, page, timeout_ms=None):
+        """Return True once the site shows that the application went through.
+
+        Waits up to timeout_ms for it (the page's default timeout when None).
+        """
+
+    def is_open(self, page):  # pylint: disable=unused-argument
+        """Return True while the filled-in form is still on the page."""
+        return True
+
+    def asks_for_code(self, page):  # pylint: disable=unused-argument
+        """Return True if the site is asking for a code it emailed (a human check)."""
+        return False

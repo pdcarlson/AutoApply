@@ -49,11 +49,13 @@ def export_account(request: Request, store: Store = Depends(get_store)):
 def delete_account(request: Request, store: Store = Depends(get_store)):
     """Deletes everything in the data dir but .gitignore and signs the user out.
 
-    The current run, if any, is told to stop; its job is gone once the wipe is done.
+    The current run, if any, is told to stop; its job is gone once the wipe is done. Every
+    browser held open for a review is closed.
     """
     worker = request.app.state.worker
     worker.cancel_current()
     store.wipe()
+    worker.close_forms()
     worker.wake()
     log.info("Account data deleted")
     return Response(status_code=204)

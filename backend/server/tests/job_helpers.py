@@ -6,6 +6,8 @@ to backend/agent/tests/fake_forms and nothing reaches the network or Claude.
 import time
 from pathlib import Path
 
+import server.worker
+
 FAKE_URL = "https://job-boards.greenhouse.io/fakecompany/jobs/1001"
 ASHBY_URL = "https://jobs.ashbyhq.com/acme/0a1b2c3d"
 SPONSORSHIP = "Will you now or in the future require visa sponsorship to work in the United States?"
@@ -63,6 +65,19 @@ def seed_fake_form_answers(app, why: str = "I like building tools people use.") 
     why_here = bank.upsert_by_question(WHY_HERE, why, company="Fake Company", origin="reply",
                                        source="Test")
     return {SPONSORSHIP: sponsorship["id"], WHY_HERE: why_here["id"]}
+
+
+def use_fake_form_variant(monkeypatch, query: str) -> None:
+    """Fills from now on use the fake form's test-only variant `query` (see the page's script):
+    "confirm_ms=N" confirms N ms after Submit, "code=1" asks for an emailed code instead."""
+    original = server.worker.make_form
+
+    def make_form(job, config):
+        form = original(job, config)
+        assert form.url and form.url.startswith("file://"), "only the local fake form"
+        form.url += f"?{query}"
+        return form
+    monkeypatch.setattr(server.worker, "make_form", make_form)
 
 
 def job_detail(client, job_id: str) -> dict:

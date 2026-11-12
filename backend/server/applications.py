@@ -10,9 +10,12 @@ POST /jobs/:id/submit follows SUBMIT_REAL_FORM:
 
 - off: no browser. The application is a dry run: `confirmation` null, the ready-time
   screenshot, and an amber "Not sent" line instead of a `current` event. It still counts
-  toward `sentToday`.
-- on: the worker fills the form again and presses Submit (`AgentWorker.submit_run`, which
-  never overlaps a fill). The request answers once that is done.
+  toward `sentToday`. The window held since the fill is closed untouched.
+- on: the worker presses Submit on the page held open since the fill, then waits up to
+  CONFIRM_TIMEOUT_S (default 90 s) for the thank-you page, so the user can type a code the
+  site emailed into the visible window. Without a held page it fills the form again first and
+  says so on the timeline (`AgentWorker.submit_run`, which never overlaps a fill). The request
+  answers once that is done.
 """
 import secrets
 from datetime import datetime, timedelta
@@ -40,6 +43,12 @@ ANSWERS_CHANGED = ("An answer this form needs is gone from your Answer bank, so 
 UNCONFIRMED = ("The agent pressed Submit but didn't see a confirmation page. Check the site "
                "before trying again.")
 SUBMIT_CANCELLED = "The submit was stopped before the agent pressed Submit."
+REFILLED = ("The review window was gone (closed, or the server restarted), so the agent filled "
+            "the form again before pressing Submit")
+CODE_UNCONFIRMED = ("{site} asked for the verification code it emailed you, and the agent didn't "
+                    "see a confirmation page within {seconds} seconds. Check your email and "
+                    "the site: if the application didn't go through, finish it there, then "
+                    "mark it submitted.")
 
 
 # ----- serialization -----
@@ -130,17 +139,19 @@ def submit(store: Store, worker, config, job_id: str) -> dict:
             record = from_job(db, job, submitted_by="agent", at=now,
                               events=[{"kind": "amber", "text": DRY_RUN, "at": now}],
                               screenshot=_screenshot(store, job["internal"].get("screenshot")))
-            return to_summary(record, store.now())
+            summary = to_summary(record, store.now())
+        worker.close_form(job_id)  # the held window is never touched in a dry run
+        return summary
 
     with store.tx() as db:  # moving it to running/submitting is the double-submit guard
         job = _job_in(db, job_id, "ready", "not_ready", NOT_READY)
         run_id = worker.claim(job, phase="submitting")
-    ctx, result = worker.submit_run(job_id, run_id)
+    run = worker.submit_run(job_id, run_id)
     with store.tx() as db:
         job = jobs.find(db, job_id)
         if job is None:
             raise not_found("Job")
-        outcome = _after_submit(store, worker, db, job, run_id, ctx, result)
+        outcome = _after_submit(store, worker, config, db, job, run_id, run)
         if job["internal"].get("runId") == run_id:
             job["internal"].update(runId=None, cancelRequested=False)
     if isinstance(outcome, ApiError):
@@ -148,14 +159,26 @@ def submit(store: Store, worker, config, job_id: str) -> dict:
     return outcome
 
 
-def _after_submit(store: Store, worker, db: Db, job: dict,  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-return-statements
-                  run_id: str, ctx, result) -> dict | ApiError:
-    """Applies a submit run's outcome to the job: the Application, or the error to answer with.
+def _unconfirmed(job: dict, config, result) -> str:
+    """Why the job went to `handoff` after Submit: a code was asked for, or no confirmation."""
+    if result.asked_for_code:
+        return CODE_UNCONFIRMED.format(site=job.get("ats") or "The site",
+                                       seconds=config.confirm_timeout_s)
+    return UNCONFIRMED
+
+
+def _after_submit(store: Store, worker, config, db: Db,  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-return-statements,too-many-locals
+                  job: dict, run_id: str, run) -> dict | ApiError:
+    """Applies a submit run's outcome (a worker SubmitOutcome) to the job: the Application, or
+    the error to answer with.
 
     Errors are returned, not raised, so the job's new state is saved (raising rolls back).
     """
+    ctx, result = run.ctx, run.result
     owned = worker.owns(job, run_id)
     now = store.now_iso()
+    if run.refilled and ctx is not None:
+        jobs.add_event(job, "muted", REFILLED, now)
     if result.status == "submitted":  # the form went out, even if the job was cancelled since
         link = job["internal"].get("link") or {}
         reference = f"{ATS_PREFIX.get(job.get('ats'), 'AA')}-{link.get('job_id') or job['id']}" \
@@ -171,18 +194,19 @@ def _after_submit(store: Store, worker, db: Db, job: dict,  # pylint: disable=to
             record["_resultScreenshot"] = Path(result.screenshot).name
         return to_summary(record, store.now())
 
-    pressed = ctx is not None and ctx.pressed_submit
+    pressed = run.pressed
     if not owned:  # cancelled, skipped or wiped meanwhile; leave the job where that put it
         if pressed:
-            return ApiError(502, "submit_unconfirmed", UNCONFIRMED)
+            return ApiError(502, "submit_unconfirmed", _unconfirmed(job, config, result))
         return ApiError(409, "submit_cancelled", SUBMIT_CANCELLED)
     if result.status == "needs_input" and ctx is not None:
         worker.to_question(db, job, ctx, result)
         return ApiError(409, "answers_changed", ANSWERS_CHANGED)
     if pressed:
-        job.update(state="handoff", phase=None, currentField=None, reason=UNCONFIRMED)
-        jobs.add_event(job, "amber", UNCONFIRMED, now)
-        return ApiError(502, "submit_unconfirmed", UNCONFIRMED)
+        reason = _unconfirmed(job, config, result)
+        job.update(state="handoff", phase=None, currentField=None, reason=reason)
+        jobs.add_event(job, "amber", reason, now)
+        return ApiError(502, "submit_unconfirmed", reason)
     job.update(state="ready", phase=None, currentField=None)
     if result.status == "cancelled":  # the server is shutting down
         return ApiError(409, "submit_cancelled", SUBMIT_CANCELLED)

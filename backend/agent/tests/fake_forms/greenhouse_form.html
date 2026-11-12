@@ -51,9 +51,31 @@
     <button type="submit">Submit application</button>
   </form>
   <script>
+    // Test-only variants, picked with the page's query string:
+    //   ?confirm_ms=N  the thank-you page shows up N ms after Submit
+    //   ?code=1        Submit asks for an emailed verification code, like Greenhouse can;
+    //                  Verify (or confirm_ms running out) shows the thank-you page
+    const params = new URLSearchParams(location.search);
+    const thanks = () => {
+      document.body.innerHTML = "<h1>Thank you for applying to Fake Company!</h1>";
+    };
     document.getElementById("application-form").addEventListener("submit", event => {
       event.preventDefault();
-      document.body.innerHTML = "<h1>Thank you for applying to Fake Company!</h1>";
+      if (params.has("code")) {
+        document.body.innerHTML =
+          "<p>A verification code was sent to you@example.com. Enter the 8-character code " +
+          "to confirm you're a human.</p>" +
+          '<input id="security-code" aria-label="Security code">' +
+          '<button id="verify" type="button">Verify</button>';
+        document.getElementById("verify").addEventListener("click", thanks);
+      } else if (params.has("confirm_ms")) {
+        document.body.innerHTML = "<p>Sending your application...</p>";
+      } else {
+        thanks();
+      }
+      if (params.has("confirm_ms")) {
+        setTimeout(thanks, Number(params.get("confirm_ms")));
+      }
     });
   </script>
 </body>

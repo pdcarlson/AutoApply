@@ -9,15 +9,18 @@ Runs and ownership: claiming a job sets `internal.runId`. Cancel, skip and DELET
 detach the job (runId -> None); `should_stop` notices before the next field and the run's
 result is dropped. Event and result handlers only touch a job their run still owns.
 
-Building blocks WP5 reuses for POST /jobs/:id/submit (inline in the request thread):
+One browser at a time: every run holds `_run_lock`. POST /jobs/:id/submit runs inline in the
+request thread (the request answers once the submit is done) through `submit_run`, which waits
+for a fill in progress to finish and keeps the loop from starting the next fill meanwhile:
 
     with store.tx() as db:            # require `ready`, then claim it
         run_id = worker.claim(job, phase="submitting")
-    ctx = worker.prepare(job_id, run_id)       # fresh profile, answerer, form; Claude cache kept
-    result = worker.execute(ctx, submit=True)  # phases submitting/confirming; keeps `fields`
+    ctx, result = worker.submit_run(job_id, run_id)  # fresh profile and form; keeps `fields`
 """
 import logging
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -52,6 +55,7 @@ class RunContext:  # pylint: disable=too-many-instance-attributes
     answerer: Answerer
     sources: SourceMap
     fields: list[FormField] = field(default_factory=list)  # filled in after read_fields
+    pressed_submit: bool = False  # the run got as far as pressing Submit (submit runs only)
 
     def field_by_label(self, label: str) -> FormField | None:
         wanted = normalize(label)
@@ -70,7 +74,9 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         self._thread: threading.Thread | None = None
         self._stopping = threading.Event()
         self._wake = threading.Event()
-        self._run_lock = threading.Lock()  # one fill at a time
+        self._run_lock = threading.Lock()  # one browser run (fill or submit) at a time
+        self._exclusive_waiting = 0  # submits waiting for the lock; the loop holds back meanwhile
+        self._exclusive_guard = threading.Lock()
         self._active: set[str] = set()  # run ids in progress (fill or submit)
         self._cancelled: set[str] = set()  # run ids cancel_current() stopped
 
@@ -131,7 +137,9 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
 
         Returns the id of the job it ran, or None when there was nothing to do.
         """
-        if self._stopping.is_set() or not self._run_lock.acquire(blocking=False):  # pylint: disable=consider-using-with
+        if self._stopping.is_set() or self._exclusive_waiting:  # a submit is waiting to go
+            return None
+        if not self._run_lock.acquire(blocking=False):  # pylint: disable=consider-using-with
             return None
         try:
             with self.store.tx() as db:
@@ -152,6 +160,53 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             return job_id
         finally:
             self._run_lock.release()
+
+    # ----- runs outside the loop (submit) -----
+
+    @contextmanager
+    def exclusive(self) -> Iterator[None]:
+        """Holds the run lock for a browser run outside the loop (POST /jobs/:id/submit).
+
+        Waits for a fill in progress to end. While waiting, `run_next` starts nothing new, so a
+        long queue can't keep the submit waiting. The loop is woken afterwards.
+        """
+        with self._exclusive_guard:
+            self._exclusive_waiting += 1
+        try:
+            self._run_lock.acquire()  # pylint: disable=consider-using-with
+        finally:
+            with self._exclusive_guard:
+                self._exclusive_waiting -= 1
+        try:
+            yield
+        finally:
+            self._run_lock.release()
+            self.wake()
+
+    def submit_run(self, job_id: str, run_id: str) -> tuple[RunContext | None, RunResult]:
+        """Fills a claimed `ready` job again and presses Submit (spec 2.11, SUBMIT_REAL_FORM on).
+
+        Never overlaps another browser run. Returns (ctx, result); ctx is None when the run
+        couldn't be prepared, and `ctx.pressed_submit` tells whether Submit was pressed.
+        The caller applies the outcome to the job.
+        """
+        with self.exclusive():
+            try:
+                try:
+                    ctx = self.prepare(job_id, run_id)
+                except KeyError:
+                    return None, RunResult("cancelled", "The job is gone.")
+                except Exception as error:  # pylint: disable=broad-except
+                    log.exception("Couldn't prepare the submit for job %s", job_id)
+                    return None, RunResult("failed", f"Couldn't start: {error}")
+                try:
+                    return ctx, self.execute(ctx, submit=True)
+                except Exception as error:  # pylint: disable=broad-except
+                    log.exception("Submit for job %s crashed", job_id)
+                    return ctx, RunResult("failed", f"The agent crashed: {error}")
+            finally:
+                self._active.discard(run_id)
+                self._cancelled.discard(run_id)
 
     # ----- one run -----
 
@@ -203,12 +258,19 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             return job is None or not self._owns(job, ctx.run_id)
 
     @staticmethod
+    def owns(job: dict, run_id: str) -> bool:
+        """True while `job` is running and still belongs to run `run_id`."""
+        return AgentWorker._owns(job, run_id)
+
+    @staticmethod
     def _owns(job: dict, run_id: str) -> bool:
         internal = job.get("internal") or {}
         return job.get("state") == "running" and internal.get("runId") == run_id \
             and not internal.get("cancelRequested")
 
     def _on_event(self, ctx: RunContext, submit: bool, kind: str, data: dict) -> None:
+        if submit and kind == "phase" and data.get("name") == "submitting":
+            ctx.pressed_submit = True  # emitted right before Submit is pressed
         with self.store.tx() as db:
             job = jobs.find(db, ctx.job_id)
             if job is None or not self._owns(job, ctx.run_id):
@@ -285,6 +347,10 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             jobs.requeue_at_front(db, job)
         else:
             self._to_failed(db, job, result.reason or "The run didn't finish.")
+
+    def to_question(self, db, job: dict, ctx: RunContext, result: RunResult) -> None:
+        """`needs_input` on the run's first unanswered field (a submit whose answer went away)."""
+        self._to_question(db, job, ctx, result)
 
     def _to_question(self, db, job: dict, ctx: RunContext, result: RunResult) -> None:
         form_field = result.questions[0]

@@ -1,7 +1,8 @@
 """Jobs (Inbox) routes: GET /jobs, GET /jobs/:id, POST /jobs, /jobs/apply, /jobs/cancel,
 /jobs/:id/skip and /jobs/:id/restore (spec 2.9, 2.10).
 
-WP5 adds /jobs/:id/submit, /jobs/:id/mark-submitted and the question routes.
+/jobs/:id/submit and /jobs/:id/mark-submitted live in routes/applications.py, and the question
+routes in routes/questions.py.
 """
 import logging
 import urllib.error

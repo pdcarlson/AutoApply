@@ -1,11 +1,14 @@
 """Agent questions: the `AgentQuestion` a job pauses on (spec 2.8).
 
-WP4 builds questions (`make_question`); WP5 adds reply interpretation, pick, revise and accept.
+WP4 builds questions (`make_question`). WP5 adds reading replies (`interpret`), `pick` and
+`revise`; accepting lives in server/routes/questions.py (it writes the bank and the queue).
 
 A job in `needs_input` carries the API question in `job.question` and, next to it, the field it
 asks about in `job.internal.question` = {fieldKey, label, kind, options}. `options` are exactly
 as on the form, so a proposed answer can be checked with the agent's `fits()`.
 """
+import re
+
 from agent.forms.form_field import FieldAnswer, FormField
 
 NOTHING_FOUND = "Nothing in your profile or Answer bank answers this."
@@ -70,3 +73,110 @@ def make_question(job_id: str, n: int, form_field: FormField,
     internal = {"fieldKey": form_field.key, "label": form_field.label, "kind": form_field.kind,
                 "options": options}
     return question, internal
+
+
+# ----- reading a reply (spec 2.8, a port of mocks/agent.ts interpretReply) -----
+
+UNSURE = re.compile(r"\b(maybe|depends|not sure|unsure|idk|possibly|might|perhaps|probably)\b")
+NO = re.compile(r"\b(no|nope|nah|not|never|can't|cannot|won't|wouldn't|don't)\b")
+YES = re.compile(r"\b(yes|yeah|yep|sure|ok|okay|definitely|absolutely|happy|willing|fine|i can"
+                 r"|i would|i'd|i will|of course)\b")
+AGREE = re.compile(r"^\s*(yes|yeah|yep|correct|right|looks good|sure|ok|okay)\b", re.IGNORECASE)
+QUOTED_GUESS = re.compile(r"“(.+?)”")
+
+OPTION_CONFIDENCE = 96
+GUESS_CONFIDENCE = 97
+REPLY_CONFIDENCE = 95
+PICK_CONFIDENCE = 100
+
+
+def _yes_no_value(text: str) -> str | None:
+    """Yes, No, or None when the reply is unsure or unclear (the mock's regexes)."""
+    words = " " + text.lower().replace("’", "'") + " "  # curly apostrophes, as in don’t
+    if UNSURE.search(words):
+        return None
+    if NO.search(words):
+        return "No"
+    if YES.search(words):
+        return "Yes"
+    return None
+
+
+def _unique(matches: list[str]) -> str | None:
+    return matches[0] if len(matches) == 1 else None
+
+
+def match_option(text: str, options: list[str]) -> str | None:
+    """The one option `text` means, exactly as on the form, or None.
+
+    In order: a case-insensitive exact match, then the only option contained in the reply as
+    whole words (so "He" isn't found in "she"), then the only option that starts with the reply.
+    """
+    reply = text.strip().casefold()
+    if not reply:
+        return None
+    exact = _unique([o for o in options if o.strip().casefold() == reply])
+    if exact is not None:
+        return exact
+    contained = _unique([o for o in options if o.strip() and re.search(
+        rf"(?<!\w){re.escape(o.strip().casefold())}(?!\w)", reply)])
+    if contained is not None:
+        return contained
+    return _unique([o for o in options if o.strip().casefold().startswith(reply)])
+
+
+def _option_for(options: list[str], wanted: str) -> str | None:
+    return next((o for o in options if o.strip().casefold() == wanted.casefold()), None)
+
+
+def interpret(question: dict, internal: dict, text: str) -> dict:
+    """Appends the user's reply to `question` and reads it into `proposedAnswer` (in place).
+
+    A field with options only ever gets a value that is exactly one of them, or the agent's
+    `fits()` would reject it and the job would ask again forever. When the reply doesn't name
+    one, the agent asks again and offers the options to pick from (12 or fewer).
+    """
+    question["messages"].append({"from": "you", "text": text})
+    options = list((internal or {}).get("options") or [])
+    if options:
+        if is_yes_no(options):
+            said = _yes_no_value(text)
+            value = _option_for(options, said) if said else None
+        else:
+            value = match_option(text, options)
+        if value is None:
+            question["messages"].append({
+                "from": "agent",
+                "text": f"This field only takes one of: {', '.join(options)}. Which one fits?"})
+            if len(options) <= MAX_PICK_OPTIONS:
+                question["pickOptions"] = options
+            return question
+        question["proposedAnswer"] = {"value": value, "confidence": OPTION_CONFIDENCE}
+        return question
+
+    first = question["messages"][0]["text"] if question["messages"] else ""
+    guess = QUOTED_GUESS.search(first) if first else None
+    if AGREE.search(text) and guess:
+        question["proposedAnswer"] = {"value": guess.group(1), "confidence": GUESS_CONFIDENCE}
+        return question
+    value = text.strip()
+    if (internal or {}).get("kind") == "text" and value.endswith("."):
+        value = value[:-1]
+    question["proposedAnswer"] = {"value": value, "confidence": REPLY_CONFIDENCE}
+    return question
+
+
+def pickable(question: dict, internal: dict, value: str) -> bool:
+    """True when `value` is one of the question's pickOptions or the field's options."""
+    return value in (question.get("pickOptions") or []) \
+        or value in ((internal or {}).get("options") or [])
+
+
+def pick(question: dict, value: str) -> dict:
+    question["proposedAnswer"] = {"value": value, "confidence": PICK_CONFIDENCE}
+    return question
+
+
+def revise(question: dict) -> dict:
+    question["proposedAnswer"] = None
+    return question

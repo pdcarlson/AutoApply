@@ -4,6 +4,15 @@
                 "-1": ["This question is a test", "Test"],
                 "0": ["What is your full name?", "Name"],
                 "1": ["How old are you?", "Age"],
-                "2": ["Where did you go to school?", "Education"]
+                "2": ["Where did you go to school?", "Education"],
+                "workAuthorized": ["Are you legally authorized to work in the United States?", "workAuthorized", "Eligibility"],
+                "needsSponsorship": ["Will you now or in the future require visa sponsorship?", "needsSponsorship", "Eligibility"],
+                "graduation": ["When do you graduate?", "graduation", "Education"],
+                "earliestStart": ["When can you start?", "earliestStart", "Logistics"],
+                "relocate": ["Are you willing to relocate?", "relocate", "Logistics"],
+                "locations": ["Where do you want to work?", "locations", "Logistics"],
+                "expectedPay": ["What are your salary expectations?", "expectedPay", "Pay"],
+                "familyEmployers": ["Do you have relatives employed at this company?", "familyEmployers", "Eligibility"],
+                "selfId": ["Voluntary self-identification (gender, race and ethnicity, veteran, disability)", "selfId", "Self-ID"]
               }
 }

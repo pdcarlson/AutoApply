@@ -8,7 +8,7 @@ Extension points for later packages:
 - Services: `_install_services()` puts shared objects on `app.state`:
     app.state.config       Config (server.config)
     app.state.store        Store  (server.store)
-    app.state.answer_bank  None until WP2 sets an AnswerBank
+    app.state.answer_bank  AnswerBank (server.answer_bank) over <data_dir>/answer_bank.json
     app.state.worker       NullWorker until WP4 sets an AgentWorker; routes call `.wake()`
                          and DELETE /account calls `.cancel_current()`
   The lifespan calls `worker.start()` when `start_worker` is true and `worker.stop()` on shutdown.
@@ -20,6 +20,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from server import konefal
+from server.answer_bank import AnswerBank
 from server.config import Config, load_config
 from server.errors import install_error_handlers
 from server.routes import ROUTE_MODULES
@@ -54,7 +56,11 @@ def _install_services(app: FastAPI) -> None:
     """Builds the shared services on app.state. Later packages add theirs here, in order."""
     config: Config = app.state.config
     app.state.store = Store(config.data_dir)
-    app.state.answer_bank = None  # WP2: konefal.configure(data_dir); AnswerBank(store); seed import
+    konefal.configure(config.data_dir)
+    bank = AnswerBank(app.state.store)
+    if config.seed_bank_from_profile:
+        bank.seed_from_profile(config.profile_path)  # once per data dir; reads PROFILE_PATH only
+    app.state.answer_bank = bank
     app.state.worker = NullWorker()  # WP4: restart recovery; AgentWorker(app)
 
 

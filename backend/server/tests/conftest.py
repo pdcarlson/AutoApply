@@ -3,11 +3,29 @@
 - `make_app(**kw)` builds another app on the same data dir (restart tests).
 - `client` is a TestClient (lifespan runs); the user starts signed out.
 - `signed_in` signs that client in through /auth/google.
+- Every session checks that backend/AutoApply/Bank.json (a tracked fixture) is never written.
 """
+import hashlib
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
 from server.app import create_app
+
+KONEFAL_BANK = Path(__file__).resolve().parents[2] / "AutoApply" / "Bank.json"
+
+
+def _digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else "missing"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def konefal_bank_untouched():
+    """Bank.json must stay byte-for-byte the same across the whole test session."""
+    before = _digest(KONEFAL_BANK)
+    yield before
+    assert _digest(KONEFAL_BANK) == before, "backend/AutoApply/Bank.json was modified"
 
 
 @pytest.fixture

@@ -1,21 +1,34 @@
 import json
+import os
+
 import AnswerBankManager
 import User
 
+# Absolute, so it no longer depends on the current directory.
+QUESTIONS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "OnboardingQuestions.json")
 
-# broken, will fix
+
+def loadQuestions():
+    # questionID -> [prompt, bank key] (an optional third element is the Answer-bank category)
+    with open(QUESTIONS_PATH, "r", encoding="utf-8") as file:
+        return json.load(file)["questions"]
+
+
+def saveAnswer(userID, questionID, answer):
+    # Non-interactive version of askQuestion: saves the answer under the question's bank key.
+    question = loadQuestions()[str(questionID)]
+    AnswerBankManager.SaveSingleResponse(userID, question[1], answer)
+
+
 def askQuestions(userID):
-    with open("OnboardingQuestions.json", "r") as file:
-        data = json.load(file)
-        answers = {}
-        for i in range(len(data)):
-            print(data["questions"][i]["q"])
-            answers.update({data["questions"][i]["q"]: input()})
-        AnswerBankManager.SaveResponseDictionary(userID, answers)
+    answers = {}
+    for questionID, question in loadQuestions().items():
+        print(question[0])
+        answers.update({question[1]: input()})
+    AnswerBankManager.SaveResponseDictionary(userID, answers)
 
 
 def askQuestion(userID, questionID):
-    with open("OnboardingQuestions.json", "r") as file:
-        data = json.load(file)
-        answer = input(data["questions"][questionID][0])
-        AnswerBankManager.SaveSingleResponse(userID, data["questions"][questionID][1], answer)
+    question = loadQuestions()[str(questionID)]
+    answer = input(question[0])
+    AnswerBankManager.SaveSingleResponse(userID, question[1], answer)

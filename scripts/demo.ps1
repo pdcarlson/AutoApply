@@ -51,13 +51,30 @@ if ($Reset -and (Test-Path $DataDir)) {
     Remove-Item -Recurse -Force $DataDir
 }
 
-# Child processes inherit these. Variables you already set in this terminal win otherwise.
+# Child processes inherit these. They are set explicitly in both modes, because $env: changes
+# outlive the script in this terminal: an earlier -Offline run must not leave the next run in
+# fake mode. The originals are restored when the script exits.
+$managedVars = 'AUTOAPPLY_DATA_DIR', 'FAKE_GREENHOUSE', 'USE_CLAUDE', 'SUBMIT_REAL_FORM'
+$savedEnv = @{}
+foreach ($name in $managedVars) {
+    $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
 $env:AUTOAPPLY_DATA_DIR = $DataDir
 if ($Offline) {
     $env:FAKE_GREENHOUSE = 'true'
     $env:USE_CLAUDE = 'false'
+    Write-Host 'Mode: OFFLINE. Only the fakecompany test links (jobs 1001, 1002) work; they open a local test form.'
+} else {
+    $env:FAKE_GREENHOUSE = 'false'
+    Remove-Item Env:USE_CLAUDE -ErrorAction SilentlyContinue
+    Write-Host 'Mode: REAL. Pasted Greenhouse links are read from Greenhouse and the real form is filled.'
 }
-if ($SubmitRealForm) { $env:SUBMIT_REAL_FORM = 'true' }
+if ($SubmitRealForm) {
+    $env:SUBMIT_REAL_FORM = 'true'
+} else {
+    # Let backend/agent/.env decide (false there by default).
+    Remove-Item Env:SUBMIT_REAL_FORM -ErrorAction SilentlyContinue
+}
 
 if (-not (Test-Path (Join-Path $frontend 'node_modules'))) {
     Push-Location $frontend
@@ -77,5 +94,8 @@ try {
 finally {
     if (-not $server.HasExited) {
         & taskkill /PID $server.Id /T /F | Out-Null
+    }
+    foreach ($name in $managedVars) {
+        [Environment]::SetEnvironmentVariable($name, $savedEnv[$name], 'Process')
     }
 }

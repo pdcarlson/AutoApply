@@ -31,6 +31,9 @@ log = logging.getLogger(__name__)
 
 FAKE_FORMS = BACKEND_DIR / "agent" / "tests" / "fake_forms"
 FAKE_COMPANY = "fakecompany"
+# Only these exact test postings map to the local fake form. Any other link, including
+# fakecompany with another job id, is treated as a real Greenhouse posting.
+FAKE_JOB_IDS = frozenset({"1001", "1002"})
 DEFAULT_COUNTRY = "United States"
 
 # Looked up at call time, so tests can monkeypatch `server.agent_bridge.ask_claude`.
@@ -49,7 +52,7 @@ def link_of(job: dict) -> JobLink:
 
 def is_fake(link: JobLink, config: Config) -> bool:
     return bool(config.fake_greenhouse) and link.site == "greenhouse" \
-        and link.company.lower() == FAKE_COMPANY
+        and link.company.lower() == FAKE_COMPANY and link.job_id in FAKE_JOB_IDS
 
 
 def fake_job_data() -> dict:

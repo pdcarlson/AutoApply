@@ -43,6 +43,16 @@ def test_fake_routing_needs_the_flag(app):
     assert form.job_data == {"title": "Cached", "questions": []}  # no fetch at run time
 
 
+@pytest.mark.parametrize("url", [
+    "https://job-boards.greenhouse.io/fakecompany/jobs/6218749",  # fake company, real-looking id
+    "https://job-boards.greenhouse.io/cloudflare/jobs/1001",       # real company, fake id
+])
+def test_only_the_exact_test_postings_are_faked(app, url):
+    assert app.state.config.fake_greenhouse
+    form = make_form(_job(url, job_data={"title": "Cached", "questions": []}), app.state.config)
+    assert form.url is None  # the real Greenhouse page, not the local fake form
+
+
 def test_other_sites_are_unsupported(app):
     with pytest.raises(UnsupportedLink):
         make_form(_job("https://jobs.ashbyhq.com/acme/123"), app.state.config)

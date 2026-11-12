@@ -204,7 +204,7 @@ def cached_claude(store: Store, job_id: str):
 
 
 def no_claude(_form_field: FormField, _facts: str) -> FieldAnswer:
-    """For the quick dry answer pass in POST /jobs: never calls Claude."""
+    """Never calls Claude: the quick dry answer pass in POST /jobs, and runs with Claude off."""
     return FieldAnswer("", "claude", 0, "Not asked.")
 
 

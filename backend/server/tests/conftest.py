@@ -16,6 +16,12 @@ from server.app import create_app
 KONEFAL_BANK = Path(__file__).resolve().parents[2] / "AutoApply" / "Bank.json"
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "e2e: whole flows through the real worker thread and headless Chromium "
+                   "(select with -m e2e, skip with -m 'not e2e')")
+
+
 def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else "missing"
 

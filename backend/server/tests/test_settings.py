@@ -1,5 +1,7 @@
 import pytest
 
+from server.config import load_config
+
 
 def test_settings_defaults(client):
     assert client.get("/api/settings").json() == {"confidenceThreshold": 90, "dailyLimit": 25}
@@ -69,3 +71,14 @@ def test_preferences_round_trip(client):
 def test_health(client):
     body = client.get("/api/health").json()
     assert body == {"ok": True, "submitRealForm": False, "fakeGreenhouse": True, "claude": False}
+
+
+def test_use_claude_switch(monkeypatch, tmp_path):
+    """Claude is on only with a key, and USE_CLAUDE=false turns it off even then."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    monkeypatch.delenv("USE_CLAUDE", raising=False)
+    assert load_config(tmp_path).claude_enabled is False
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-not-a-real-key")
+    assert load_config(tmp_path).claude_enabled is True
+    monkeypatch.setenv("USE_CLAUDE", "false")
+    assert load_config(tmp_path).claude_enabled is False

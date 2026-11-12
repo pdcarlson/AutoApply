@@ -105,6 +105,7 @@ def test_claude_guess_is_quoted_and_yes_uses_it(client, app, monkeypatch):
             return FieldAnswer("I like the team.", "claude", 60, "A guess.")
         return FieldAnswer("", "claude", 0, "Not in the profile.")
     monkeypatch.setattr("server.agent_bridge.ask_claude", fake_ask)
+    app.state.config.claude_enabled = True  # as if agent/.env had a key
     set_up_profile(client)
     app.state.answer_bank.upsert_by_question(SPONSORSHIP, "No", origin="manual")
     job = add_job(client)

@@ -30,7 +30,8 @@ from agent.forms.form_field import FormField
 from agent.jobs.job_link import UnsupportedLink
 from agent.runner.apply_run import ApplyRun, RunResult
 from server import jobs, questions
-from server.agent_bridge import SourceMap, build_agent_profile, cached_claude, make_form
+from server.agent_bridge import (SourceMap, build_agent_profile, cached_claude, make_form,
+                                 no_claude)
 from server.answer_bank import AnswerBank
 from server.config import Config
 from server.store import Store, iso, new_id
@@ -223,7 +224,8 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             threshold = int(db.settings["confidenceThreshold"])
         form = make_form(snapshot, self.config)
         profile, ids = build_agent_profile(self.store, self.bank, snapshot["company"])
-        answerer = Answerer(profile, cached_claude(self.store, job_id), threshold=threshold)
+        ask = cached_claude(self.store, job_id) if self.config.claude_enabled else no_claude
+        answerer = Answerer(profile, ask, threshold=threshold)
         return RunContext(job_id, run_id, snapshot["company"], form, profile, answerer,
                           SourceMap.build(self.bank, ids))
 

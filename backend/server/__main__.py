@@ -22,8 +22,9 @@ def main() -> None:
     config = load_config()
     app = create_app(config=config, start_worker=True)
     logging.getLogger("server").info(
-        "Data dir %s; SUBMIT_REAL_FORM=%s; FAKE_GREENHOUSE=%s",
-        config.data_dir, config.submit_real_form, config.fake_greenhouse)
+        "Data dir %s; SUBMIT_REAL_FORM=%s; FAKE_GREENHOUSE=%s; Claude %s",
+        config.data_dir, config.submit_real_form, config.fake_greenhouse,
+        "on" if config.claude_enabled else "off")
     uvicorn.run(app, host=config.host, port=config.port, reload=False, workers=1)
 
 

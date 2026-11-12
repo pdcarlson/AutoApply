@@ -61,7 +61,9 @@ def load_config(data_dir: Path | str | None = None) -> Config:
         port=_env_int("AUTOAPPLY_PORT", 8080),
         # The one switch for pressing Submit lives in agent/.env (or the environment).
         submit_real_form=agent_settings.SUBMIT_REAL_FORM,
-        claude_enabled=bool(os.getenv("ANTHROPIC_API_KEY")),
+        # USE_CLAUDE=false turns Claude off even when agent/.env has a key: Windows shells
+        # can't set ANTHROPIC_API_KEY to an empty value (they delete it, and .env fills it in).
+        claude_enabled=bool(os.getenv("ANTHROPIC_API_KEY")) and _env_bool("USE_CLAUDE", True),
         profile_path=Path(agent_settings.PROFILE_PATH),
         fake_greenhouse=_env_bool("FAKE_GREENHOUSE", False),
         show_browser=_env_bool("AGENT_SHOW_BROWSER", False),

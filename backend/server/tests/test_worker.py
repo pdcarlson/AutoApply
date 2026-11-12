@@ -96,6 +96,7 @@ def test_claude_guess_is_quoted_and_cached(client, app, applied, monkeypatch):
             return FieldAnswer("I like the team.", "claude", 60, "A guess.")
         return FieldAnswer("", "claude", 0, "Not in the profile.")
     monkeypatch.setattr("server.agent_bridge.ask_claude", fake_ask)
+    app.state.config.claude_enabled = True  # as if agent/.env had a key
 
     app.state.worker.run_next()
     question = job_detail(client, applied)["question"]
@@ -113,6 +114,22 @@ def test_claude_guess_is_quoted_and_cached(client, app, applied, monkeypatch):
     app.state.worker.run_next()
     assert "question_2004" not in calls[len(asked):]
     assert job_detail(client, applied)["question"]["id"] == f"q-{applied}-2"
+
+
+def test_claude_off_is_never_asked(client, app, applied, monkeypatch):
+    """With Claude off (no key, or USE_CLAUDE=false) the run asks the user, not Claude."""
+    calls = []
+
+    def fake_ask(form_field, _facts):
+        calls.append(form_field.key)
+        return FieldAnswer("Yes", "claude", 99, "A confident guess.")
+    monkeypatch.setattr("server.agent_bridge.ask_claude", fake_ask)
+    assert app.state.config.claude_enabled is False
+
+    app.state.worker.run_next()
+    assert not calls
+    question = job_detail(client, applied)["question"]
+    assert question["field"] == SPONSORSHIP and question["confidence"] == 0
 
 
 def test_fills_to_ready_with_bank_answers(client, app, applied):

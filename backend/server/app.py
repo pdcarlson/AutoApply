@@ -9,8 +9,8 @@ Extension points for later packages:
     app.state.config       Config (server.config)
     app.state.store        Store  (server.store)
     app.state.answer_bank  AnswerBank (server.answer_bank) over <data_dir>/answer_bank.json
-    app.state.worker       NullWorker until WP4 sets an AgentWorker; routes call `.wake()`
-                         and DELETE /account calls `.cancel_current()`
+    app.state.worker       AgentWorker (server.worker); routes call `.wake()`, DELETE /account
+                         calls `.cancel_current()`, tests call `.run_next()` directly
   The lifespan calls `worker.start()` when `start_worker` is true and `worker.stop()` on shutdown.
 """
 import logging
@@ -20,12 +20,13 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from server import konefal
+from server import jobs, konefal
 from server.answer_bank import AnswerBank
 from server.config import Config, load_config
 from server.errors import install_error_handlers
 from server.routes import ROUTE_MODULES
 from server.store import Store
+from server.worker import AgentWorker
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 class NullWorker:
-    """Stands in for the AgentWorker (WP4): same interface, does nothing."""
+    """A worker that does nothing: same interface as server.worker.AgentWorker."""
 
     def start(self) -> None:
         pass
@@ -61,7 +62,9 @@ def _install_services(app: FastAPI) -> None:
     if config.seed_bank_from_profile:
         bank.seed_from_profile(config.profile_path)  # once per data dir; reads PROFILE_PATH only
     app.state.answer_bank = bank
-    app.state.worker = NullWorker()  # WP4: restart recovery; AgentWorker(app)
+    with app.state.store.tx() as db:  # jobs a previous process left mid-run (spec 2.3)
+        jobs.recover_after_restart(db, app.state.store.now())
+    app.state.worker = AgentWorker(app.state.store, bank, config)
 
 
 @asynccontextmanager

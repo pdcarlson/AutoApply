@@ -1,51 +1,17 @@
 """Agent routes: /settings, /agent/status, /agent/pause, /agent/resume, plus /health."""
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Request
 
+from server import jobs
 from server.config import Config, get_config
 from server.errors import ApiError
-from server.store import Db, Store, get_store, parse_iso
+from server.jobs import agent_status
+from server.store import Store, get_store
 
 router = APIRouter()
 
 SETTINGS_RANGES = {"confidenceThreshold": (0, 100), "dailyLimit": (1, 50)}
-
-
-# ----- status (spec 2.10) -----
-
-def sent_today(db: Db, now: datetime) -> int:
-    """Applications the agent sent (dry runs included) whose submittedAt is today, local time."""
-    today = now.astimezone().date()
-    count = 0
-    for app in db.applications:
-        if app.get("submittedBy") != "agent":
-            continue
-        moment = parse_iso(app.get("submittedAt"))
-        if moment and moment.astimezone().date() == today:
-            count += 1
-    return count
-
-
-def queue_order(db: Db) -> list[str]:
-    """Running ids, then queued ids in state.queue order, then waiting ids by approval time."""
-    by_id = {job.get("id"): job for job in db.jobs}
-    running = [job["id"] for job in db.jobs if job.get("state") == "running"]
-    queued = [jid for jid in db.state.get("queue", [])
-              if by_id.get(jid, {}).get("state") == "queued"]
-    waiting = sorted((job for job in db.jobs if job.get("state") == "waiting"),
-                     key=lambda job: job.get("approvedAt") or "")
-    return running + queued + [job["id"] for job in waiting]
-
-
-def agent_status(db: Db, now: datetime) -> dict:
-    return {
-        "paused": bool(db.state.get("paused")),
-        "sentToday": sent_today(db, now),
-        "dailyLimit": db.settings["dailyLimit"],
-        "queue": queue_order(db),
-    }
 
 
 # ----- settings -----
@@ -82,7 +48,7 @@ def patch_settings(request: Request, patch: Any = Body(None), store: Store = Dep
     with store.tx() as db:
         db.settings.update(clean)
         result = dict(db.settings)
-        # WP4: jobs.promote_waiting(db) goes here (a higher limit releases waiting jobs).
+        jobs.promote_waiting(db, store.now())  # a higher limit releases waiting jobs
     request.app.state.worker.wake()
     return result
 

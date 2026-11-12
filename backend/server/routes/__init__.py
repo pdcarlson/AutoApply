@@ -2,6 +2,6 @@
 
 Add new modules to ROUTE_MODULES; `server.app.create_app` mounts each under /api.
 """
-from server.routes import account, agent, answers, auth, files, setup
+from server.routes import account, agent, answers, auth, files, jobs, setup
 
-ROUTE_MODULES = [auth, setup, agent, answers, account, files]
+ROUTE_MODULES = [auth, setup, agent, jobs, answers, account, files]

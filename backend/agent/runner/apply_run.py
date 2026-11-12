@@ -9,6 +9,9 @@ from playwright.sync_api import sync_playwright
 CONFIRM_TIMEOUT_S = 15  # how long to wait for the site's thank-you page after Submit
 CONFIRM_POLL_MS = 500  # how often to look for it meanwhile
 NOT_CONFIRMED = "Pressed Submit but never saw a confirmation."
+WINDOW_CLOSED = "The form window was closed before the application was confirmed."
+FORM_GONE = ("The form window doesn't show the form anymore, so the agent didn't press Submit. "
+             "Finish it in that window, or close the window to have the form filled again.")
 
 
 @dataclass
@@ -26,6 +29,8 @@ class RunResult:  # pylint: disable=too-many-instance-attributes
     filled_screenshot: str = ""  # taken after the last field is filled, before Submit
     held: "HeldForm | None" = None  # the still-open form, for a `ready` run with hold=True
     asked_for_code: bool = False  # no confirmation, and the site asked for an emailed code
+    pressed: bool = False  # Submit was pressed (so the application may have gone out)
+    window_closed: bool = False  # the page or browser went away (closed by the person)
 
 
 class Cancelled(Exception):
@@ -41,8 +46,9 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
     with status "cancelled" and the browser is closed.
 
     hold=True (with submit=False) keeps the browser open when the fill ends `ready`: the result's
-    `held` is a HeldForm that can press Submit later. Playwright objects belong to the thread
-    that made them, so `held` must be used and closed from the thread that called run().
+    `held` is a HeldForm that can press Submit later and stays open until its owner closes it.
+    Playwright objects belong to the thread that made them, so `held` must be used and closed
+    from the thread that called run().
     After Submit, the run waits up to confirm_timeout_s seconds for the thank-you page.
     """
 
@@ -160,9 +166,11 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
 
 
 class HeldForm:  # pylint: disable=too-many-instance-attributes
-    """A filled form left open by ApplyRun(hold=True), waiting to be sent or closed.
+    """A filled form left open by ApplyRun(hold=True), waiting to be sent.
 
     Use it only from the thread that ran the fill (Playwright's sync API is thread-bound).
+    Nothing here closes the window on its own: `submit` leaves it open whatever happens, and
+    only the owner calls `close()` (after a confirmed submit whose screenshot was saved).
     """
 
     def __init__(self, playwright, browser, page, form, result_shot, filled,  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -176,24 +184,50 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
         self.confirm_timeout_s = confirm_timeout_s
         self.closed = False
 
-    def usable(self):
-        """True while the browser, the page and the filled form are all still there."""
+    def window_open(self):
+        """True while the page is still open (False once the person closed it, or it crashed)."""
         if self.closed:
             return False
         try:
-            if self.page.is_closed() or not self.browser.is_connected():
-                return False
-            self.page.evaluate("1")  # raises if the page crashed
+            self.page.evaluate("1")  # also lets Playwright notice a closed page or browser
+        except PlaywrightError:
+            pass  # e.g. mid-navigation; only a closed page or browser counts as gone
+        try:
+            return not self.page.is_closed() and self.browser.is_connected()
+        except PlaywrightError:
+            return False
+
+    def usable(self):
+        """True while the window is open and still shows the filled form."""
+        if not self.window_open():
+            return False
+        try:
             return self.form.is_open(self.page)
         except PlaywrightError:
             return False
 
+    def confirmed(self, timeout_ms=250):
+        """True if the page shows the site's thank-you page right now."""
+        if self.closed:
+            return False
+        try:
+            return bool(self.form.is_confirmed(self.page, timeout_ms=timeout_ms))
+        except PlaywrightError:
+            return False
+
+    def save_screenshot(self, result=None):
+        """Screenshot the window to result_shot. Returns True if the file was saved."""
+        return take_screenshot(self.page, self.result_shot, result or RunResult(""))
+
     def submit(self, on_event=None, should_stop=None, should_abort=None,
                confirm_timeout_s=None):
-        """Press Submit on the filled page, wait for the confirmation, then close the browser.
+        """Press Submit on the filled page and wait for the confirmation. Never closes anything.
 
         should_stop() is checked once before Submit (True: "cancelled", nothing pressed).
         should_abort() is checked while waiting for the confirmation, to give up early.
+        A page that already shows the thank-you page counts as submitted without pressing; one
+        that shows neither the form nor a confirmation is left alone ("failed", not pressed).
+        After a press, the window is saved to result_shot (result.screenshot says if it was).
         """
         filled = self.filled
         result = RunResult("", filled=list(filled.filled),
@@ -205,15 +239,23 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
             if should_stop and should_stop():
                 result.status, result.reason = "cancelled", "Cancelled."
                 return result
-            send(self.page, self.form, result, on_event or (lambda kind, **data: None),
-                 timeout, should_abort)
+            if not self.form.is_open(self.page):
+                if self.confirmed():
+                    result.status = "submitted"
+                    result.reason = "The site confirmed the application."
+                else:
+                    result.status, result.reason = "failed", FORM_GONE
+            else:
+                send(self.page, self.form, result, on_event or (lambda kind, **data: None),
+                     timeout, should_abort)
         except PlaywrightError as error:
             result.status = "failed"
             result.reason = f"Something went wrong on the page: {error.message}"
-        finally:
-            if result.status in ("submitted", "failed"):
-                take_screenshot(self.page, self.result_shot, result)
-            self.close()
+            if not self.window_open():
+                result.window_closed = True
+                result.reason = WINDOW_CLOSED
+        if result.status == "submitted" or (result.pressed and not result.window_closed):
+            take_screenshot(self.page, self.result_shot, result)
         return result
 
     def close(self):
@@ -229,6 +271,7 @@ def send(page, form, result, emit, confirm_timeout_s, should_abort=None):  # pyl
     """Press Submit, then wait for the confirmation page. Sets result's status and reason."""
     emit("phase", name="submitting")
     form.submit(page)
+    result.pressed = True
     emit("phase", name="confirming")
     if wait_for_confirmation(page, form, confirm_timeout_s, should_abort):
         result.status, result.reason = "submitted", "The site confirmed the application."
@@ -255,12 +298,13 @@ def wait_for_confirmation(page, form, timeout_s, should_abort=None):
 
 
 def take_screenshot(page, path, result):
-    """Save a full-page screenshot and record it as the run's latest one."""
+    """Save a full-page screenshot and record it as the run's latest one. True if saved."""
     try:
         page.screenshot(path=path, full_page=True)
         result.screenshot = str(path)
+        return True
     except PlaywrightError:
-        pass
+        return False
 
 
 def close_quietly(close):

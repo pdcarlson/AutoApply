@@ -15,6 +15,8 @@ A job record in `jobs.json` is the API `Job` plus:
         runId           str | None  the run that owns the job while it is `running`
         cancelRequested bool  set by /jobs/cancel or skip; the run stops at the next field
         screenshot      str | None  `<id>-filled.png` from the last fill that reached `ready`
+        windowWatched   bool  `handoff` after an unconfirmed Submit whose window stayed open
+                              and is watched for the confirmation (gone after a restart)
 
 States: open, queued, running, waiting, needs_input, handoff, ready, plus the server-only
 `skipped` (hidden, can be restored) and `submitted` (hidden; WP5 makes the Application).
@@ -37,6 +39,9 @@ HIDDEN_STATES = ("skipped", "submitted")
 COMMITTED_STATES = ("queued", "running", "needs_input", "ready")
 CANCELLABLE_STATES = ("queued", "running", "waiting")
 RESTART_HANDOFF_REASON = "The server restarted while submitting; check the site"
+RESTART_WINDOW_GONE = ("The server restarted, so the form window closed before the application "
+                       "was confirmed. Check your email and the site: if it went through, mark "
+                       "it submitted.")
 
 
 # ----- serialization -----
@@ -260,11 +265,18 @@ def recover_after_restart(db: Db, now: datetime) -> None:
 
     - `running` while filling (or opening) -> `queued`, first in the queue, fields cleared.
     - `running` while submitting or confirming -> `handoff`: the form may have been sent.
+    - `handoff` whose open window was being watched for the confirmation: the window is gone
+      (it ended with the old process), and the reason says so.
     """
     at = iso(now)
     interrupted = []
     for job in db.jobs:
         job.setdefault("internal", {})
+        if job["internal"].get("windowWatched"):
+            job["internal"]["windowWatched"] = False
+            if job.get("state") == "handoff":
+                job["reason"] = RESTART_WINDOW_GONE
+                add_event(job, "amber", RESTART_WINDOW_GONE, at)
         if job.get("state") != "running":
             continue
         if job.get("phase") in ("submitting", "confirming"):

@@ -12,8 +12,12 @@ result is dropped. Event and result handlers only touch a job their run still ow
 Held forms: each fill runs on its own `FormSession` thread (server.held_forms), because sync
 Playwright objects can't leave the thread that made them. A fill that ends `ready` keeps its
 browser open on that thread, in `self.forms`, and the worker moves on to the next job. Submit
-presses Submit on that page; without one (restart, window closed, evicted past HELD_FORMS_MAX)
-it fills the form again first. Held forms close when the job stops being `ready`.
+presses Submit on that page; without one (restart, or the person closed the window) it fills
+the form again first, in a window that is held the same way. The worker never closes a held
+window (see server.held_forms for the only closes): skip, cancel and DELETE /account leave it
+open, and a job applied to again while its window is still open goes straight back to `ready`
+on it. A window still waiting for its confirmation after Submit is watched with no time limit;
+when the thank-you page shows up the application is recorded (`_on_window_confirmed`).
 
 One browser run at a time: every fill and submit holds `_run_lock`. POST /jobs/:id/submit runs
 in the request thread (the request answers once the submit is done) through `submit_run`, which
@@ -35,7 +39,7 @@ from agent.applicant.profile import Profile, normalize
 from agent.forms.form_field import FormField
 from agent.jobs.job_link import UnsupportedLink
 from agent.runner.apply_run import ApplyRun, RunResult
-from server import jobs, questions
+from server import applications, jobs, questions
 from server.agent_bridge import (SourceMap, build_agent_profile, cached_claude, make_form,
                                  no_claude)
 from server.answer_bank import AnswerBank
@@ -49,6 +53,10 @@ POLL_SECONDS = 1.0
 STOP_TIMEOUT_SECONDS = 30.0
 SITE_NAMES = {"greenhouse": "Greenhouse", "ashby": "Ashby", "lever": "Lever"}
 MISSING_RESUME = "This form needs a resume. Add one on your Profile page."
+HELD = "Filled and held for your review"
+REUSED = "Still filled in its open window, and held for your review"
+WINDOW_CLOSED = applications.WINDOW_CLOSED
+WINDOW_CLOSED_READY = "You closed the form window; Submit will fill the form again first"
 
 
 @dataclass
@@ -114,13 +122,15 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         self._thread.start()
 
     def stop(self) -> None:
-        """Stops the loop; a run in progress stops at its next field and goes back in line."""
+        """Stops the loop; a run in progress stops at its next field and goes back in line.
+
+        Held windows are left alone: they go away with the process (Chromium is its child).
+        """
         self._stopping.set()
         self._wake.set()
         thread, self._thread = self._thread, None
         if thread is not None and thread.is_alive():
             thread.join(STOP_TIMEOUT_SECONDS)
-        self.forms.close_all()
 
     def wake(self) -> None:
         self._wake.set()
@@ -129,13 +139,13 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         """Asks every run in progress to stop at the next field (DELETE /account)."""
         self._cancelled.update(self._active)
 
-    def close_form(self, job_id: str) -> None:
-        """Closes the browser held for `job_id`'s review, if any (cancel, skip, dry-run submit)."""
-        self.forms.close(job_id)
+    def held_form(self, job_id: str) -> FormSession | None:
+        """The live session holding `job_id`'s filled window, if any."""
+        return self.forms.get(job_id)
 
-    def close_forms(self) -> None:
-        """Closes every held browser (DELETE /account)."""
-        self.forms.close_all()
+    def close_forms_for_tests(self) -> None:
+        """Test teardown only: closes every held window so no Chromium outlives a test."""
+        self.forms.close_all_for_tests()
 
     @property
     def alive(self) -> bool:
@@ -175,7 +185,6 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         if not self._run_lock.acquire(blocking=False):  # pylint: disable=consider-using-with
             return None
         try:
-            self._close_stale_forms()
             with self.store.tx() as db:
                 jobs.promote_waiting(db, self.store.now())
                 if db.state.get("paused"):
@@ -185,33 +194,34 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
                             and j.get("state") == "queued"), None)
                 if job is None:
                     return None
+                job_id = job["id"]
+                session = self.forms.get(job_id)
+                if session is not None and session.context is not None:
+                    self._reuse_window(db, job, session)  # still open: no second window
+                    return job_id
                 jobs.reset_progress(job)
                 job["question"] = None
                 job["internal"]["question"] = None
                 run_id = self.claim(job)
-                job_id = job["id"]
-            self.forms.close(job_id)  # a window still open from an earlier fill of this job
             self.run_job(job_id, run_id)
             return job_id
         finally:
             self._run_lock.release()
 
-    def _close_stale_forms(self) -> None:
-        """Closes held forms whose job is gone or no longer `ready` (the safety net).
+    def _reuse_window(self, db, job: dict, session: FormSession) -> None:
+        """A queued job whose filled window is still open: back to `ready` on that window.
 
-        A job a submit just claimed (`running/submitting`, still waiting for the run lock)
-        keeps its form.
+        A window that was already submitted and is waiting for its confirmation goes back to
+        `handoff` instead (the form may have been sent).
         """
-        held = self.forms.job_ids()
-        if not held:
+        job["internal"].update(runId=None, cancelRequested=False)
+        if session.watching:
+            self._to_handoff(db, job, self.watching_reason(job, session.submit_result))
+            job["internal"]["windowWatched"] = True
             return
-        with self.store.tx() as db:
-            stale = [job_id for job_id in held
-                     if (job := jobs.find(db, job_id)) is None
-                     or not (job.get("state") == "ready" or (job.get("state") == "running"
-                                                             and job.get("phase") == "submitting"))]
-        for job_id in stale:
-            self.forms.close(job_id)
+        jobs.reset_progress(job)
+        self._to_ready(db, job, session.context, session.result, record_use=False,
+                       event=REUSED)
 
     # ----- runs outside the loop (submit) -----
 
@@ -239,12 +249,13 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         """Submits a claimed `ready` job (spec 2.11, SUBMIT_REAL_FORM on).
 
         Presses Submit on the form held open since the fill. When there's none, or its window
-        is gone, it fills the form again first (`outcome.refilled`). Never overlaps another
-        browser run. The caller applies the outcome to the job.
+        is gone, it fills the form again first (`outcome.refilled`), in a window held the same
+        way. Never overlaps another browser run, and never closes the window unless the
+        confirmation was seen and saved. The caller applies the outcome to the job.
         """
         with self.exclusive():
             try:
-                session = self.forms.take(job_id)
+                session = self.forms.get(job_id)
                 if session is not None:
                     outcome = self._submit_held(session, run_id)
                     if outcome is not None:
@@ -257,7 +268,7 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
 
     def _submit_held(self, session: FormSession, run_id: str) -> SubmitOutcome | None:
         """Presses Submit on the held page. None when the page is gone (nothing was pressed)."""
-        ctx = replace(session.context, run_id=run_id, pressed_submit=False, session=None)
+        ctx = replace(session.context, run_id=run_id, pressed_submit=False, session=session)
         result = session.submit(
             on_event=lambda kind, **data: self._on_event(ctx, True, kind, data),
             should_stop=lambda: self.should_stop(ctx),
@@ -266,7 +277,7 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         return None if result is None else SubmitOutcome(ctx, result)
 
     def _submit_again(self, job_id: str, run_id: str) -> SubmitOutcome:
-        """Fills the form again in this thread and presses Submit."""
+        """Fills the form again (held, on its own thread), then presses Submit on it."""
         try:
             ctx = self.prepare(job_id, run_id)
         except KeyError:
@@ -275,10 +286,20 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             log.exception("Couldn't prepare the submit for job %s", job_id)
             return SubmitOutcome(None, RunResult("failed", f"Couldn't start: {error}"), True)
         try:
-            return SubmitOutcome(ctx, self.execute(ctx, submit=True), True)
+            result = self.execute(ctx, submit=True)
         except Exception as error:  # pylint: disable=broad-except
             log.exception("Submit for job %s crashed", job_id)
             return SubmitOutcome(ctx, RunResult("failed", f"The agent crashed: {error}"), True)
+        session = ctx.session
+        if session is None or result.held is None:  # needs_input, failed or cancelled
+            return SubmitOutcome(ctx, result, True)
+        self.forms.hold(session)
+        outcome = self._submit_held(session, run_id)
+        if outcome is None:
+            outcome = SubmitOutcome(ctx, RunResult("failed", "The new form window closed "
+                                                             "before Submit."))
+        outcome.refilled = True
+        return outcome
 
     # ----- one run -----
 
@@ -301,31 +322,30 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
                           SourceMap.build(self.bank, ids))
 
     def execute(self, ctx: RunContext, submit: bool = False) -> RunResult:
-        """Runs ApplyRun for `ctx`. Progress events update the job while its run owns it.
+        """Fills the form for `ctx` (never presses Submit). Events update the job while its run
+        owns it.
 
-        With `submit=False` (a fill) the job's `fields` are rebuilt as fields are filled, and the
-        run happens on a new FormSession thread (`ctx.session`) that keeps the browser open if
-        it ends `ready`; this thread only waits for the fill. With `submit=True` (a submit that
-        fills again) it runs here, and only `phase` (submitting, confirming) and `currentField`
-        change, so the fields shown at review time stay put.
+        The fill runs on a new FormSession thread (`ctx.session`) that keeps the browser open if
+        it ends `ready`; this thread only waits for the fill. With `submit=False` (a first fill)
+        the job's `fields` are rebuilt as fields are filled. With `submit=True` (a submit that
+        fills again first) only `phase` (submitting, confirming) and `currentField` change, so
+        the fields shown at review time stay put.
         """
         try:
             ctx.fields = ctx.form.read_fields()
         except Exception:  # pylint: disable=broad-except
             ctx.fields = []  # ApplyRun reads them again and reports the error
-        hold = not submit and self.config.held_forms_max > 0
         run = ApplyRun(
-            ctx.answerer, self.store.dir("screenshots"), submit=submit,
+            ctx.answerer, self.store.dir("screenshots"), submit=False,
             show=self.config.show_browser, slow_mo=self.config.slow_mo_ms,
             on_event=lambda kind, **data: self._on_event(ctx, submit, kind, data),
-            should_stop=lambda: self.should_stop(ctx), hold=hold,
+            should_stop=lambda: self.should_stop(ctx), hold=True,
             confirm_timeout_s=self.config.confirm_timeout_s)
         self._active.add(ctx.run_id)
         try:
-            if not hold:
-                return run.run(ctx.form, shot_name=ctx.job_id)
             ctx.session = FormSession(ctx.job_id, lambda: run.run(ctx.form, shot_name=ctx.job_id),
-                                      context=ctx).start()
+                                      context=ctx, on_confirmed=self._on_window_confirmed,
+                                      on_window_closed=self._on_window_closed).start()
             return ctx.session.wait_filled()
         finally:
             self._active.discard(ctx.run_id)
@@ -392,13 +412,11 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             result = RunResult("failed", f"The agent crashed: {error}")
         session = ctx.session
         if session is not None and result.held is not None:
-            # Held before the job shows `ready`, so a submit right away finds it.
-            self.forms.hold(session, self.config.held_forms_max)
-        state = self._finish(job_id, run_id, lambda db, job: self._apply_result(db, job, ctx,
-                                                                                result))
-        if session is not None and state != "ready":
-            self.forms.discard(session)  # cancelled, skipped or wiped meanwhile
-        return state
+            # Held before the job shows `ready`, so a submit right away finds it. Kept even if
+            # the job was cancelled or skipped meanwhile: applying again reuses the window.
+            self.forms.hold(session)
+        return self._finish(job_id, run_id, lambda db, job: self._apply_result(db, job, ctx,
+                                                                               result))
 
     def _finish(self, job_id: str, run_id: str, apply) -> str | None:
         """Applies a run's outcome under the lock, if the run still owns the job."""
@@ -462,7 +480,8 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         jobs.remove_from_queue(db, job["id"])
         jobs.add_event(job, "amber", f"Paused on a question: {form_field.label}", now)
 
-    def _to_ready(self, db, job: dict, ctx: RunContext, result: RunResult) -> None:
+    def _to_ready(self, db, job: dict, ctx: RunContext, result: RunResult,  # pylint: disable=too-many-arguments,too-many-positional-arguments
+                  record_use: bool = True, event: str = HELD) -> None:
         now = self.store.now_iso()
         filled = [ctx.sources.filled_field(ctx.field_by_label(label), label, value, source,
                                            confidence)
@@ -474,11 +493,42 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         job["internal"]["screenshot"] = Path(result.filled_screenshot).name \
             if result.filled_screenshot else None
         for label, _value, source, _confidence in result.filled_detail:
-            record = ctx.sources.record_for(label) if source == "saved" else None
+            record = ctx.sources.record_for(label) if source == "saved" and record_use else None
             if record is not None:
                 self.bank.record_use(record["id"], ctx.company, label)
         jobs.remove_from_queue(db, job["id"])
-        jobs.add_event(job, "muted", "Filled and held for your review", now)
+        jobs.add_event(job, "muted", event, now)
+
+    # ----- held windows (called on their FormSession threads) -----
+
+    def watching_reason(self, job: dict, result: RunResult | None) -> str:
+        """Why a job is in `handoff` while its window waits for the confirmation."""
+        return applications.watching_reason(job, self.config,
+                                            bool(result and result.asked_for_code))
+
+    def _on_window_confirmed(self, session: FormSession, result: RunResult) -> None:
+        """A watched window shows the thank-you page (screenshot saved): record the application."""
+        with self.store.tx() as db:
+            job = jobs.find(db, session.job_id)
+            if job is None or job.get("state") == "submitted":
+                return  # wiped (DELETE /account) or already recorded
+            applications.record_confirmed(self.store, db, job, result)
+        log.info("Job %s: the confirmation showed up in its window; recorded", session.job_id)
+        self.wake()
+
+    def _on_window_closed(self, session: FormSession) -> None:
+        """The person closed a held window: say so on the job, if it still matters."""
+        with self.store.tx() as db:
+            job = jobs.find(db, session.job_id)
+            if job is None:
+                return
+            now = self.store.now_iso()
+            if job.get("state") == "handoff" and session.watching:
+                job["reason"] = WINDOW_CLOSED
+                job["internal"]["windowWatched"] = False
+                jobs.add_event(job, "amber", WINDOW_CLOSED, now)
+            elif job.get("state") == "ready":
+                jobs.add_event(job, "muted", WINDOW_CLOSED_READY, now)
 
     def _to_handoff(self, db, job: dict, reason: str) -> None:
         job.update(state="handoff", phase=None, currentField=None, question=None, reason=reason)

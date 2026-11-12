@@ -222,21 +222,15 @@ def apply_jobs(body: JobIdsBody, request: Request, store: Store = Depends(get_st
         if not db.state.get("profileConfirmed"):
             raise ApiError(409, "profile_not_confirmed", "Confirm your profile before applying.")
         queued, deferred = jobs.apply(db, body.jobIds, store.now())
-    worker = request.app.state.worker
-    for job_id in queued + deferred:  # a fresh run gets a fresh window
-        worker.close_form(job_id)
-    worker.wake()
+    request.app.state.worker.wake()  # a job whose window is still open reuses it
     return {"queued": queued, "deferred": deferred}
 
 
 @router.post("/jobs/cancel", status_code=204)
 def cancel_jobs(body: JobIdsBody, request: Request, store: Store = Depends(get_store)):
     with store.tx() as db:
-        cancelled = jobs.cancel(db, body.jobIds)
-    worker = request.app.state.worker
-    for job_id in cancelled:
-        worker.close_form(job_id)
-    worker.wake()
+        jobs.cancel(db, body.jobIds)  # a filled window stays open; applying again reuses it
+    request.app.state.worker.wake()
     return Response(status_code=204)
 
 
@@ -246,8 +240,7 @@ def skip_job(job_id: str, request: Request, store: Store = Depends(get_store)):
         job = jobs.find(db, job_id)
         if job is None or not jobs.visible(job):
             raise not_found("Job")
-        jobs.skip(db, job)
-    request.app.state.worker.close_form(job_id)  # the window held for its review, if any
+        jobs.skip(db, job)  # a filled window stays open (only the person closes it)
     request.app.state.worker.wake()
     return Response(status_code=204)
 

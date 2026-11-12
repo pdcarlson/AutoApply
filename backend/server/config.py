@@ -49,10 +49,9 @@ class Config:  # pylint: disable=too-many-instance-attributes
     slow_mo_ms: int = 0
     resume_parse_step_ms: int = 300
     seed_bank_from_profile: bool = False
-    # After Submit, how long to wait for the thank-you page (time to type an emailed code).
+    # After Submit, how long the request waits for the thank-you page before it answers (the
+    # job then goes to `handoff`, and the open window keeps being watched with no time limit).
     confirm_timeout_s: int = 90
-    # Filled forms kept open in their browser for the review; the oldest is closed past this.
-    held_forms_max: int = 5
 
 
 def load_config(data_dir: Path | str | None = None) -> Config:
@@ -75,7 +74,6 @@ def load_config(data_dir: Path | str | None = None) -> Config:
         resume_parse_step_ms=_env_int("RESUME_PARSE_STEP_MS", 300),
         seed_bank_from_profile=_env_bool("SEED_BANK_FROM_PROFILE", False),
         confirm_timeout_s=_env_int("CONFIRM_TIMEOUT_S", 90),
-        held_forms_max=_env_int("HELD_FORMS_MAX", 5),
     )
 
 

@@ -10,12 +10,20 @@ POST /jobs/:id/submit follows SUBMIT_REAL_FORM:
 
 - off: no browser. The application is a dry run: `confirmation` null, the ready-time
   screenshot, and an amber "Not sent" line instead of a `current` event. It still counts
-  toward `sentToday`. The window held since the fill is closed untouched.
+  toward `sentToday`. The window held since the fill stays open, untouched (nothing was sent,
+  so it isn't closed; the person closes it).
 - on: the worker presses Submit on the page held open since the fill, then waits up to
   CONFIRM_TIMEOUT_S (default 90 s) for the thank-you page, so the user can type a code the
   site emailed into the visible window. Without a held page it fills the form again first and
   says so on the timeline (`AgentWorker.submit_run`, which never overlaps a fill). The request
-  answers once that is done.
+  answers once that is done. No confirmation by then: the job goes to `handoff`, but the window
+  stays open and is watched with no time limit; when the thank-you page shows up the
+  application is recorded just like this (`record_confirmed`), and only then is it closed.
+
+POST /jobs/:id/mark-submitted on a job whose window is still open saves a screenshot of that
+window first (as the application's screenshot), and only then closes it. If the window shows
+the thank-you page at that moment and the agent pressed Submit there, it is recorded as a
+confirmed submit.
 """
 import secrets
 from datetime import datetime, timedelta
@@ -45,10 +53,16 @@ UNCONFIRMED = ("The agent pressed Submit but didn't see a confirmation page. Che
 SUBMIT_CANCELLED = "The submit was stopped before the agent pressed Submit."
 REFILLED = ("The review window was gone (closed, or the server restarted), so the agent filled "
             "the form again before pressing Submit")
-CODE_UNCONFIRMED = ("{site} asked for the verification code it emailed you, and the agent didn't "
-                    "see a confirmation page within {seconds} seconds. Check your email and "
-                    "the site: if the application didn't go through, finish it there, then "
-                    "mark it submitted.")
+WATCHING_CODE = ("{site} asked for the verification code it emailed you. Enter it in the open "
+                 "form window — the agent will record the application as soon as the "
+                 "thank-you page appears.")
+WATCHING = ("The agent pressed Submit but hasn't seen a confirmation page yet. The form window "
+            "stays open: finish it there — the agent will record the application as soon as "
+            "the thank-you page appears.")
+WINDOW_CLOSED = ("The form window was closed before the application was confirmed. Check your "
+                 "email and the site: if it went through, mark it submitted.")
+HIDDEN_WINDOW = (" (The agent's browser is hidden because AGENT_SHOW_BROWSER is off: check your "
+                 "email and the site, then mark it submitted.)")
 
 
 # ----- serialization -----
@@ -121,6 +135,36 @@ def from_job(db: Db, job: dict, *, submitted_by: str,  # pylint: disable=too-man
     return record
 
 
+def record_confirmed(store: Store, db: Db, job: dict, result,  # pylint: disable=too-many-arguments
+                     screenshot: str | None = None) -> dict:
+    """Records a confirmed submit (the thank-you page was seen): confirmation, `current` event.
+
+    `result` is the submit's RunResult. The application's screenshot is the ready-time one
+    unless `screenshot` (a file name in data/screenshots/) is given.
+    """
+    now = store.now_iso()
+    link = job["internal"].get("link") or {}
+    reference = f"{ATS_PREFIX.get(job.get('ats'), 'AA')}-{link.get('job_id') or job['id']}" \
+                f"-{secrets.token_hex(2).upper()}"
+    count = len(result.filled_detail) or len(job.get("fields") or [])
+    record = from_job(db, job, submitted_by="agent", at=now, events=[
+        {"kind": "accent", "text": f"Submitted via {job.get('ats')}, {count} fields. "
+                                   "Confirmation page received.", "at": now},
+        {"kind": "current", "text": WAITING, "at": now},
+    ], confirmation={"reference": reference, "confirmedAt": now},
+        screenshot=_screenshot(store, screenshot or job["internal"].get("screenshot")))
+    if result.screenshot and result.screenshot != result.filled_screenshot:
+        record["_resultScreenshot"] = Path(result.screenshot).name
+    return record
+
+
+def watching_reason(job: dict, config, asked_for_code: bool) -> str:
+    """Why the job is in `handoff` while its open window is watched for the confirmation."""
+    reason = WATCHING_CODE.format(site=job.get("ats") or "The site") if asked_for_code \
+        else WATCHING
+    return reason if config.show_browser else reason + HIDDEN_WINDOW
+
+
 def _job_in(db: Db, job_id: str, state: str, code: str, message: str) -> dict:
     job = jobs.find(db, job_id)
     if job is None or job.get("state") != state:
@@ -139,9 +183,7 @@ def submit(store: Store, worker, config, job_id: str) -> dict:
             record = from_job(db, job, submitted_by="agent", at=now,
                               events=[{"kind": "amber", "text": DRY_RUN, "at": now}],
                               screenshot=_screenshot(store, job["internal"].get("screenshot")))
-            summary = to_summary(record, store.now())
-        worker.close_form(job_id)  # the held window is never touched in a dry run
-        return summary
+            return to_summary(record, store.now())  # the held window stays open, untouched
 
     with store.tx() as db:  # moving it to running/submitting is the double-submit guard
         job = _job_in(db, job_id, "ready", "not_ready", NOT_READY)
@@ -159,11 +201,15 @@ def submit(store: Store, worker, config, job_id: str) -> dict:
     return outcome
 
 
-def _unconfirmed(job: dict, config, result) -> str:
-    """Why the job went to `handoff` after Submit: a code was asked for, or no confirmation."""
-    if result.asked_for_code:
-        return CODE_UNCONFIRMED.format(site=job.get("ats") or "The site",
-                                       seconds=config.confirm_timeout_s)
+def _unconfirmed(job: dict, config, run) -> str:
+    """Why the job went to `handoff` after Submit: its window is still open and watched, or it
+    was closed, or (no window left) no confirmation was seen."""
+    result = run.result
+    if result.window_closed:
+        return WINDOW_CLOSED
+    session = run.ctx.session if run.ctx is not None else None
+    if session is not None and session.alive:
+        return watching_reason(job, config, result.asked_for_code)
     return UNCONFIRMED
 
 
@@ -175,36 +221,30 @@ def _after_submit(store: Store, worker, config, db: Db,  # pylint: disable=too-m
     Errors are returned, not raised, so the job's new state is saved (raising rolls back).
     """
     ctx, result = run.ctx, run.result
+    existing = find(db, f"app-{job['id']}")
+    if job.get("state") == "submitted" and existing is not None:
+        return to_summary(existing, store.now())  # its window saw the confirmation meanwhile
     owned = worker.owns(job, run_id)
     now = store.now_iso()
     if run.refilled and ctx is not None:
         jobs.add_event(job, "muted", REFILLED, now)
     if result.status == "submitted":  # the form went out, even if the job was cancelled since
-        link = job["internal"].get("link") or {}
-        reference = f"{ATS_PREFIX.get(job.get('ats'), 'AA')}-{link.get('job_id') or job['id']}" \
-                    f"-{secrets.token_hex(2).upper()}"
-        count = len(result.filled_detail) or len(job.get("fields") or [])
-        record = from_job(db, job, submitted_by="agent", at=now, events=[
-            {"kind": "accent", "text": f"Submitted via {job.get('ats')}, {count} fields. "
-                                       "Confirmation page received.", "at": now},
-            {"kind": "current", "text": WAITING, "at": now},
-        ], confirmation={"reference": reference, "confirmedAt": now},
-            screenshot=_screenshot(store, job["internal"].get("screenshot")))
-        if result.screenshot and result.screenshot != result.filled_screenshot:
-            record["_resultScreenshot"] = Path(result.screenshot).name
-        return to_summary(record, store.now())
+        return to_summary(record_confirmed(store, db, job, result), store.now())
 
     pressed = run.pressed
     if not owned:  # cancelled, skipped or wiped meanwhile; leave the job where that put it
         if pressed:
-            return ApiError(502, "submit_unconfirmed", _unconfirmed(job, config, result))
+            return ApiError(502, "submit_unconfirmed", _unconfirmed(job, config, run))
         return ApiError(409, "submit_cancelled", SUBMIT_CANCELLED)
     if result.status == "needs_input" and ctx is not None:
         worker.to_question(db, job, ctx, result)
         return ApiError(409, "answers_changed", ANSWERS_CHANGED)
     if pressed:
-        reason = _unconfirmed(job, config, result)
+        reason = _unconfirmed(job, config, run)
         job.update(state="handoff", phase=None, currentField=None, reason=reason)
+        session = ctx.session if ctx is not None else None
+        job["internal"]["windowWatched"] = bool(session is not None and session.alive
+                                                and not result.window_closed)
         jobs.add_event(job, "amber", reason, now)
         return ApiError(502, "submit_unconfirmed", reason)
     job.update(state="ready", phase=None, currentField=None)
@@ -217,17 +257,53 @@ def _after_submit(store: Store, worker, config, db: Db,  # pylint: disable=too-m
 
 # ----- POST /jobs/:id/mark-submitted -----
 
-def mark_submitted(store: Store, job_id: str) -> dict:
-    """The user finished a `handoff` job on the site; returns the API `Application`."""
+def _final_look(held) -> tuple[str | None, bool]:
+    """On the session thread: (saved screenshot path or None, shows the thank-you page)."""
+    confirmed = held.confirmed()
+    return (str(held.result_shot) if held.save_screenshot() else None), confirmed
+
+
+def mark_submitted(store: Store, worker, job_id: str) -> dict:
+    """The user finished a `handoff` job on the site; returns the API `Application`.
+
+    A window still open for the job is screenshotted first (the application's screenshot);
+    only once that is saved and the application recorded is the window closed.
+    """
     with store.tx() as db:
-        job = _job_in(db, job_id, "handoff", "not_handoff", NOT_HANDOFF)
-        now = store.now_iso()
-        record = from_job(db, job, submitted_by="you", at=now, events=[
-            {"kind": "accent", "text": f"You finished it on {job.get('company', '')}’s site",
-             "at": now},
-            {"kind": "current", "text": WAITING, "at": now},
-        ])
-        return to_summary(record, store.now())
+        job = jobs.find(db, job_id)
+        existing = find(db, f"app-{job_id}")
+        if job is not None and job.get("state") == "submitted" and existing is not None:
+            return to_summary(existing, store.now())  # its window recorded it a moment ago
+        _job_in(db, job_id, "handoff", "not_handoff", NOT_HANDOFF)
+    session = worker.held_form(job_id)
+    shot, confirmed = None, False
+    if session is not None:
+        try:
+            shot, confirmed = session.call(_final_look)
+        except Exception:  # pylint: disable=broad-except
+            session = None  # closed meanwhile: nothing to screenshot or close
+    with store.tx() as db:
+        job = jobs.find(db, job_id)
+        existing = find(db, f"app-{job_id}")
+        if job is not None and job.get("state") == "submitted" and existing is not None:
+            record = existing
+        else:
+            job = _job_in(db, job_id, "handoff", "not_handoff", NOT_HANDOFF)
+            name = Path(shot).name if shot else None
+            if confirmed and session is not None and session.pressed:
+                result = session.submit_result
+                record = record_confirmed(store, db, job, result, screenshot=name)
+            else:
+                now = store.now_iso()
+                record = from_job(db, job, submitted_by="you", at=now, events=[
+                    {"kind": "accent",
+                     "text": f"You finished it on {job.get('company', '')}’s site", "at": now},
+                    {"kind": "current", "text": WAITING, "at": now},
+                ], screenshot=_screenshot(store, name))
+        summary = to_summary(record, store.now())
+    if session is not None and shot is not None:
+        session.close()  # submitted, and the screenshot is saved
+    return summary
 
 
 # ----- PATCH /applications/:id -----

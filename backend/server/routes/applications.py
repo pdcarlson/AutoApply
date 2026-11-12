@@ -26,8 +26,8 @@ def submit_job(job_id: str, request: Request, store: Store = Depends(get_store),
 
 
 @router.post("/jobs/{job_id}/mark-submitted")
-def mark_submitted(job_id: str, store: Store = Depends(get_store)):
-    return applications.mark_submitted(store, job_id)
+def mark_submitted(job_id: str, request: Request, store: Store = Depends(get_store)):
+    return applications.mark_submitted(store, request.app.state.worker, job_id)
 
 
 @router.get("/applications")

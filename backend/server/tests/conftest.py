@@ -49,12 +49,11 @@ def server_env(monkeypatch):
     monkeypatch.setenv("AGENT_SHOW_BROWSER", "false")
     monkeypatch.setenv("AGENT_SLOW_MO_MS", "0")
     monkeypatch.setenv("CONFIRM_TIMEOUT_S", "90")
-    monkeypatch.setenv("HELD_FORMS_MAX", "5")
 
 
 @pytest.fixture
 def make_app(data_dir, server_env):  # pylint: disable=redefined-outer-name,unused-argument
-    """Builds apps; afterwards, closes any browser they still hold open for a review."""
+    """Builds apps; afterwards, closes every form window they still hold (the app never does)."""
     built_apps = []
 
     def build(**kwargs):
@@ -65,7 +64,9 @@ def make_app(data_dir, server_env):  # pylint: disable=redefined-outer-name,unus
         return built
     yield build
     for built in built_apps:
-        built.state.worker.close_forms()
+        closer = getattr(built.state.worker, "close_forms_for_tests", None)
+        if closer is not None:
+            closer()
 
 
 @pytest.fixture

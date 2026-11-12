@@ -1,7 +1,8 @@
 """POST /jobs/:id/submit in both SUBMIT_REAL_FORM modes, and /jobs/:id/mark-submitted.
 
 `submit_real_form=True` only ever runs against the local fake Greenhouse form (FAKE_GREENHOUSE).
-A fill that reaches `ready` keeps its browser open; Submit presses Submit on that page.
+A fill that reaches `ready` keeps its browser open; Submit presses Submit on that page. The app
+only closes a window after a confirmed submit's screenshot; conftest closes the rest.
 """
 # pylint: disable=redefined-outer-name,unused-argument
 import threading
@@ -12,9 +13,9 @@ import pytest
 
 from playwright.sync_api import BrowserType
 
-from agent.runner.apply_run import RunResult
+from agent.runner.apply_run import NOT_CONFIRMED, RunResult
 from server import jobs
-from server.applications import REFILLED
+from server.applications import REFILLED, WATCHING
 from fastapi.testclient import TestClient
 
 from server.tests.job_helpers import (ASHBY_URL, FAKE_URL, SPONSORSHIP, add_job, apply,
@@ -66,7 +67,7 @@ def test_dry_run_submit(client, app, ready):
     session = app.state.worker.forms.get(ready)
     assert session is not None and session.alive  # held open for the review
     response = submit(client, ready)
-    assert not session.alive and app.state.worker.forms.get(ready) is None
+    assert session.alive and app.state.worker.forms.get(ready) is session  # nothing was sent
     assert response.status_code == 200, response.text
     summary = response.json()
     assert summary["id"] == f"app-{ready}" and summary["jobId"] == ready
@@ -119,6 +120,7 @@ def test_real_submit_against_the_fake_form(client, app, ready, monkeypatch):
     assert summary["confirmation"]["reference"].startswith("GH-1001-")
     assert summary["confirmation"]["confirmedAt"] == summary["submittedAt"]
     assert phases == ["submitting", "confirming"]
+    # Closed only because it was confirmed and the screenshot saved.
     assert launched == [] and not session.alive and len(app.state.worker.forms) == 0
     shots = app.state.store.dir("screenshots")
     assert (shots / f"{ready}-filled.png").is_file() and (shots / f"{ready}-result.png").is_file()
@@ -177,8 +179,9 @@ def test_submit_waits_for_a_late_confirmation(client, app, monkeypatch):
     assert response.json()["confirmation"] is not None
 
 
-def test_verification_code_never_entered(client, app, monkeypatch):
-    """The site asks for an emailed code and nobody types it: handoff, and the reason says so."""
+def test_verification_code_not_entered_in_time(client, app, monkeypatch):
+    """The site asks for an emailed code and nobody types it in time: handoff, the reason says
+    so, and the window stays open (test_held_forms covers what happens next)."""
     use_fake_form_variant(monkeypatch, "code=1")
     set_up_profile(client)
     seed_fake_form_answers(app)
@@ -189,13 +192,13 @@ def test_verification_code_never_entered(client, app, monkeypatch):
     response = submit(client, job_id)
     assert response.status_code == 502 and response.json()["code"] == "submit_unconfirmed"
     message = response.json()["message"]
-    assert message.startswith("Greenhouse asked for the verification code it emailed you")
-    assert "within 2 seconds" in message
+    assert message.startswith("Greenhouse asked for the verification code it emailed you. "
+                              "Enter it in the open form window")
     detail = job_detail(client, job_id)
     assert detail["state"] == "handoff" and detail["reason"] == message
     last = app.state.store.read("jobs")[0]["timeline"][-1]
     assert (last["kind"], last["text"]) == ("amber", message)
-    assert not session.alive and len(app.state.worker.forms) == 0
+    assert session.alive and session.watching and app.state.worker.forms.get(job_id) is session
     assert app.state.store.path("screenshots", f"{job_id}-result.png").is_file()
 
 
@@ -245,7 +248,7 @@ def test_answer_deleted_before_a_refill_asks_again(client, app):
     set_up_profile(client)
     ids = seed_fake_form_answers(app)
     job_id = make_ready(client, app)
-    app.state.worker.close_form(job_id)  # like a restart
+    app.state.worker.held_form(job_id).close()  # like a restart
     app.state.config.submit_real_form = True
     assert client.delete(f"/api/answers/{ids[SPONSORSHIP]}").status_code == 204
     response = submit(client, job_id)
@@ -260,18 +263,21 @@ def test_answer_deleted_before_a_refill_asks_again(client, app):
     (False, "submit_failed", "ready"), (True, "submit_unconfirmed", "handoff")])
 def test_failed_submit(client, app, ready, monkeypatch, pressed, code, state):
     app.state.config.submit_real_form = True
-    app.state.worker.close_form(ready)  # the refill path, so fill_and_send can be faked
+    session = app.state.worker.held_form(ready)
 
-    def fake_fill(self, form, answered, shot_name):  # pylint: disable=unused-argument
+    def fake_submit(self, on_event=None, **_kwargs):  # pylint: disable=unused-argument
         if pressed:
-            self.emit("phase", name="submitting")
-            return RunResult("failed", "Pressed Submit but never saw a confirmation.")
+            on_event("phase", name="submitting")
+            return RunResult("failed", NOT_CONFIRMED, pressed=True)
         return RunResult("failed", "Something went wrong on the page: boom")
-    monkeypatch.setattr("agent.runner.apply_run.ApplyRun.fill_and_send", fake_fill)
+    monkeypatch.setattr("agent.runner.apply_run.HeldForm.submit", fake_submit)
     response = submit(client, ready)
     assert response.status_code == 502 and response.json()["code"] == code
     detail = job_detail(client, ready)
     assert detail["state"] == state and detail["phase"] is None
+    assert session.alive and session.watching == pressed  # the window stays either way
+    if pressed:
+        assert detail["reason"].startswith(WATCHING)
     assert detail["fields"]  # review-time fields kept
     assert app.state.store.read("jobs")[0]["internal"]["runId"] is None
     assert client.get("/api/applications").json() == []

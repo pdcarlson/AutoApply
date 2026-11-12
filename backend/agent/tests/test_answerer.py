@@ -1,4 +1,6 @@
 """Tests for picking answers."""
+import copy
+
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile
 from agent.forms.form_field import FieldAnswer, FormField
@@ -24,7 +26,9 @@ def test_standard_fields_come_from_the_profile():
 
 def test_saved_answer_beats_claude():
     """A question the applicant already answered uses their answer."""
-    answerer = Answerer(PROFILE, claude_says("wrong", 100))
+    profile = copy.deepcopy(PROFILE)
+    profile.save_answer("How did you hear about this job?", "LinkedIn")
+    answerer = Answerer(profile, claude_says("wrong", 100))
     answer = answerer.answer(FormField("question_1", "How did you hear about this job? ", "text"))
     assert (answer.value, answer.source) == ("LinkedIn", "saved")
 

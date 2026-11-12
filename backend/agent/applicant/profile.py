@@ -11,7 +11,9 @@ def normalize(question):
 
 
 def yes_no(value):
-    """Turn True/False into the words Claude reads."""
+    """Turn True/False/None into the words Claude reads."""
+    if value is None:
+        return "Unknown (ask the applicant)"
     return "Yes" if value else "No"
 
 
@@ -47,11 +49,13 @@ class Profile:  # pylint: disable=too-many-instance-attributes
     gpa: str = ""
     graduation: str = ""
     earliest_start: str = ""
-    work_authorized_us: bool = True
-    needs_sponsorship: bool = False
-    willing_to_relocate: bool = True
+    # None means the applicant hasn't said, so Claude is told to ask
+    work_authorized_us: bool | None = True
+    needs_sponsorship: bool | None = False
+    willing_to_relocate: bool | None = True
     eeo: str = "decline"
     answers: list[SavedAnswer] = field(default_factory=list)
+    extra_facts: list[str] = field(default_factory=list)  # more lines for Claude to read
 
     @property
     def location(self):
@@ -73,7 +77,11 @@ class Profile:  # pylint: disable=too-many-instance-attributes
     def save(self, path):
         """Write the profile back to a JSON file."""
         data = asdict(self)
-        data["resume_path"] = os.path.relpath(self.resume_path, Path(path).parent)
+        if self.resume_path:
+            data["resume_path"] = os.path.relpath(self.resume_path, Path(path).parent)
+        # Leave the key out when unused, so saving never adds a new key to a profile file
+        if not self.extra_facts:
+            del data["extra_facts"]
         Path(path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
     def saved_answer(self, question):
@@ -114,4 +122,5 @@ class Profile:  # pylint: disable=too-many-instance-attributes
             + ("decline to answer" if self.eeo == "decline" else "ask the applicant"),
         ]
         lines += [f'Saved answer to "{saved.question}": {saved.answer}' for saved in self.answers]
+        lines += self.extra_facts
         return "\n".join(lines)

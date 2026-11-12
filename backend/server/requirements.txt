@@ -1,0 +1,7 @@
+-r ../agent/requirements.txt
+fastapi>=0.115
+uvicorn>=0.30
+python-multipart
+httpx
+pypdf>=4
+python-docx

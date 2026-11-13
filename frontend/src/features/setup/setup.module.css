@@ -200,6 +200,14 @@
   grid-column: 1 / -1;
 }
 
+/* Heads a run of related questions, like self-identification */
+.questionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 22px 20px 4px;
+}
+
 .skipped .questionLabel,
 .skipped .questionControl {
   opacity: 0.45;

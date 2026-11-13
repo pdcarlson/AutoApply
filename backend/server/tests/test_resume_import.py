@@ -109,6 +109,25 @@ def test_header_sections_on_dicts():
     assert {"status": "ok", "label": "Skills · 4"} in labels
 
 
+def test_two_degrees_under_one_school_are_two_entries():
+    sections = {"EDUCATION": [
+        "Example Polytechnic Institute                                        Troy, NY",
+        "Master of Science in Computer Science, GPA 4.0          January 2026 - Expected December 2026",
+        "Bachelor of Science in Computer Science, GPA 3.62          August 2022 - December 2025",
+    ]}
+    patch, unplaced, _ = sections_to_profile(sections)
+    pick = ("id", "school", "location", "degreeType", "major", "gpa", "start", "end")
+    assert [{k: e[k] for k in pick} for e in patch["education"]] == [
+        {"id": "ed-1", "school": "Example Polytechnic Institute", "location": "Troy, NY",
+         "degreeType": "Master of Science", "major": "Computer Science", "gpa": "4.0",
+         "start": "2026-01-01", "end": "2026-12-01"},
+        {"id": "ed-2", "school": "Example Polytechnic Institute", "location": "Troy, NY",
+         "degreeType": "Bachelor of Science", "major": "Computer Science", "gpa": "3.62",
+         "start": "2022-08-01", "end": "2025-12-01"},
+    ]
+    assert unplaced == []
+
+
 def test_split_line_takes_a_right_hand_date_column():
     assert split_line("Acme - Intern      Boston, MA      June 2024 - Aug 2024") == (
         "Acme - Intern", "June 2024 - Aug 2024", "Boston, MA")

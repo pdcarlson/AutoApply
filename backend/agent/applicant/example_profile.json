@@ -26,7 +26,71 @@
   "answers": [
     {
       "question": "How did you hear about this job?",
-      "answer": "LinkedIn"
+      "answer": "Grace Hopper Celebration"
+    },
+    {
+      "question": "Do you currently have the right to work in the UK?",
+      "answer": "Yes"
+    },
+    {
+      "question": "Do you now or will you in the future require immigration sponsorship to work at Cloudflare?",
+      "answer": "No"
+    },
+    {
+      "question": "Are you currently enrolled in a university or program and will return to the program upon completion of internship?",
+      "answer": "Yes"
+    },
+    {
+      "question": "If you are currently enrolled in a university or program, when do you expect to graduate or complete your program? (Select the closest date.)",
+      "answer": "Before 2026"
+    },
+    {
+      "question": "If you are enrolled in university, what degree are you currently pursuing?",
+      "answer": "Master's"
+    },
+    {
+      "question": "A successful internship may lead to consideration for a full-time opportunity. If you were to receive a full-time offer, when would you be available to start?",
+      "answer": "Immediately after the internship ends"
+    },
+    {
+      "question": "Which term(s) are you available to intern?",
+      "answer": "Winter/Spring (January - May 2027)"
+    },
+    {
+      "question": "Are you available for a 12-week full-time (40 hours per week) internship during your select term(s)?",
+      "answer": "Yes"
+    },
+    {
+      "question": "Are you able to work in our London office 3\u20135 days a week?",
+      "answer": "Yes"
+    },
+    {
+      "question": "Area of interest in Software Engineering",
+      "answer": "Backend/Systems"
+    },
+    {
+      "question": "Why are you interested in Cloudflare's Software Engineering Internship? What products or features are you interested in building?",
+      "answer": "I want to have fun"
+    },
+    {
+      "question": "Please review and acknowledge Cloudflare's Candidate Privacy Policy (cloudflare.com/candidate-privacy-notice/).",
+      "answer": "Acknowledge/Confirm"
+    },
+    {
+      "question": "This role requires a hybrid work schedule, with 3 days per week in the office at the specified location in the description. Are you willing, and able to work on this schedule for this role?",
+      "answer": "Yes"
+    },
+    {
+      "question": "This role is designed for new graduates or engineers with less than 1 year of professional experience. How much full-time professional software engineering experience do you have (excluding internships)?",
+      "answer": "0 years"
+    },
+    {
+      "question": "If you receive and accept an offer, when would you be available to start?",
+      "answer": "More than 60 days after accepting."
+    },
+    {
+      "question": "Do you consent to the use of an AI interview assistant to help with note-taking during your conversation?",
+      "answer": "Yes, I consent."
     }
   ]
 }

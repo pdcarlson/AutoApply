@@ -155,7 +155,24 @@ export type CommonQuestionKey =
   | 'locations'
   | 'expectedPay'
   | 'familyEmployers'
-  | 'selfId';
+  | SelfIdKey;
+
+/** Voluntary self-identification questions; each one can be answered, declined, or skipped. */
+export type SelfIdKey = 'gender' | 'hispanicLatino' | 'race' | 'veteran' | 'disability';
+
+/** "I don't wish to answer", a valid answer to every self-ID question. */
+export type Decline = 'decline';
+
+export const RACES = [
+  'American Indian or Alaska Native',
+  'Asian',
+  'Black or African American',
+  'Native Hawaiian or Other Pacific Islander',
+  'White',
+  'Two or More Races',
+] as const;
+
+export type Race = (typeof RACES)[number];
 
 export interface CommonAnswers {
   workAuthorized: YesNo | null;
@@ -169,8 +186,14 @@ export interface CommonAnswers {
   /** Free text; only used when a form requires a number. */
   expectedPay: string;
   familyEmployers: string[];
-  /** `decline` always picks "I don't wish to answer"; `ask` asks the first time each comes up. */
-  selfId: 'decline' | 'ask';
+  // Self-ID: null means not answered yet, so the agent asks the first time a form has it.
+  gender: 'Male' | 'Female' | 'Non-binary' | Decline | null;
+  hispanicLatino: YesNo | Decline | null;
+  /** Only asked when `hispanicLatino` is "No"; declining Hispanic/Latino declines race too. */
+  race: Race | Decline | null;
+  /** "Yes" means a protected veteran. */
+  veteran: YesNo | Decline | null;
+  disability: YesNo | Decline | null;
   skipped: CommonQuestionKey[];
 }
 
@@ -282,7 +305,10 @@ export interface AgentQuestion {
   draft: { text: string; gap: string } | null;
   messages: { from: 'agent' | 'you'; text: string }[];
   placeholder: string;
-  /** Options the user can pick directly instead of replying. Null hides them. */
+  /**
+   * The form field's options, when it only takes one of them. The user picks one and there's
+   * no reply box. Null when the field takes free text, so the user replies in their own words.
+   */
   pickOptions: string[] | null;
   /** The answer the agent will enter once the user accepts it. Null while it still needs a reply. */
   proposedAnswer: { value: string; confidence: number } | null;

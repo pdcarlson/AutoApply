@@ -12,8 +12,6 @@ import re
 from agent.forms.form_field import FieldAnswer, FormField
 
 NOTHING_FOUND = "Nothing in your profile or Answer bank answers this."
-MAX_PICK_OPTIONS = 12
-LISTED_OPTIONS = 5
 
 
 def question_id(job_id: str, n: int) -> str:
@@ -25,17 +23,9 @@ def is_yes_no(options: list[str]) -> bool:
 
 
 def _first_message(form_field: FormField, guess: FieldAnswer | None) -> str:
-    options = form_field.options
-    if options and is_yes_no(options):
-        return f"{NOTHING_FOUND} Pick one, or reply in your own words."
-    if options and len(options) <= MAX_PICK_OPTIONS:
-        listed = ", ".join(options[:LISTED_OPTIONS])
-        more = len(options) - LISTED_OPTIONS
-        if more > 0:
-            listed += f" and {more} more"
-        return f"{NOTHING_FOUND} Pick one ({listed}), or reply in your own words."
-    if options:
-        return "Reply with the option you want; it has to match one on the form."
+    if form_field.options:
+        # The frontend shows the options to pick from and no reply box
+        return f"{NOTHING_FOUND} Pick one."
     if guess is not None and guess.value:
         return (f"My best guess is “{guess.value}”, but I’m only {guess.confidence}% sure. "
                 "Reply “yes” to use it, or tell me the right answer.")
@@ -66,7 +56,8 @@ def make_question(job_id: str, n: int, form_field: FormField,
         "draft": None,
         "messages": [{"from": "agent", "text": _first_message(form_field, usable_guess)}],
         "placeholder": placeholder,
-        "pickOptions": options if options and len(options) <= MAX_PICK_OPTIONS else None,
+        # Every option, however many: a field with options is answered by picking one
+        "pickOptions": options or None,
         "proposedAnswer": None,
         "defaultScope": "company" if form_field.kind == "textarea" else "all",
     }
@@ -134,7 +125,7 @@ def interpret(question: dict, internal: dict, text: str) -> dict:
 
     A field with options only ever gets a value that is exactly one of them, or the agent's
     `fits()` would reject it and the job would ask again forever. When the reply doesn't name
-    one, the agent asks again and offers the options to pick from (12 or fewer).
+    one, the agent asks again and offers the options to pick from.
     """
     question["messages"].append({"from": "you", "text": text})
     options = list((internal or {}).get("options") or [])
@@ -148,8 +139,7 @@ def interpret(question: dict, internal: dict, text: str) -> dict:
             question["messages"].append({
                 "from": "agent",
                 "text": f"This field only takes one of: {', '.join(options)}. Which one fits?"})
-            if len(options) <= MAX_PICK_OPTIONS:
-                question["pickOptions"] = options
+            question["pickOptions"] = options
             return question
         question["proposedAnswer"] = {"value": value, "confidence": OPTION_CONFIDENCE}
         return question

@@ -99,13 +99,13 @@ describe('InboxPage', () => {
     expect(await screen.findByRole('button', { name: /^Contoso ·/ })).toBeInTheDocument();
   });
 
-  it('answers a question in plain words and accepts the result', async () => {
+  it('answers an options question by picking one, with no reply box', async () => {
     signIn();
     const user = userEvent.setup();
     renderAt(inbox, '/inbox?job=job-103');
 
-    await user.type(await screen.findByLabelText('Your reply'), 'yes, I would move');
-    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await user.click(await screen.findByRole('button', { name: 'Yes' }));
+    expect(screen.queryByLabelText('Your reply')).not.toBeInTheDocument();
     expect(await screen.findByText('I’ll enter')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Use this answer' }));

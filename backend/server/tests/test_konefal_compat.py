@@ -54,7 +54,7 @@ def test_delete_response(bank_file):
     assert ABM.LoadUser("u") == {}
 
 
-def test_load_questions_has_the_nine_common_keys_and_the_originals():
+def test_load_questions_has_the_common_keys_and_the_originals():
     questions = konefal.Onboarding.loadQuestions()
     for key in COMMON_QUESTION_KEYS:
         assert key in questions
@@ -68,7 +68,7 @@ def test_ask_questions_no_longer_raises(bank_file, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda *args: "x")
     konefal.Onboarding.askQuestions(-1)
     saved = ABM.LoadUser(-1)
-    assert saved["Name"] == "x" and saved["selfId"] == "x"
+    assert saved["Name"] == "x" and saved["gender"] == "x"
 
 
 def test_ask_question_and_save_answer(bank_file, monkeypatch):

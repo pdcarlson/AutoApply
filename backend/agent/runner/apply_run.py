@@ -147,12 +147,14 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
         self.emit("phase", name="filling")
         for form_field, answer in answered:
             self.check_stop()
+            if not form.shows(page, form_field):
+                continue
             self.emit("field", label=form_field.label)
-            form.fill(page, form_field, answer.value)
-            result.filled.append((form_field.label, answer.value, answer.source))
-            result.filled_detail.append((form_field.label, answer.value, answer.source,
+            value = form.fill(page, form_field, answer.value) or answer.value
+            result.filled.append((form_field.label, value, answer.source))
+            result.filled_detail.append((form_field.label, value, answer.source,
                                          answer.confidence))
-            self.emit("filled", label=form_field.label, value=answer.value,
+            self.emit("filled", label=form_field.label, value=value,
                       source=answer.source, confidence=answer.confidence)
 
         take_screenshot(page, filled_shot, result)

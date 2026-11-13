@@ -31,7 +31,8 @@ _MONTH = (r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|
 _MONTH_YEAR = rf"{_MONTH}\s+\d{{4}}"
 MONTH_YEAR_RE = re.compile(rf"(?<![A-Za-z])(?P<month>{_MONTH})\s+(?P<year>\d{{4}})\b", re.I)
 RANGE_RE = re.compile(
-    rf"(?P<start>{_MONTH_YEAR})\s*(?:to|–|—|-)\s*(?P<end>{_MONTH_YEAR}|Present|Current|Now)\b",
+    rf"(?P<start>{_MONTH_YEAR})\s*(?:to|–|—|-)\s*(?:(?:Expected|Anticipated)\s+)?"
+    rf"(?P<end>{_MONTH_YEAR}|Present|Current|Now)\b",
     re.I)
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 PHONE_RE = re.compile(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
@@ -299,9 +300,14 @@ class _Contact:
 
 # ----- entries -----
 
-def parse_education(lines: list[str]) -> tuple[dict, list[str]]:
-    """One school's lines -> (Education without id, leftover lines)."""
-    entry = {"school": "", "degreeType": "", "major": "", "gpa": "", "location": "",
+def parse_education(lines: list[str], school: str = "",
+                    location: str = "") -> tuple[dict, list[str]]:
+    """One degree's lines -> (Education without id, leftover lines).
+
+    `school` and `location` are given for a further degree listed under the previous entry's
+    school; the lines then aren't searched for a school.
+    """
+    entry = {"school": school, "degreeType": "", "major": "", "gpa": "", "location": "",
              "start": "", "end": "", "coursework": ""}
     leftovers: list[str] = []
     date_texts: list[str] = []
@@ -353,6 +359,7 @@ def parse_education(lines: list[str]) -> tuple[dict, list[str]]:
         entry["start"], entry["end"] = found["start"], found["end"]
     if not entry["location"] and entry["school"]:
         entry["school"], entry["location"] = _strip_location(entry["school"])
+    entry["location"] = entry["location"] or location
     return entry, leftovers
 
 
@@ -491,6 +498,26 @@ def _new_education(line: str, group: list[str]) -> bool:
     return bool(SCHOOL_RE.search(line)) and any(SCHOOL_RE.search(g) for g in group)
 
 
+def _group_education(lines: list[str]) -> list[tuple[list[str], bool]]:
+    """An Education section -> [(lines, same_school)], one entry per degree.
+
+    A second degree line under one school ("Master of ..." then "Bachelor of ...") starts a new
+    entry with `same_school` True: it takes its school from the entry before it.
+    """
+    groups: list[tuple[list[str], bool]] = []
+    for line in lines:
+        group = groups[-1][0] if groups else None
+        if group is not None and _is_bullet(line):
+            group.append(line)
+        elif group is None or _new_education(line, group):
+            groups.append(([line], False))
+        elif DEGREE_RE.search(line) and any(DEGREE_RE.search(g) for g in group):
+            groups.append(([line], True))
+        else:
+            group.append(line)
+    return groups
+
+
 def _new_project(line: str, group: list[str]) -> bool:
     return any(_is_bullet(g) for g in group) or _starts_project(line)
 
@@ -517,7 +544,7 @@ def _plural(n: int, one: str, many: str) -> str:
 def sections_to_profile(sections: dict[str, list[str]]) -> tuple[dict, list[dict], list[dict]]:
     """resumeRead sections -> (profile_patch, unplaced, labels). Pure; see the module doc."""
     contact = _Contact()
-    edu_groups: list[list[str]] = []
+    edu_groups: list[tuple[list[str], bool]] = []
     exp_groups: list[list[str]] = []
     proj_groups: list[list[str]] = []
     skills_lines: list[str] = []
@@ -546,15 +573,17 @@ def sections_to_profile(sections: dict[str, list[str]]) -> tuple[dict, list[dict
                     continue
                 entries_started = True
                 current = [line]
-                {"education": edu_groups, "experience": exp_groups,
-                 "project": proj_groups}[kind].append(current)
+                if kind == "education":
+                    edu_groups.append((current, False))
+                else:
+                    {"experience": exp_groups, "project": proj_groups}[kind].append(current)
             continue
 
         if not lines:
             continue
         kind = classify_header(header)
         if kind == "education":
-            edu_groups.extend(_group(lines, _new_education))
+            edu_groups.extend(_group_education(lines))
         elif kind == "experience":
             exp_groups.extend(_group(lines, _new_experience))
         elif kind == "projects":
@@ -569,8 +598,12 @@ def sections_to_profile(sections: dict[str, list[str]]) -> tuple[dict, list[dict
             unplaced.append((f"{_header_title(header)}: {body}", suggestion))
 
     education = []
-    for group in edu_groups:
-        entry, leftovers = parse_education(group)
+    for group, same_school in edu_groups:
+        if same_school and education and not any(SCHOOL_RE.search(g) for g in group):
+            entry, leftovers = parse_education(group, education[-1]["school"],
+                                               education[-1]["location"])
+        else:
+            entry, leftovers = parse_education(group)
         education.append({"id": f"ed-{len(education) + 1}", **entry})
         unplaced.extend((line, COURSEWORK_SUGGESTION) for line in leftovers)
     experience = [{"id": f"x-{n}", **parse_experience(g)} for n, g in enumerate(exp_groups, 1)]

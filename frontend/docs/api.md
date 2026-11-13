@@ -113,8 +113,10 @@ and shows a toast when a job moves to `needs_input`, `handoff`, `ready`, or from
 | POST   | `/jobs/:id/question/accept`   | `{ scope: "all" \| "company" }` | `200 Job`                                       |
 
 The backend owns the conversation: `messages` starts with the agent's prompt, each user reply is
-appended along with any follow-up, `proposedAnswer` is set once the reply can be used, and
-`pickOptions` is set when the user should pick directly. Accepting saves the answer to the Answer
+appended along with any follow-up, and `proposedAnswer` is set once the reply can be used.
+`pickOptions` holds every option when the form's field only takes one of a fixed set: the user
+picks one (`PUT .../answer`) and the frontend shows no reply box. It is `null` for free-text
+fields, which are answered by replying. Accepting saves the answer to the Answer
 bank (company-only when `scope` is `company`) and puts the job back at the front of the queue.
 
 ## Applications

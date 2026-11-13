@@ -78,8 +78,10 @@ def test_profile_projection(app):
     with store.tx() as db:
         db.common_answers.update(workAuthorized="Yes", needsSponsorship=None, relocate="Depends",
                                  earliestStart="2027-06-01", expectedPay="$40/hr",
-                                 familyEmployers=["Acme"], selfId="ask",
-                                 locations=["Remote (US)", "NYC"], skipped=["workAuthorized"])
+                                 familyEmployers=["Acme"], gender="Female",
+                                 hispanicLatino="No", race="Asian", veteran="decline",
+                                 disability=None, locations=["Remote (US)", "NYC"],
+                                 skipped=["workAuthorized", "veteran"])
 
     profile, _ids = build_agent_profile(store, app.state.answer_bank, "Fake Company")
     assert (profile.first_name, profile.middle_name, profile.last_name) == ("Ada", "Byron", "King")
@@ -95,7 +97,11 @@ def test_profile_projection(app):
     assert profile.work_authorized_us is None  # skipped
     assert profile.needs_sponsorship is None and profile.willing_to_relocate is None
     assert profile.eeo == "ask"
+    assert (profile.gender, profile.hispanic_latino, profile.race) == ("Female", "No", "Asian")
+    assert profile.veteran == "" and profile.disability == ""  # skipped, unanswered
     facts = profile.facts()
+    assert "Gender: Female" in facts and "Race: Asian" in facts
+    assert "Protected veteran: unknown (ask the applicant)" in facts
     assert "Authorized to work in the United States: Unknown (ask the applicant)" in facts
     assert "Name: Ada Byron King" in facts and "Middle name: Byron" in facts
     for line in ["Skills: Python, SQL", "Wants to work in: Remote (US); NYC",
@@ -117,7 +123,9 @@ def test_profile_defaults_and_missing_resume(app):
     assert (profile.first_name, profile.middle_name, profile.last_name) == ("Demo", "", "User")
     assert profile.resume_path == ""  # the file isn't there
     assert profile.work_authorized_us is False and profile.needs_sponsorship is True
-    assert profile.willing_to_relocate is True and profile.eeo == "decline"
+    assert profile.willing_to_relocate is True
+    # Self-ID isn't answered by default, so each question is asked
+    assert profile.eeo == "ask" and profile.gender == "" and profile.race == ""
     assert profile.graduation == "Dec 2026"  # the common answer wins over education end
 
 

@@ -8,7 +8,7 @@ class FormField:
 
     key: str  # how the site's form class finds it on the page
     label: str
-    kind: str  # text, textarea, select, multi_select, location or file
+    kind: str  # text, textarea, select, multi_select, location, school or file
     required: bool = False
     options: list[str] = field(default_factory=list)
     profile_key: str = ""  # set when the answer comes straight from the profile, like "email"

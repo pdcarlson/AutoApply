@@ -99,7 +99,9 @@ class UnplacedActionBody(BaseModel):
 
 
 CommonQuestionKey = Literal["workAuthorized", "needsSponsorship", "graduation", "earliestStart",
-                            "relocate", "locations", "expectedPay", "familyEmployers", "selfId"]
+                            "relocate", "locations", "expectedPay", "familyEmployers", "gender",
+                            "hispanicLatino", "race", "veteran", "disability"]
+Decline = Literal["decline"]
 
 
 class CommonAnswersBody(BaseModel):
@@ -111,7 +113,14 @@ class CommonAnswersBody(BaseModel):
     locations: list[str] = []
     expectedPay: str = ""
     familyEmployers: list[str] = []
-    selfId: Literal["decline", "ask"] = "decline"
+    # Voluntary self-ID (server/self_id.py): a value, "decline", or None when not answered yet
+    gender: Literal["Male", "Female", "Non-binary"] | Decline | None = None
+    hispanicLatino: Literal["Yes", "No"] | Decline | None = None
+    race: Literal["American Indian or Alaska Native", "Asian", "Black or African American",
+                  "Native Hawaiian or Other Pacific Islander", "White",
+                  "Two or More Races"] | Decline | None = None
+    veteran: Literal["Yes", "No"] | Decline | None = None
+    disability: Literal["Yes", "No"] | Decline | None = None
     skipped: list[CommonQuestionKey] = []
 
 

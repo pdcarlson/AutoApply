@@ -4,19 +4,22 @@
 of each record come from Konefal's OnboardingQuestions.json catalog. The sync is one-way: editing
 an `onb-*` answer in the Answer bank doesn't change the common answers, and saving setup again
 overwrites the `onb-*` records.
+
+Self-identification is five questions (server/self_id.py), each its own `onb-*` record.
 """
 from datetime import date
 
-from server import konefal
+from server import konefal, self_id
 from server.answer_bank import AnswerBank, guess_category
 
 COMMON_QUESTION_KEYS = [
     "workAuthorized", "needsSponsorship", "graduation", "earliestStart", "relocate",
-    "locations", "expectedPay", "familyEmployers", "selfId",
+    "locations", "expectedPay", "familyEmployers", *self_id.KEYS,
 ]
+# Records older setups wrote, deleted on the next save
+RETIRED_KEYS = [self_id.LEGACY_KEY]
 SOURCE = "Onboarding · common questions"
 ORIGIN = "onboarding"
-DECLINE_TEXT = "I don’t wish to answer"
 
 
 def record_id(key: str) -> str:
@@ -51,8 +54,10 @@ def answer_text(key: str, common: dict) -> str | None:
     if key == "familyEmployers":
         names = [str(n).strip() for n in value or [] if str(n).strip()]
         return f"Possibly: {', '.join(names)}" if names else "No"
-    if key == "selfId":
-        return DECLINE_TEXT if value == "decline" else None
+    if key == "race":
+        return self_id.answer_wording(key, self_id.effective_race(common))
+    if key in self_id.VALUES:
+        return self_id.answer_wording(key, value)
     return None
 
 
@@ -73,6 +78,8 @@ def sync_bank(bank: AnswerBank, common: dict) -> None:
     skipped = set(common.get("skipped") or [])
     wording = catalog()
     with bank.store.lock:
+        for key in RETIRED_KEYS:
+            bank.delete(record_id(key))
         for key in COMMON_QUESTION_KEYS:
             text = None if key in skipped else answer_text(key, common)
             if text is None:

@@ -63,14 +63,50 @@ describe('setup flow', () => {
     ]);
     const authorized = screen.getByRole('radiogroup', { name: /legally authorized/ });
     await user.click(within(authorized).getByRole('radio', { name: 'Yes' }));
+
+    // Each self-ID question takes an answer or "I don't wish to answer"
+    const gender = screen.getByRole('radiogroup', { name: 'Gender' });
+    await user.click(within(gender).getByRole('radio', { name: 'I don’t wish to answer' }));
+    expect(screen.queryByLabelText('Please identify your race')).not.toBeInTheDocument();
+    const hispanic = screen.getByRole('radiogroup', { name: /Hispanic or Latino/ });
+    await user.click(within(hispanic).getByRole('radio', { name: 'No' }));
+    await user.selectOptions(screen.getByLabelText('Please identify your race'), 'Asian');
+    const veteran = screen.getByRole('radiogroup', { name: /^Veteran status/ });
+    await user.click(within(veteran).getByRole('radio', { name: 'I am not a protected veteran' }));
+    const disability = screen.getByRole('radiogroup', { name: 'Disability status' });
+    await user.click(within(disability).getByRole('radio', { name: 'I don’t wish to answer' }));
+
     await user.click(screen.getByRole('button', { name: /Confirm profile and finish/ }));
 
     expect(await screen.findByRole('heading', { name: 'Inbox page' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe(paths.inbox);
     expect(db.session.profileConfirmed).toBe(true);
     expect(db.commonAnswers.workAuthorized).toBe('Yes');
+    expect(db.commonAnswers).toMatchObject({
+      gender: 'decline',
+      hispanicLatino: 'No',
+      race: 'Asian',
+      veteran: 'No',
+      disability: 'decline',
+    });
     // Resume parsing is polled once a second, so this walk-through takes a few seconds.
   }, 15_000);
+
+  it('only asks race after "No" to Hispanic or Latino, and clears it otherwise', async () => {
+    db.signedIn = true;
+    const user = userEvent.setup();
+    renderRoutes(routes, paths.setupQuestions);
+
+    const hispanic = await screen.findByRole('radiogroup', { name: /Hispanic or Latino/ });
+    await user.click(within(hispanic).getByRole('radio', { name: 'No' }));
+    await user.selectOptions(screen.getByLabelText('Please identify your race'), 'White');
+    await user.click(within(hispanic).getByRole('radio', { name: 'Yes' }));
+    expect(screen.queryByLabelText('Please identify your race')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Confirm profile and finish/ }));
+
+    await screen.findByRole('heading', { name: 'Inbox page' });
+    expect(db.commonAnswers).toMatchObject({ hispanicLatino: 'Yes', race: null });
+  });
 
   it('rejects a file that is not a PDF or DOCX', async () => {
     db.signedIn = true;

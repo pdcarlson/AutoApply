@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { AgentQuestion, AnswerScope, Job } from '@/api/types';
 import {
   useAcceptAnswer,
@@ -13,9 +13,16 @@ import { Choice } from '@/components/ui/Form';
 import { Icon } from '@/components/ui/Icon';
 import styles from './panels.module.css';
 
+/** Option lists longer than this get a filter box above the buttons. */
+const BUTTONS_WITHOUT_FILTER = 12;
+/** How many matching options a filtered list shows at once. */
+const SHOWN_WHEN_FILTERED = 12;
+
 /**
- * A question the agent paused on. The user replies in plain words; the backend turns the
- * reply into the form's answer and shows it here before anything is entered.
+ * A question the agent paused on. When the form's field takes one of a fixed set of options,
+ * the user picks one; there's nothing to type. Otherwise the user replies in plain words, and
+ * the backend turns the reply into the form's answer and shows it here before anything is
+ * entered.
  */
 export function QuestionPanel({ job, question }: { job: Job; question: AgentQuestion }) {
   const notify = useToast();
@@ -74,7 +81,14 @@ export function QuestionPanel({ job, question }: { job: Job; question: AgentQues
         )}
       </div>
 
-      {!proposed ? (
+      {!proposed && question.pickOptions?.length ? (
+        <OptionPicker
+          options={question.pickOptions}
+          disabled={pick.isPending}
+          onPick={(value) => pick.mutate({ jobId: job.id, value })}
+          isError={pick.isError}
+        />
+      ) : !proposed ? (
         <>
           <div className={styles.reply}>
             <label className="sr-only" htmlFor={replyId}>
@@ -104,21 +118,6 @@ export function QuestionPanel({ job, question }: { job: Job; question: AgentQues
               Send
             </Button>
           </div>
-          {question.pickOptions && (
-            <div className={styles.row}>
-              <span className="small">Or pick it yourself:</span>
-              {question.pickOptions.map((option) => (
-                <Button
-                  key={option}
-                  size="sm"
-                  disabled={pick.isPending}
-                  onClick={() => pick.mutate({ jobId: job.id, value: option })}
-                >
-                  {option}
-                </Button>
-              ))}
-            </div>
-          )}
           {send.isError && (
             <span className="tiny" role="alert">
               That didn’t send. Try again.
@@ -169,6 +168,70 @@ export function QuestionPanel({ job, question }: { job: Job; question: AgentQues
         </div>
       )}
     </div>
+  );
+}
+
+/** The form's options as buttons. A long list gets a filter box that only narrows the list. */
+function OptionPicker({
+  options,
+  disabled,
+  onPick,
+  isError,
+}: {
+  options: string[];
+  disabled: boolean;
+  onPick: (value: string) => void;
+  isError: boolean;
+}) {
+  const [filter, setFilter] = useState('');
+  const filterId = useId();
+  const long = options.length > BUTTONS_WITHOUT_FILTER;
+  const wanted = filter.trim().toLowerCase();
+  const matches = wanted ? options.filter((o) => o.toLowerCase().includes(wanted)) : options;
+  const shown = long ? matches.slice(0, SHOWN_WHEN_FILTERED) : matches;
+  const hidden = matches.length - shown.length;
+
+  return (
+    <>
+      {long && (
+        <div className={styles.filter}>
+          <label className="sr-only" htmlFor={filterId}>
+            Filter options
+          </label>
+          <input
+            id={filterId}
+            type="search"
+            placeholder={`Filter ${options.length} options…`}
+            value={filter}
+            autoComplete="off"
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
+      )}
+      <div className={styles.row} role="group" aria-label="Options">
+        {!long && <span className="small">Pick one:</span>}
+        {shown.map((option) => (
+          <Button key={option} size="sm" disabled={disabled} onClick={() => onPick(option)}>
+            {option}
+          </Button>
+        ))}
+        {shown.length === 0 && <span className="small muted">No option matches that.</span>}
+      </div>
+      {hidden > 0 && (
+        <span className="tiny muted">
+          {hidden} more {hidden === 1 ? 'option matches' : 'options match'}. Keep typing to narrow
+          the list.
+        </span>
+      )}
+      {isError && (
+        <span className="tiny" role="alert">
+          That didn’t go through. Try again.
+        </span>
+      )}
+      <span className="tiny muted">
+        This field only takes one of the form’s options. You’ll see your pick before it’s used.
+      </span>
+    </>
   );
 }
 

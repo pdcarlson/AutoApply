@@ -20,9 +20,17 @@ class AtsForm(ABC):
         """Wait until the form is on the page."""
         page.wait_for_load_state()
 
+    def shows(self, page, form_field):  # pylint: disable=unused-argument
+        """Return False to skip a field this page doesn't have (it was only a maybe)."""
+        return True
+
     @abstractmethod
     def fill(self, page, form_field, value):
-        """Put one answer into the form. File fields get a file path."""
+        """Put one answer into the form. File fields get a file path.
+
+        Returns what the form now shows when that differs from the value (like "Other" for a
+        school that isn't on the site's list), or None.
+        """
 
     @abstractmethod
     def submit(self, page):

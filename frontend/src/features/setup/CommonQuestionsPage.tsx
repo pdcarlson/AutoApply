@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import type { CommonAnswers, CommonQuestionKey } from '@/api/types';
+import { RACES, type CommonAnswers, type CommonQuestionKey, type Race } from '@/api/types';
 import { useCommonAnswers, useConfirmProfile, useUpdateCommonAnswers } from '@/api/queries';
 import { paths } from '@/app/paths';
 import { useToast } from '@/app/providers/toast';
@@ -155,28 +155,89 @@ function QuestionsForm({ initial }: { initial: CommonAnswers }) {
           />,
           'Forms sometimes ask “Do you have relatives employed here?” The agent answers from this list.',
         )}
+        <div className={styles.questionGroup} id="q-selfIdGroup">
+          <span className={styles.questionLabel}>Voluntary self-identification</span>
+          <span className={styles.questionHint}>
+            Most applications ask these. They’re always optional, and “I don’t wish to answer” is a
+            fine answer to any of them.
+          </span>
+        </div>
         {question(
-          'selfId',
-          'Voluntary self-identification',
-          <div role="radiogroup" aria-labelledby="q-selfId">
-            <Choice
-              type="radio"
-              name="selfId"
-              checked={draft.selfId === 'decline'}
-              onChange={() => patch({ selfId: 'decline' })}
+          'gender',
+          'Gender',
+          <Segmented
+            labelledBy="q-gender"
+            options={['Male', 'Female', 'Non-binary', DECLINE_OPTION]}
+            value={draft.gender}
+            onChange={(gender) => patch({ gender })}
+          />,
+        )}
+        {question(
+          'hispanicLatino',
+          'Are you Hispanic or Latino?',
+          <Segmented
+            labelledBy="q-hispanicLatino"
+            options={['Yes', 'No', DECLINE_OPTION]}
+            value={draft.hispanicLatino}
+            onChange={(hispanicLatino) =>
+              // Race is only asked of applicants who aren't Hispanic or Latino
+              patch({ hispanicLatino, race: hispanicLatino === 'No' ? draft.race : null })
+            }
+          />,
+        )}
+        {draft.hispanicLatino === 'No' &&
+          question(
+            'race',
+            'Please identify your race',
+            <select
+              className={inputClass(true)}
+              aria-labelledby="q-race"
+              value={draft.race ?? ''}
+              onChange={(e) => patch({ race: (e.target.value || null) as Race | 'decline' | null })}
             >
-              Always choose “I don’t wish to answer”
-            </Choice>
-            <Choice
-              type="radio"
-              name="selfId"
-              checked={draft.selfId === 'ask'}
-              onChange={() => patch({ selfId: 'ask' })}
-            >
-              Ask me the first time each one comes up
-            </Choice>
+              <option value="">Choose one</option>
+              {RACES.map((race) => (
+                <option key={race} value={race}>
+                  {race}
+                </option>
+              ))}
+              <option value="decline">{DECLINE_LABEL}</option>
+            </select>,
+          )}
+        {question(
+          'veteran',
+          'Veteran status',
+          <div role="radiogroup" aria-labelledby="q-veteran">
+            {VETERAN_OPTIONS.map(({ value, label }) => (
+              <Choice
+                key={value}
+                type="radio"
+                name="veteran"
+                checked={draft.veteran === value}
+                onChange={() => patch({ veteran: value })}
+              >
+                {label}
+              </Choice>
+            ))}
           </div>,
-          'Gender, race and ethnicity, veteran and disability status. Always optional on applications.',
+          'Protected veterans include disabled veterans, recently separated veterans, and active duty wartime, campaign badge and Armed Forces service medal veterans.',
+        )}
+        {question(
+          'disability',
+          'Disability status',
+          <div role="radiogroup" aria-labelledby="q-disability">
+            {DISABILITY_OPTIONS.map(({ value, label }) => (
+              <Choice
+                key={value}
+                type="radio"
+                name="disability"
+                checked={draft.disability === value}
+                onChange={() => patch({ disability: value })}
+              >
+                {label}
+              </Choice>
+            ))}
+          </div>,
         )}
       </div>
       {error && <ErrorBox>We couldn’t finish setup. {error.message}</ErrorBox>}
@@ -189,6 +250,21 @@ function QuestionsForm({ initial }: { initial: CommonAnswers }) {
     </>
   );
 }
+
+const DECLINE_LABEL = 'I don’t wish to answer';
+const DECLINE_OPTION = { value: 'decline', label: DECLINE_LABEL } as const;
+
+const VETERAN_OPTIONS = [
+  { value: 'Yes', label: 'I am a protected veteran' },
+  { value: 'No', label: 'I am not a protected veteran' },
+  DECLINE_OPTION,
+] as const;
+
+const DISABILITY_OPTIONS = [
+  { value: 'Yes', label: 'Yes, I have a disability (or had one in the past)' },
+  { value: 'No', label: 'No, I don’t have a disability' },
+  DECLINE_OPTION,
+] as const;
 
 /** Keeps a saved value selectable even when it's no longer in the generated list. */
 const withCurrent = (options: string[], current: string | null) =>

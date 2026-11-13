@@ -26,6 +26,7 @@ from typing import Any, Callable, Iterator
 from fastapi import Request
 
 from server.names import migrate_profile, split_name
+from server.self_id import migrate_common_answers
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ def default_common_answers() -> dict:
     return {
         "workAuthorized": None, "needsSponsorship": None, "graduation": None, "earliestStart": None,
         "relocate": None, "locations": ["Remote (US)"], "expectedPay": "", "familyEmployers": [],
-        "selfId": "decline", "skipped": [],
+        "gender": None, "hispanicLatino": None, "race": None, "veteran": None, "disability": None,
+        "skipped": [],
     }
 
 
@@ -89,6 +91,7 @@ DOC_DEFAULTS: dict[str, Callable[[], Any]] = {
 # missing keys get their defaults. The upgraded doc is written back on its next change.
 DOC_MIGRATIONS: dict[str, Callable[[Any], Any]] = {
     "profile": migrate_profile,
+    "common_answers": migrate_common_answers,
 }
 
 GITIGNORE = ".gitignore"

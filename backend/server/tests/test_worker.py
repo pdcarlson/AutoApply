@@ -52,8 +52,7 @@ def test_unanswered_sponsorship_becomes_a_question(client, app, applied):
     assert question["proposedAnswer"] is None and question["defaultScope"] == "all"
     assert question["placeholder"] == "e.g. Yes" and question["confidence"] == 0
     assert question["messages"] == [{"from": "agent", "text": (
-        "Nothing in your profile or Answer bank answers this. Pick one, or reply in your own "
-        "words.")}]
+        "Nothing in your profile or Answer bank answers this. Pick one.")}]
 
     fields = fields_by_label(detail)
     assert fields["First Name"] == {"label": "First Name", "value": "Jordan", "source": "Profile",
@@ -300,14 +299,12 @@ def test_delete_account_mid_run(client, app, applied, monkeypatch):
 @pytest.mark.parametrize("form_field,guess,expected", [
     (FormField("q", "Pronouns?", "select", True, ["She", "He", "They"]), None,
      ("confirm", ["She", "He", "They"], "Nothing in your profile or Answer bank answers this. "
-      "Pick one (She, He, They), or reply in your own words.")),
-    (FormField("q", "Year?", "select", True, [str(y) for y in range(2020, 2027)]), None,
-     ("confirm", [str(y) for y in range(2020, 2027)], "Nothing in your profile or Answer bank "
-      "answers this. Pick one (2020, 2021, 2022, 2023, 2024 and 2 more), or reply in your own "
-      "words.")),
-    (FormField("q", "State?", "select", True, [f"S{i}" for i in range(13)]),
+      "Pick one.")),
+    # A long list still sends every option; the frontend filters it
+    (FormField("q", "State?", "select", True, [f"S{i}" for i in range(60)]),
      FieldAnswer("S1", "claude", 40, ""),
-     ("confirm", None, "Reply with the option you want; it has to match one on the form.")),
+     ("confirm", [f"S{i}" for i in range(60)], "Nothing in your profile or Answer bank answers "
+      "this. Pick one.")),
     (FormField("q", "City?", "text", True), FieldAnswer("", "claude", 0, ""),
      ("confirm", None, "Nothing in your profile or Answer bank answers this. What should I "
       "enter?")),

@@ -13,6 +13,10 @@
                 "locations": ["Where do you want to work?", "locations", "Logistics"],
                 "expectedPay": ["What are your salary expectations?", "expectedPay", "Pay"],
                 "familyEmployers": ["Do you have relatives employed at this company?", "familyEmployers", "Eligibility"],
-                "selfId": ["Voluntary self-identification (gender, race and ethnicity, veteran, disability)", "selfId", "Self-ID"]
+                "gender": ["Gender", "gender", "Self-ID"],
+                "hispanicLatino": ["Are you Hispanic/Latino?", "hispanicLatino", "Self-ID"],
+                "race": ["Please identify your race", "race", "Self-ID"],
+                "veteran": ["Veteran status", "veteran", "Self-ID"],
+                "disability": ["Disability status", "disability", "Self-ID"]
               }
 }

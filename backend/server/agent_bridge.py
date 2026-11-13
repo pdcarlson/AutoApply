@@ -22,6 +22,7 @@ from agent.forms import form_for
 from agent.forms.form_field import FieldAnswer, FormField
 from agent.forms.greenhouse_form import GreenhouseForm
 from agent.jobs.job_link import JobLink
+from server import self_id
 from server.answer_bank import AnswerBank
 from server.common_answers import long_date
 from server.config import BACKEND_DIR, Config
@@ -171,11 +172,17 @@ def build_agent_profile(store: Store, bank: AnswerBank,  # pylint: disable=too-m
         major=school.get("major", ""),
         gpa=school.get("gpa", ""),
         graduation=(common.get("graduation") or "").strip() or month_year(school.get("end")),
+        school_start=month_year(school.get("start")),
         earliest_start=long_date(common.get("earliestStart")),
         work_authorized_us=_yes_no(common.get("workAuthorized")),
         needs_sponsorship=_yes_no(common.get("needsSponsorship")),
         willing_to_relocate=_yes_no(common.get("relocate")),
-        eeo="decline" if common.get("selfId") == "decline" else "ask",
+        eeo="ask",  # each self-ID question has its own answer, or is asked
+        gender=common.get("gender") or "",
+        hispanic_latino=common.get("hispanicLatino") or "",
+        race=self_id.effective_race(common) or "",
+        veteran=common.get("veteran") or "",
+        disability=common.get("disability") or "",
         answers=[SavedAnswer(a.question, a.answer) for a in answers],
         extra_facts=_extra_facts(profile, common),
     )

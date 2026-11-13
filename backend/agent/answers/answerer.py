@@ -1,4 +1,7 @@
 """Decides what the agent puts in each form field."""
+import re
+
+from agent.answers import self_id
 from agent.forms.form_field import FieldAnswer
 from agent.settings import CONFIDENCE_THRESHOLD
 
@@ -13,6 +16,15 @@ LABEL_WORDS = {
     "portfolio": "website",
 }
 MAX_LABEL_WORDS = 4
+# How a degree's level starts on degree dropdowns, for the ways resumes write degrees.
+# The MBA comes before other master's degrees so it isn't read as "Master's".
+DEGREE_LEVELS = [
+    (r"\bm\.?b\.?a(?![a-z])|business administration", "Master of Business Administration"),
+    (r"\bmaster|\bm\.?(s|a|sc|eng|tech)\.?(?![a-z])", "Master's"),
+    (r"\bbachelor|\bb\.?(s|a|sc|eng|tech)\.?(?![a-z])", "Bachelor's"),
+    (r"\bph\.?d|doctor of philosophy|doctorate", "Doctor of Philosophy"),
+    (r"\bassociate", "Associate's"),
+]
 
 
 class Answerer:
@@ -47,11 +59,37 @@ class Answerer:
 
     def from_profile(self, form_field):
         """Return the profile value for a standard field like email, or an empty string."""
+        if self_id.self_id_key(form_field):
+            return self_id.choose(form_field, self.profile)
         key = form_field.profile_key
         if not key and len(form_field.label.split()) <= MAX_LABEL_WORDS:
             label = form_field.label.lower()
             key = next((attr for word, attr in LABEL_WORDS.items() if word in label), "")
-        return getattr(self.profile, key, "") if key else ""
+        value = getattr(self.profile, key, "") if key else ""
+        if value and form_field.options:
+            # A dropdown takes only its own wording, so "Bachelor's" becomes "Bachelor's Degree".
+            # With no clear match, saved answers or Claude pick the option instead.
+            option = closest_option(form_field.options, value)
+            if not option and key == "degree":
+                option = closest_option(form_field.options, degree_level(value))
+            return option
+        return value
+
+
+def degree_level(degree):
+    """Return how dropdowns name a degree's level ("M.S." -> "Master's"), or ""."""
+    return next((level for pattern, level in DEGREE_LEVELS
+                 if re.search(pattern, degree, re.IGNORECASE)), "")
+
+
+def closest_option(options, value):
+    """Return the option that is the value (any case), or the only one starting with it, or ""."""
+    wanted = " ".join(value.lower().split())
+    exact = [option for option in options if " ".join(option.lower().split()) == wanted]
+    if exact:
+        return exact[0]
+    starts = [option for option in options if option.lower().startswith(wanted)]
+    return starts[0] if len(starts) == 1 else ""
 
 
 def fits(form_field, value):

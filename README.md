@@ -1,110 +1,89 @@
 # AutoApply
 
-How to run the agent that fills out Greenhouse job applications.
+## Run it locally
 
-1. Install Python 3.12 or newer.
-2. Open a terminal in the `backend` folder.
-3. Run `pip install -r agent/requirements.txt`
-4. Run `python -m playwright install chromium`
-5. Copy `agent/.env.example` to `agent/.env`
-6. If you have an Anthropic API key, paste it after `ANTHROPIC_API_KEY=` in `agent/.env`. Without one, the agent asks you more questions.
-7. Run `python -m agent https://job-boards.greenhouse.io/cloudflare/jobs/8245211 --show` with any Greenhouse job link.
-8. Answer the questions it asks in the terminal. Your answers are saved, so it won't ask again.
-9. Look at the screenshot it saves in `agent/runs`. It fills the form but doesn't press Submit while `SUBMIT_REAL_FORM=false` is in `agent/.env`.
-10. To use your own info instead of the fake example, copy `agent/applicant/example_profile.json` and your resume into a new `agent/private` folder, edit the copy, and set `PROFILE_PATH=private/my_profile.json` in `agent/.env`. That folder is never committed.
-11. Run `python -m pytest agent/tests` to run the tests.
+You need Python 3.11+ and Node 20+. Commands are for Windows PowerShell.
 
-## Run the demo
+1. Set up the backend (once), from `backend/`:
 
-The demo is the web app in `frontend/` talking to a local API in `backend/server/`. The API drives
-the same agent as above, keeps everything in JSON files, and has a single local user.
+   ```powershell
+   python -m venv .venv
+   .venv\Scripts\python -m pip install -r server/requirements.txt
+   .venv\Scripts\python -m playwright install chromium
+   copy agent\.env.example agent\.env
+   ```
 
-Once, from `backend/`, set up the Python environment (Python 3.12, or 3.11):
+2. Set up the frontend (once), from `frontend/`:
 
-```powershell
-uv venv .venv                                   # or: python -m venv .venv
-uv pip install --python .venv -r server/requirements.txt
-                                                # or: .venv\Scripts\python -m pip install -r server/requirements.txt
-.venv\Scripts\python -m playwright install chromium
-```
+   ```powershell
+   npm install
+   ```
 
-and from `frontend/`, run `npm install` (Node 22).
+3. Start it, from the repo root:
 
-Then use two terminals.
+   ```powershell
+   .\scripts\demo.ps1
+   ```
 
-1. Terminal 1, from `backend/`: `.venv\Scripts\python -m server`. The API listens on
-   http://127.0.0.1:8080. Ctrl+C stops it.
-2. Terminal 2, from `frontend/`: `npm run dev:api`, then open http://localhost:5173. This runs
-   the real frontend against the API (`npm run dev` instead uses the built-in mock API).
+4. Open http://localhost:5173, sign in, upload your resume, check your profile, and answer the
+   setup questions.
+5. Paste a Greenhouse job link into the Inbox and press **Apply**. Answer any questions the agent
+   asks, then review the filled form and press **Submit**.
 
-`scripts\demo.ps1` starts both in one terminal: `.\scripts\demo.ps1 -Offline -Reset` (see the
-switches with `Get-Help .\scripts\demo.ps1 -Detailed`).
+Press Ctrl+C to stop.
 
-### Offline demo with the fake Greenhouse form
-
-Set these in terminal 1 before `python -m server`:
+## Try it without applying anywhere
 
 ```powershell
-$env:FAKE_GREENHOUSE = "true"   # the fakecompany link below opens a local form, not Greenhouse
-$env:USE_CLAUDE = "false"       # don't call Claude even if agent/.env has a key
+.\scripts\demo.ps1 -Offline -Reset
 ```
 
-Sign in, upload `backend/agent/applicant/example_resume.pdf`, check the profile, answer the
-common questions and confirm. Then paste
-`https://job-boards.greenhouse.io/fakecompany/jobs/1001` (or `/1002`) and press Apply. The agent
-fills `backend/agent/tests/fake_forms/greenhouse_form.html` in a headless browser, so nothing goes
-online. It asks you about the two questions it can't answer (sponsorship, and why you want to work
-there) in the Inbox, then holds the filled form under Applications for your review.
+Upload `backend/agent/applicant/example_resume.pdf`, finish setup, then paste
+`https://job-boards.greenhouse.io/fakecompany/jobs/1001` and press **Apply**. The agent fills a
+local test form, so nothing goes online.
 
-Other links only work with `FAKE_GREENHOUSE` off: the agent then reads the real posting from
-Greenhouse and fills the real form. Without Claude (no key, or `USE_CLAUDE=false`) the agent asks
-you about every field it can't fill from your profile and Answer bank.
+## Run the tests
 
-Two more settings help when you show it to someone: `AGENT_SHOW_BROWSER=true` opens the browser
-window so you can watch it fill, and `AGENT_SLOW_MO_MS=250` slows it down enough to follow.
+From `backend/`:
 
-### What Submit does: `SUBMIT_REAL_FORM`
+```powershell
+.venv\Scripts\python -m pytest agent/tests server/tests
+.venv\Scripts\python server/e2e/run_browser_e2e.py
+```
 
-`SUBMIT_REAL_FORM` (in `backend/agent/.env`, `false` there) is the only switch that decides
-whether the agent presses the form's Submit button. A variable set in the terminal wins over the
-file.
+The second command clicks through the whole app in a hidden browser against the test form. Stop
+the demo first, because it needs ports 8080 and 5173.
 
-- `false`: Submit in the review dialog doesn't touch the form. The job still moves to
-  Applications (with the screenshot taken when it was filled), with no confirmation and a "Not
-  sent: SUBMIT_REAL_FORM is off" line in its timeline, so you can walk through the whole flow
-  without sending anything.
-- `true`: Submit presses the Submit button on the form the agent filled for your review (the
-  browser stays open from the fill until you submit, skip it, or the server stops), then waits up
-  to `CONFIRM_TIMEOUT_S` seconds (default 90) for the confirmation page. If the site emails you a
-  verification code, type it into that window meanwhile (run with `AGENT_SHOW_BROWSER=true` to
-  see it). If the window is gone (closed, or the server restarted), Submit fills the form again
-  first and says so in the timeline. At most `HELD_FORMS_MAX` (default 5) filled forms stay open;
-  past that the oldest one closes. With
-  `FAKE_GREENHOUSE=true` and the fakecompany link that's the local fake form, which shows a
-  confirmation reference. **With any other link it really applies to that job.**
+From `frontend/`:
 
-### Where the data lives, and how to reset it
+```powershell
+npm test
+```
 
-Everything (profile, resume, answers, jobs, applications, screenshots) is in `backend/data/`,
-which has its own `.gitignore`, so none of it is committed. Set `AUTOAPPLY_DATA_DIR` to use
-another folder. Run one server per data folder.
+## Notes
 
-The Answer bank starts empty and only holds answers you give: your setup answers, replies to the
-agent's questions, and answers you add yourself. `SEED_BANK_FROM_PROFILE=true` is a developer
-option that copies the `answers` from `PROFILE_PATH` into a new bank once. Leave it off for real
-use: the example profile's answers are test data, not yours.
+- **Settings** are in `backend/agent/.env`. Restart after changing them.
 
-To start over, stop the server and delete `backend/data/` (or run `.\scripts\demo.ps1 -Reset`).
-**Settings → Delete account** in the app does the same while the server runs.
+  | Setting              | What it does                                                                  |
+  | -------------------- | ----------------------------------------------------------------------------- |
+  | `SUBMIT_REAL_FORM`   | `false` (default): Submit records the application but never sends it. `true`: Submit really applies. |
+  | `ANTHROPIC_API_KEY`  | Optional. With a key, Claude drafts answers. Without one, the agent asks you. |
+  | `AGENT_SHOW_BROWSER` | `true` shows the browser window while the agent fills the form.              |
+  | `AGENT_SLOW_MO_MS`   | Slows the browser down so you can follow it, e.g. `250`.                      |
+  | `CONFIRM_TIMEOUT_S`  | How long Submit waits for the thank-you page. Default `90`.                   |
 
-### End-to-end checks
-
-From `backend/`, both run only against the fake form, on a fresh temporary data folder:
-
-- `.venv\Scripts\python -m pytest server/tests -m e2e` drives the whole flow through the API with
-  the real agent worker, with `SUBMIT_REAL_FORM` off and on.
-- `.venv\Scripts\python server/e2e/run_browser_e2e.py` starts the API and `npm run dev:api` itself
-  (ports 8080 and 5173 must be free) and clicks through the real frontend in headless Chromium,
-  from sign-in to the submitted application's screenshot. It saves a PNG of each step in
-  `<temp data folder>\e2e-shots` and prints where. Add `--dry-run` for `SUBMIT_REAL_FORM=false`,
-  `--headed` to watch.
+- **Submit** presses the Submit button on the form the agent already filled. If the site emails
+  you a verification code, type it into that browser window (turn on `AGENT_SHOW_BROWSER`). A
+  filled form's window is never closed until the application is confirmed and screenshotted,
+  you close it yourself, or the server stops.
+- **Your data** (profile, resume, answers, jobs, screenshots) stays on your computer in
+  `backend/data/`, which is never committed. `.\scripts\demo.ps1 -Reset` deletes it and starts
+  fresh.
+- **Supported sites:** only Greenhouse forms are filled automatically. Other links are handed to
+  you to finish by hand.
+- **Two terminals instead of `demo.ps1`** (also how to run it on macOS/Linux, using
+  `.venv/bin/python`): run `.venv\Scripts\python -m server` from `backend/`, and
+  `npm run dev:api` from `frontend/`.
+- **The agent on its own, without the web app:** from `backend/`, run
+  `.venv\Scripts\python -m agent <greenhouse job link> --show`. It reads its profile from
+  `PROFILE_PATH` in `backend/agent/.env`, not from the web app.

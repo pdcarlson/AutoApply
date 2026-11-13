@@ -82,11 +82,12 @@ npm test
 - **Supported sites:** Greenhouse and Lever forms are filled automatically. Ashby links are
   accepted, but those jobs are handed to you to finish by hand. In offline mode,
   `https://jobs.lever.co/fakelever/0a1b2c3d-4e5f` opens a local test Lever form.
-- **Finishing in your own browser:** Lever turns applications from the agent's browser away
-  ("There was an error verifying your application"). The job then moves to **Needs you**. Load
-  the `extension/` folder in Chrome (see `extension/README.md`), open the job's form in your
-  normal browser and press **Fill in my answers**. You check it and press Submit yourself, and
-  the application is recorded when the thank-you page appears.
+- **Lever: you press Submit in your own browser.** Lever turns applications from the agent's
+  browser away ("There was an error verifying your application"), so for a Lever job **Review**
+  offers **Open the form to submit**. Drag the **Fill with AutoApply** button shown there to your
+  bookmarks bar once; on the form, click it and the form fills in (any browser, no extension).
+  Check it, press Submit, then **I submitted it**. In Chrome, the optional extension in
+  `extension/` fills the form by itself as it opens (see `extension/README.md`).
 - **Protected steps:** the agent never types into a CAPTCHA, sign-in, password or Social Security
   number field. It fills the rest, leaves the form window open and moves the job to **Needs
   you**. Do that step in the window and press Submit there (turn on `AGENT_SHOW_BROWSER`); the

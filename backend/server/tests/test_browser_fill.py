@@ -114,3 +114,13 @@ def test_submitting_in_the_browser_after_the_bot_check_turned_the_agent_away(
     detail = client.get(f"/api/applications/app-{lever_job}").json()
     assert detail["submittedBy"] == "you" and detail["ats"] == "Lever"
     assert len(detail["fields"]) == 8
+
+
+def test_bookmark_window_and_fill_script_are_served(client):
+    """The "Fill with AutoApply" bookmark opens this window, which hands the page this script."""
+    window = client.get("/api/extension/fill-window")
+    assert window.status_code == 200 and window.headers["content-type"].startswith("text/html")
+    assert "autoapply-fill" in window.text and "/api/extension/plan" in window.text
+    script = client.get("/api/extension/fill.js")
+    assert script.status_code == 200 and "javascript" in script.headers["content-type"]
+    assert "fillLever" in script.text

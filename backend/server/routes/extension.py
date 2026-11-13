@@ -1,17 +1,23 @@
-"""Routes for the browser extension (extension/ at the repo root), which fills a job's form in
-the person's own browser: GET /extension/plan, GET /extension/jobs/:id/resume and
-POST /extension/jobs/:id/submitted. See server.browser_fill.
+"""Routes for filling a job's form in the person's own browser (extension/ at the repo root),
+either with the Chrome extension or, in any browser, with the "Fill with AutoApply" bookmark:
+GET /extension/plan, GET /extension/jobs/:id/resume, POST /extension/jobs/:id/submitted, and for
+the bookmark GET /extension/fill-window (its small window) and GET /extension/fill.js.
+See server.browser_fill.
 """
 import mimetypes
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse
 
+from server.config import BACKEND_DIR
+
 from server import browser_fill
 from server.config import Config, get_config
 from server.store import Store, get_store
 
 router = APIRouter()
+
+FILL_DIR = BACKEND_DIR.parent / "extension"  # one copy of the fill script for both ways
 
 
 @router.get("/extension/plan")
@@ -34,3 +40,15 @@ def mark_submitted_in_browser(job_id: str, request: Request,
         return browser_fill.submitted(store, request.app.state.worker, job_id)
     finally:
         request.app.state.worker.wake()
+
+
+@router.get("/extension/fill-window")
+def get_fill_window():
+    """The small window the bookmark opens: it hands the answers to the job page."""
+    return FileResponse(FILL_DIR / "fill-window.html", media_type="text/html")
+
+
+@router.get("/extension/fill.js")
+def get_fill_script():
+    """The script the job page runs to fill its own form (the extension's fill.js)."""
+    return FileResponse(FILL_DIR / "fill.js", media_type="text/javascript")

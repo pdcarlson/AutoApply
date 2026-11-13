@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { ErrorBox, Note } from '@/components/ui/Callouts';
 import { FieldList, Loading, LoadError } from '@/components/ui/DataDisplay';
 import { Modal, ModalHead } from '@/components/ui/Overlay';
+import { FillBookmark } from '@/components/fill/FillBookmark';
 import { buttonClass } from '@/components/ui/classNames';
 import { Icon } from '@/components/ui/Icon';
 import { finishesInBrowser, formUrl } from '@/lib/jobLinks';
@@ -23,9 +24,16 @@ function SubmitInBrowser({ job }: { job: JobDetail }) {
     <>
       <Note title={`You press Submit on ${job.ats}`}>
         {job.ats} doesn’t accept applications sent from the agent’s browser, so this last step
-        happens in yours. With the AutoApply Filler extension, the form fills in by itself when it
-        opens: check it and press Submit. AutoApply records it when the thank-you page shows.
+        happens in yours. Open the form, click the <b>Fill with AutoApply</b> bookmark to fill it
+        in, check it and press Submit. Then press <b>I submitted it</b>.
       </Note>
+      <div className={styles.reviewActions}>
+        <FillBookmark />
+        <span className="tiny muted">
+          First time? Drag this button to your bookmarks bar. It works in any browser. (With the
+          AutoApply Filler extension in Chrome, the form fills by itself instead.)
+        </span>
+      </div>
       <FieldList fields={job.fields} wide />
       {done.isError && <ErrorBox>That didn’t go through. {done.error.message}</ErrorBox>}
       <div className={styles.reviewActions}>
@@ -51,7 +59,7 @@ function SubmitInBrowser({ job }: { job: JobDetail }) {
         >
           I submitted it
         </Button>
-        <span className="tiny muted">No extension? The answers are listed above to copy over.</span>
+        <span className="tiny muted">The answers are also listed above to copy over.</span>
       </div>
     </>
   );

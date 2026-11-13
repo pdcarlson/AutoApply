@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AutoApply</title>
+    <!--
+      The small window the "Fill with AutoApply" bookmark opens (served at
+      /api/extension/fill-window). It gets the job's answers and resume from this computer's
+      AutoApply and hands them to the job page that opened it, which fills its own form with
+      fill.js. Nothing here presses Submit. Works in any browser, with no extension.
+    -->
+    <style>
+      body {
+        margin: 0;
+        padding: 18px;
+        background: #fff;
+        color: #1f1f1f;
+        font:
+          14px/1.45 system-ui,
+          sans-serif;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 16px;
+      }
+      p {
+        margin: 8px 0;
+      }
+      ul {
+        margin: 8px 0;
+        padding-left: 18px;
+      }
+      button {
+        margin: 10px 8px 0 0;
+        padding: 8px 14px;
+        border: 0;
+        border-radius: 6px;
+        background: #1f1f1f;
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.ghost {
+        background: #eee;
+        color: #1f1f1f;
+      }
+      button[hidden] {
+        display: none;
+      }
+      .muted {
+        color: #666;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AutoApply</h1>
+    <p id="status">Getting your answers…</p>
+    <ul id="notes"></ul>
+    <button id="submitted" type="button" hidden>I submitted it</button>
+    <button id="close" type="button" class="ghost">Close</button>
+    <p class="muted">Check the form, then press Submit on the job page yourself.</p>
+    <script>
+      (() => {
+        const say = (text) => (document.getElementById('status').textContent = text);
+        const note = (text) => {
+          const item = document.createElement('li');
+          item.textContent = text;
+          document.getElementById('notes').appendChild(item);
+        };
+        const jobPage = new URLSearchParams(location.search).get('url') || '';
+        let jobOrigin = '';
+        try {
+          jobOrigin = new URL(jobPage).origin;
+        } catch {
+          jobOrigin = '';
+        }
+        let jobId = null;
+        document.getElementById('close').onclick = () => window.close();
+
+        async function getJson(path, options) {
+          const response = await fetch(path, options);
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok)
+            throw new Error(body.message || 'AutoApply couldn’t help with this page.');
+          return body;
+        }
+
+        async function start() {
+          if (!window.opener || !jobOrigin) {
+            say('Open this from the "Fill with AutoApply" bookmark on a job’s application page.');
+            return;
+          }
+          const plan = await getJson('/api/extension/plan?url=' + encodeURIComponent(jobPage));
+          jobId = plan.jobId;
+          let resume = null;
+          if (plan.resume) {
+            const response = await fetch(plan.resume.url);
+            if (response.ok) {
+              resume = {
+                name: plan.resume.name,
+                type: response.headers.get('content-type') || '',
+                buffer: await response.arrayBuffer(),
+              };
+            } else {
+              note('Couldn’t get your resume from AutoApply.');
+            }
+          }
+          const fill = await (await fetch('/api/extension/fill.js')).text();
+          say('Filling the form…');
+          window.opener.postMessage({ type: 'autoapply-fill', plan, resume, fill }, jobOrigin);
+          plan.unanswered.forEach((label) => note('Needs your answer: ' + label));
+          plan.protected.forEach((label) => note('Yours to do: ' + label));
+        }
+
+        window.addEventListener('message', (event) => {
+          if (event.origin !== jobOrigin || !event.data || event.data.type !== 'autoapply-filled')
+            return;
+          say(
+            'Filled ' +
+              event.data.filled.length +
+              ' answers. Check them, then press Submit on the job page.',
+          );
+          event.data.missed.forEach((label) => note('Couldn’t fill: ' + label));
+          document.getElementById('submitted').hidden = false;
+        });
+
+        document.getElementById('submitted').onclick = async () => {
+          try {
+            await getJson('/api/extension/jobs/' + encodeURIComponent(jobId) + '/submitted', {
+              method: 'POST',
+            });
+            say('Recorded in AutoApply. It’s in your Applications.');
+            document.getElementById('submitted').hidden = true;
+          } catch (error) {
+            say('AutoApply didn’t record it: ' + error.message);
+          }
+        };
+
+        start().catch((error) => say(error.message));
+      })();
+    </script>
+  </body>
+</html>

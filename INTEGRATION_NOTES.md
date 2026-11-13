@@ -52,6 +52,17 @@ tools such as Simplify work.
 | `extension/background.js` | Fetches from the local server for the page. |
 | `backend/server/browser_fill.py`, `routes/extension.py` | `GET /extension/plan?url=` (the job's answers by page link; Claude is never called; protected fields are named but never given a value), `GET /extension/jobs/:id/resume`, `POST /extension/jobs/:id/submitted`. |
 
+**Without an extension, in any browser: the "Fill with AutoApply" bookmark.** Review shows a
+button to drag to the bookmarks bar once (`frontend/src/lib/fillBookmark.ts`,
+`components/fill/FillBookmark.tsx`). Clicked on the Lever form, it opens a small AutoApply
+window (`extension/fill-window.html`, served at `/api/extension/fill-window`). That window gets
+the answers, resume and `fill.js` from this computer's AutoApply and passes them to the job page
+with `postMessage`, which fills its own form. A pop-up is used because a job page can't fetch
+from `localhost` in every browser, but any browser lets two windows message each other. Each
+side only accepts messages from the other's exact address. The person presses Submit on Lever,
+then **I submitted it** in the small window. Checked end to end in Chromium, Firefox and WebKit
+(Safari's engine) against a local test server and the fake Lever page.
+
 **The Lever flow in the app.** For a Lever job, Review shows **Open the form to submit**
 instead of Submit, and the Needs-you card's **Open the form** does the same. It opens the
 job's application page with `#autoapply-fill`, and the extension fills the form by itself as it

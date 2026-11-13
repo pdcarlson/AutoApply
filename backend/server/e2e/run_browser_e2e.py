@@ -14,6 +14,7 @@ so the agent asks instead of guessing.
     .venv/Scripts/python.exe server/e2e/run_browser_e2e.py            # Submit on the fake form
     .venv/Scripts/python.exe server/e2e/run_browser_e2e.py --dry-run  # SUBMIT_REAL_FORM=false
     .venv/Scripts/python.exe server/e2e/run_browser_e2e.py --headed   # watch it
+    .venv/Scripts/python.exe server/e2e/run_browser_e2e.py --browser webkit   # or firefox
 
 Exits 0 when every step passed, 1 otherwise. Ports 8080 and 5173 must be free.
 """
@@ -323,10 +324,12 @@ def drive(page: Page, shots: Shots, submit_real_form: bool) -> None:  # pylint: 
     shots.take("answer-bank")
 
 
-def browse(shots_dir: Path, headed: bool, submit_real_form: bool) -> bool:
-    """Runs `drive` in a fresh Chromium. Returns True when every step passed."""
+def browse(shots_dir: Path, headed: bool, submit_real_form: bool,
+           browser_name: str = "chromium") -> bool:
+    """Runs `drive` in a fresh browser (the one the person uses the web app in; the agent
+    always fills forms in its own Chromium). Returns True when every step passed."""
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=not headed)
+        browser = getattr(playwright, browser_name).launch(headless=not headed)
         try:
             page = browser.new_context(viewport={"width": 1280, "height": 900}).new_page()
             page.on("pageerror", lambda error: print(f"  page error: {error}", flush=True))
@@ -353,6 +356,9 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true",
                         help="SUBMIT_REAL_FORM=false (default: true, against the fake form only)")
     parser.add_argument("--headed", action="store_true", help="show the browser")
+    parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"),
+                        default="chromium",
+                        help="the browser the web app is used in (webkit is Safari's engine)")
     parser.add_argument("--data-dir", type=Path,
                         help="use this (empty) data dir instead of a fresh temp one")
     args = parser.parse_args()
@@ -377,7 +383,7 @@ def main() -> int:
         wait_for_http(API_HEALTH, server, "the backend (python -m server)")
         wait_for_http(WEB_URL + "/", vite, "the frontend (npm run dev:api)")
         print("Backend and frontend are up. Driving the browser.", flush=True)
-        ok = browse(shots_dir, args.headed, submit_real_form)
+        ok = browse(shots_dir, args.headed, submit_real_form, args.browser)
     except Exception as error:  # pylint: disable=broad-exception-caught
         print(f"FAIL: {error}", flush=True)
     finally:

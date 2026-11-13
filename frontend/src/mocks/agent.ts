@@ -5,6 +5,7 @@
  */
 import type { AgentQuestion, ApplicationDetail, FilledField } from '@/api/types';
 import { db, isoAgo, nextReference, screenshotFor, type MockJob } from './db';
+import { DEFAULT_HANDOFF_REASON } from '@/features/inbox/HandoffPanel';
 
 const STEP_MS = 1000;
 
@@ -56,7 +57,12 @@ function fillNext(job: MockJob) {
     return;
   }
   if (plan.captcha) {
-    Object.assign(job, { state: 'handoff', phase: null, currentField: null });
+    Object.assign(job, {
+      state: 'handoff',
+      phase: null,
+      currentField: null,
+      reason: DEFAULT_HANDOFF_REASON,
+    });
   } else {
     Object.assign(job, {
       state: 'ready',

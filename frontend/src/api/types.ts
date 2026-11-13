@@ -8,7 +8,7 @@
 
 // ===== Shared =====
 
-export type Ats = 'Greenhouse' | 'Ashby';
+export type Ats = 'Greenhouse' | 'Ashby' | 'Lever';
 
 /** Error body returned with any non-2xx status. `code` is stable; `message` is for people. */
 export interface ApiErrorBody {

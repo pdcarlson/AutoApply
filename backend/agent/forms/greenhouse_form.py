@@ -96,6 +96,26 @@ US_STATES = {
 }
 
 
+STATE_CODES = {name.lower(): code.lower() for code, name in US_STATES.items()}
+
+
+def split_place(value):
+    """Return (city, state) from how a person writes a place, both lowercase.
+
+    Takes "Troy, NY", "Troy, New York", "Troy, NY, USA" and, without the comma, "Troy NY" or
+    "Troy New York". The state is "" when there isn't one, as in "New York".
+    """
+    parts = [part.strip().lower() for part in value.split(",") if part.strip()]
+    if len(parts) >= 2:
+        return parts[0], parts[1]
+    words = value.lower().split()
+    for size in (3, 2, 1):  # state names run up to three words
+        tail = " ".join(words[-size:])
+        if len(words) > size and (tail in STATE_CODES or tail.upper() in US_STATES):
+            return " ".join(words[:-size]), tail
+    return " ".join(words), ""
+
+
 def choose_location(page, value):
     """Click the city suggestion for a "City, State" value.
 
@@ -104,15 +124,15 @@ def choose_location(page, value):
     state: with no match it raises, so the run stops instead of sending a wrong location.
     """
     page.get_by_role("option").first.wait_for()
-    city, _, state = (part.strip() for part in value.partition(","))
-    states = {state.lower(), US_STATES.get(state.upper(), state).lower()} - {""}
+    city, state = split_place(value)
+    states = {state, US_STATES.get(state.upper(), state).lower()} - {""}
     options = page.get_by_role("option")
     seen = []
     for index in range(options.count()):
         text = options.nth(index).inner_text()
         seen.append(text)
         parts = [part.strip().lower() for part in text.split(",")]
-        if parts[0] == city.lower() and (not states or (len(parts) > 1 and parts[1] in states)):
+        if parts[0] == city and (not states or (len(parts) > 1 and parts[1] in states)):
             options.nth(index).click()
             return
     raise PlaywrightError(f'No location suggestion matches "{value}". Suggestions: {seen}')
@@ -180,7 +200,7 @@ class GreenhouseForm(AtsForm):
             # The city box only suggests places while you type, so type the city and
             # pick the suggestion that matches, like "Troy, New York, United States"
             box.click()
-            box.press_sequentially(value.split(",")[0], delay=50)
+            box.press_sequentially(split_place(value)[0], delay=50)
             choose_location(page, value)
         else:
             box.fill(value)

@@ -7,8 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from server import jobs
-from server.tests.job_helpers import (ASHBY_URL, FAKE_URL, add_job, apply, job_detail,
-                                      set_up_profile)
+from server.tests.job_helpers import (ASHBY_URL, FAKE_LEVER_URL, FAKE_URL, LEVER_URL, add_job,
+                                      apply, job_detail, set_up_profile)
 
 JOB_KEYS = {"id", "company", "role", "location", "ats", "url", "source", "postedAt", "addedAt",
             "closesOn", "reason", "checks", "skipSuggested", "state", "phase", "progress",
@@ -90,7 +90,7 @@ def test_already_applied(signed_in, app):
 
 @pytest.mark.parametrize("url,code", [
     ("https://www.linkedin.com/jobs/view/1", "unsupported_site"),
-    ("https://jobs.lever.co/x/y", "unsupported_site"),
+    ("https://www.workday.com/x/y", "unsupported_site"),
     ("https://boards.greenhouse.io/fakecompany", "invalid_url"),
     ("not a link", "invalid_url"),
     ("ftp://job-boards.greenhouse.io/fakecompany/jobs/1001", "invalid_url"),
@@ -105,7 +105,7 @@ def test_rejected_links(signed_in, url, code):
 
 def test_unsupported_site_message_names_the_host(signed_in):
     body = signed_in.post("/api/jobs", json={"url": "https://www.linkedin.com/jobs/view/1"}).json()
-    assert body["message"] == ("Auto Apply adds jobs from Greenhouse and Ashby links. "
+    assert body["message"] == ("Auto Apply adds jobs from Greenhouse, Ashby and Lever links. "
                                "This one is from www.linkedin.com.")
 
 
@@ -124,6 +124,26 @@ def test_real_greenhouse_closed_posting(signed_in, monkeypatch):
     response = signed_in.post("/api/jobs", json={
         "url": "https://job-boards.greenhouse.io/othercompany/jobs/42"})
     assert response.status_code == 502 and response.json()["code"] == "fetch_failed"
+
+
+def test_add_lever_job(signed_in):
+    """A Lever posting is read like a Greenhouse one: company, role and its questions."""
+    job = add_job(signed_in, FAKE_LEVER_URL)
+    assert job["ats"] == "Lever" and job["company"] == "Fake Lever Company"
+    assert job["role"] == "Software Engineering Intern" and job["location"] == "Troy, NY"
+    assert job["formSummary"]["totalFields"] == 10
+    assert job["checks"][0] == {"status": "ok", "text": "Lever form · 10 questions"}
+    again = signed_in.post("/api/jobs", json={"url": FAKE_LEVER_URL + "/apply"})
+    assert again.status_code == 409 and again.json()["code"] == "already_in_inbox"
+
+
+def test_real_lever_posting_that_is_gone(signed_in, monkeypatch):
+    """A real (non-fake) Lever posting whose apply page 404s is posting_closed."""
+    def gone(request, timeout):
+        raise urllib.error.HTTPError(request.full_url, 404, "Not Found", {}, None)
+    monkeypatch.setattr("agent.forms.lever_form.urlopen", gone)
+    response = signed_in.post("/api/jobs", json={"url": LEVER_URL})
+    assert response.status_code == 422 and response.json()["code"] == "posting_closed"
 
 
 def test_add_ashby_job(signed_in):

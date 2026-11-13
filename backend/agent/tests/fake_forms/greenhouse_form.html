@@ -55,7 +55,21 @@
     //   ?confirm_ms=N  the thank-you page shows up N ms after Submit
     //   ?code=1        Submit asks for an emailed verification code, like Greenhouse can;
     //                  Verify (or confirm_ms running out) shows the thank-you page
+    //   ?protect=ssn|password|captcha  the form has a step the agent must leave alone:
+    //                  a Social Security number box, a password box, or a CAPTCHA frame
     const params = new URLSearchParams(location.search);
+    const PROTECTED = {
+      ssn: '<label for="question_2099">Social Security Number</label>' +
+        '<input id="question_2099" name="question_2099">',
+      password: '<label for="account_password">Password</label>' +
+        '<input id="account_password" name="account_password" type="password">',
+      captcha: '<iframe id="fake-captcha" title="CAPTCHA" src="fake_captcha.html" ' +
+        'width="300" height="80"></iframe>',
+    };
+    if (PROTECTED[params.get("protect")]) {
+      document.querySelector("#application-form button").insertAdjacentHTML(
+        "beforebegin", `<div>${PROTECTED[params.get("protect")]}</div>`);
+    }
     const thanks = () => {
       document.body.innerHTML = "<h1>Thank you for applying to Fake Company!</h1>";
     };

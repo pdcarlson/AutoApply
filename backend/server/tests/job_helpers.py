@@ -10,6 +10,8 @@ import server.worker
 
 FAKE_URL = "https://job-boards.greenhouse.io/fakecompany/jobs/1001"
 ASHBY_URL = "https://jobs.ashbyhq.com/acme/0a1b2c3d"
+LEVER_URL = "https://jobs.lever.co/acme/4e5f6a7b"
+FAKE_LEVER_URL = "https://jobs.lever.co/fakelever/0a1b2c3d-4e5f"  # the local fake Lever page
 SPONSORSHIP = "Will you now or in the future require visa sponsorship to work in the United States?"
 WHY_HERE = "Why do you want to work here?"
 EXAMPLE_PDF = Path(__file__).resolve().parents[2] / "agent" / "applicant" / "example_resume.pdf"
@@ -69,7 +71,8 @@ def seed_fake_form_answers(app, why: str = "I like building tools people use.") 
 
 def use_fake_form_variant(monkeypatch, query: str) -> None:
     """Fills from now on use the fake form's test-only variant `query` (see the page's script):
-    "confirm_ms=N" confirms N ms after Submit, "code=1" asks for an emailed code instead."""
+    "confirm_ms=N" confirms N ms after Submit, "code=1" asks for an emailed code instead, and
+    "protect=ssn|password|captcha" adds a step the agent must leave to the person."""
     original = server.worker.make_form
 
     def make_form(job, config):

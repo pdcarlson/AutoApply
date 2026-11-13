@@ -71,3 +71,16 @@ def test_never_picks_a_same_named_city_in_another_state(page):
     with pytest.raises(PlaywrightError, match="No location suggestion matches"):
         _form().fill(page, LOCATION, "Mechanicville, TX")
     assert page.locator("#picked").inner_text() == ""
+
+
+def test_places_are_read_however_they_are_written():
+    """A comma is optional, and a state can be its code or its name."""
+    from agent.forms.greenhouse_form import split_place  # pylint: disable=import-outside-toplevel
+    assert split_place("Troy, NY") == ("troy", "ny")
+    assert split_place("Troy NY") == ("troy", "ny")
+    assert split_place("Troy, New York") == ("troy", "new york")
+    assert split_place("Troy New York") == ("troy", "new york")
+    assert split_place("Troy, NY, USA") == ("troy", "ny")
+    assert split_place("New York") == ("new york", "")
+    assert split_place("Salt Lake City UT") == ("salt lake city", "ut")
+    assert split_place("Chapel Hill North Carolina") == ("chapel hill", "north carolina")

@@ -23,7 +23,8 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-ATS_BY_HOST = (("greenhouse.io", "Greenhouse"), ("ashbyhq.com", "Ashby"))
+ATS_BY_HOST = (("greenhouse.io", "Greenhouse"), ("ashbyhq.com", "Ashby"), ("lever.co", "Lever"))
+FILLED_SITES = ("Greenhouse", "Lever")  # sites the agent reads and fills
 INVALID_URL = "Copy the job’s full address from your browser, then paste it here."
 CLOSED = "The company isn’t taking applications for it anymore."
 FETCH_FAILED = "Couldn't load that posting from the site. Try again in a minute."
@@ -54,7 +55,7 @@ def _parse_link(url: str) -> tuple[JobLink, str]:
     ats = next((name for suffix, name in ATS_BY_HOST if host.endswith(suffix)), None)
     if ats is None:
         raise ApiError(422, "unsupported_site",
-                       f"Auto Apply adds jobs from Greenhouse and Ashby links. "
+                       f"Auto Apply adds jobs from Greenhouse, Ashby and Lever links. "
                        f"This one is from {host}.")
     try:
         return JobLink.parse(url), ats
@@ -82,9 +83,9 @@ def _conflict(db, link: dict) -> dict | None:
     return existing
 
 
-def _greenhouse_details(request: Request, link: JobLink,  # pylint: disable=too-many-locals
-                        config: Config) -> dict:
-    """Reads the form (outside the lock) and works out the Inbox metadata for it."""
+def _form_details(request: Request, link: JobLink, ats: str,  # pylint: disable=too-many-locals
+                  config: Config) -> dict:
+    """Reads a Greenhouse or Lever form (outside the lock) and works out its Inbox metadata."""
     store: Store = request.app.state.store
     probe = {"internal": {"link": link_to_dict(link), "jobData": None}}
     form = make_form(probe, config)
@@ -95,7 +96,7 @@ def _greenhouse_details(request: Request, link: JobLink,  # pylint: disable=too-
             raise ApiError(422, "posting_closed", CLOSED) from None
         raise ApiError(502, "fetch_failed", FETCH_FAILED) from None
     except (OSError, ValueError, KeyError, TypeError):
-        log.warning("Couldn't read the Greenhouse form for %s", link.url, exc_info=True)
+        log.warning("Couldn't read the %s form for %s", ats, link.url, exc_info=True)
         raise ApiError(502, "fetch_failed", FETCH_FAILED) from None
     data = form.job_data or {}
 
@@ -105,7 +106,7 @@ def _greenhouse_details(request: Request, link: JobLink,  # pylint: disable=too-
     answerer = Answerer(profile, no_claude, threshold=threshold)
     to_ask = sum(1 for f in fields if f.required and answerer.answer(f) is None)
 
-    checks = [{"status": "ok", "text": f"Greenhouse form · {_plural(len(fields), 'question')}"}]
+    checks = [{"status": "ok", "text": f"{ats} form · {_plural(len(fields), 'question')}"}]
     if to_ask:
         verb = "isn't" if to_ask == 1 else "aren't"
         checks.append({"status": "warn", "text": f"{_plural(to_ask, 'required question')} "
@@ -113,7 +114,7 @@ def _greenhouse_details(request: Request, link: JobLink,  # pylint: disable=too-
                                                  "bank yet"})
     return {
         "company": data.get("company_name") or _title(link.company),
-        "role": data.get("title") or "Greenhouse posting",
+        "role": data.get("title") or f"{ats} posting",
         "location": (data.get("location") or {}).get("name", "") or "",
         "formSummary": {"totalFields": len(fields), "fieldsToAsk": to_ask},
         "progress": {"filled": 0, "total": len(fields)},
@@ -203,8 +204,8 @@ def add_job(body: AddJobBody, request: Request, store: Store = Depends(get_store
         if existing is not None:  # skipped earlier: adding it again restores it
             jobs.restore(existing)
             return jobs.to_api_job(existing)
-    # Reading a real Greenhouse form is a network call: keep it outside the lock.
-    details = _greenhouse_details(request, link, config) if ats == "Greenhouse" \
+    # Reading a real form is a network call: keep it outside the lock.
+    details = _form_details(request, link, ats, config) if ats in FILLED_SITES \
         else _ashby_details(link)
     with store.tx() as db:
         existing = _conflict(db, link_to_dict(link))  # someone added it meanwhile

@@ -21,6 +21,7 @@ from agent.applicant.profile import Profile, SavedAnswer, normalize
 from agent.forms import form_for
 from agent.forms.form_field import FieldAnswer, FormField
 from agent.forms.greenhouse_form import GreenhouseForm
+from agent.forms.lever_form import LeverForm, parse_page
 from agent.jobs.job_link import JobLink
 from server.answer_bank import AnswerBank
 from server.common_answers import long_date
@@ -35,6 +36,9 @@ FAKE_COMPANY = "fakecompany"
 # Only these exact test postings map to the local fake form. Any other link, including
 # fakecompany with another job id, is treated as a real Greenhouse posting.
 FAKE_JOB_IDS = frozenset({"1001", "1002"})
+# The same for Lever: only this posting maps to the local fake Lever page.
+FAKE_LEVER_COMPANY = "fakelever"
+FAKE_LEVER_JOB_ID = "0a1b2c3d-4e5f"
 DEFAULT_COUNTRY = "United States"
 
 # Looked up at call time, so tests can monkeypatch `server.agent_bridge.ask_claude`.
@@ -57,6 +61,12 @@ def is_fake(link: JobLink, config: Config) -> bool:
         and link.company.lower() == FAKE_COMPANY and link.job_id in FAKE_JOB_IDS
 
 
+def is_fake_lever(link: JobLink, config: Config) -> bool:
+    """The test Lever posting, which FAKE_GREENHOUSE also routes to a local page."""
+    return bool(config.fake_greenhouse) and link.site == "lever" \
+        and link.company.lower() == FAKE_LEVER_COMPANY and link.job_id == FAKE_LEVER_JOB_ID
+
+
 def fake_job_data() -> dict:
     return json.loads((FAKE_FORMS / "greenhouse_api.json").read_text(encoding="utf-8"))
 
@@ -64,13 +74,17 @@ def fake_job_data() -> dict:
 def make_form(job: dict, config: Config):
     """The agent form for a job record (`internal.link`, `internal.jobData`).
 
-    Raises agent UnsupportedLink for sites the agent can't fill (Ashby, Lever). The fake
-    Greenhouse posting never touches the network: its API payload and page are local files.
+    Raises agent UnsupportedLink for sites the agent can't fill (Ashby). The fake
+    Greenhouse and Lever postings never touch the network: their pages are local files.
     """
     link = link_of(job)
     if is_fake(link, config):
         return GreenhouseForm(link, job_data=fake_job_data(),
                               url=(FAKE_FORMS / "greenhouse_form.html").resolve().as_uri())
+    if is_fake_lever(link, config):
+        page = FAKE_FORMS / "lever_form.html"
+        return LeverForm(link, job_data=parse_page(page.read_text(encoding="utf-8")),
+                         url=page.resolve().as_uri())
     form = form_for(link)
     cached = (job.get("internal") or {}).get("jobData")
     if cached is not None:

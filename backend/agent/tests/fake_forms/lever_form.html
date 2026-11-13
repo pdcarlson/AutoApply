@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fake Lever Company - Software Engineering Intern</title>
+</head>
+<body>
+  <!-- A trimmed copy of a Lever apply page's markup, for tests. Nothing here is sent anywhere. -->
+  <div class="posting-headline">
+    <h2>Software Engineering Intern</h2>
+    <div class="posting-categories">
+      <div class="sort-by-time posting-category location">Troy, NY</div>
+    </div>
+  </div>
+  <form id="application-form" method="POST">
+    <ul>
+      <li class="application-question resume">
+        <label><div class="application-label">Resume/CV <span class="required">✱</span></div>
+          <div class="application-field">
+            <input class="application-file-input" id="resume-upload-input" name="resume" type="file">
+            <span class="resume-upload-working" style="display:none">Analyzing resume...</span>
+            <span class="resume-upload-success" style="display:none">Success!</span>
+          </div></label>
+      </li>
+      <li class="application-question">
+        <label><div class="application-label">Full name <span class="required">✱</span></div>
+          <div class="application-field"><input type="text" name="name" required></div></label>
+      </li>
+      <li class="application-question">
+        <label><div class="application-label">Pronouns</div>
+          <div class="application-field">
+            <input type="checkbox" name="pronouns" value="He/him">
+            <input type="checkbox" name="pronouns" value="She/her">
+          </div></label>
+      </li>
+      <li class="application-question">
+        <label><div class="application-label">Email <span class="required">✱</span></div>
+          <div class="application-field"><input type="email" name="email" required></div></label>
+      </li>
+      <li class="application-question">
+        <label><div class="application-label">Phone</div>
+          <div class="application-field"><input type="text" name="phone"></div></label>
+      </li>
+      <li class="application-question">
+        <label><div class="application-label">Current location <span class="required">✱</span></div>
+          <div class="application-field">
+            <input class="location-input" id="location-input" type="text" name="location" required>
+            <input id="selected-location" type="hidden" name="selectedLocation">
+            <div class="dropdown-container"><div class="dropdown-results"></div></div>
+          </div></label>
+      </li>
+      <li class="application-question">
+        <label><div class="application-label">LinkedIn URL</div>
+          <div class="application-field"><input type="text" name="urls[LinkedIn]"></div></label>
+      </li>
+      <li class="application-question custom-question">
+        <label><div class="application-label">Are you legally authorized to work in the United States? <span class="required">✱</span></div></label>
+        <div class="application-field"><ul>
+          <li><label><input type="radio" name="cards[abc][field0]" value="Yes" required="required">Yes</label></li>
+          <li><label><input type="radio" name="cards[abc][field0]" value="No" required="required">No</label></li>
+        </ul></div>
+      </li>
+      <li class="application-question custom-question">
+        <label><div class="application-label">Which school do you attend? <span class="required">✱</span></div>
+          <div class="application-field"><select name="cards[abc][field1]" required>
+            <option value="">Select a university or college</option>
+            <option value="1">Hudson Valley Institute of Technology</option>
+            <option value="2">Rensselaer Polytechnic Institute</option>
+          </select></div></label>
+      </li>
+      <li class="application-question custom-question">
+        <label><div class="application-label">Which languages do you speak?</div></label>
+        <div class="application-field"><ul>
+          <li><label><input type="checkbox" name="cards[abc][field2]" value="English">English</label></li>
+          <li><label><input type="checkbox" name="cards[abc][field2]" value="Spanish">Spanish</label></li>
+        </ul></div>
+      </li>
+      <li class="application-question custom-question">
+        <label><div class="application-label">Why do you want to work here? <span class="required">✱</span></div>
+          <div class="application-field"><textarea name="cards[abc][field3]" required="required"></textarea></div></label>
+      </li>
+      <li class="application-question">
+        <label><div class="application-label">Gender</div>
+          <div class="application-field"><select name="eeo[gender]">
+            <option value="">Select ...</option><option value="Male">Male</option>
+          </select></div></label>
+      </li>
+    </ul>
+    <button id="btn-submit" type="button">Submit application</button>
+  </form>
+  <!-- Like the cookie banner on some postings: pinned over the page, in the way of mouse clicks -->
+  <div id="cookie-banner" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.2)">
+    We use cookies.
+  </div>
+  <script>
+    // Like Lever: reading an attached resume takes a moment, then says it worked
+    document.getElementById("resume-upload-input").addEventListener("change", () => {
+      const working = document.querySelector(".resume-upload-working");
+      working.style.display = "inline";
+      setTimeout(() => {
+        working.style.display = "none";
+        document.querySelector(".resume-upload-success").style.display = "inline";
+      }, 300);
+    });
+    // Like Lever: the location box suggests places while you type
+    const PLACES = ["Troy, MI, USA", "Troy, NY, USA", "Poughkeepsie, NY, USA"];
+    const box = document.getElementById("location-input");
+    box.addEventListener("input", () => {
+      const results = document.querySelector(".dropdown-results");
+      results.innerHTML = "";
+      PLACES.filter(place => box.value && place.toLowerCase().startsWith(box.value.toLowerCase()))
+        .forEach(place => {
+          const option = document.createElement("div");
+          option.className = "dropdown-location";
+          option.textContent = place;
+          option.addEventListener("mousedown", () => {
+            box.value = place;
+            document.getElementById("selected-location").value = JSON.stringify({ name: place });
+            results.innerHTML = "";
+          });
+          results.appendChild(option);
+        });
+    });
+    // ?busy=1: like postings with tracking pixels, the page never stops making requests
+    if (new URLSearchParams(location.search).has("busy")) {
+      setInterval(() => fetch("data:text/plain,ping"), 200);
+    }
+    // ?banner=1: a cookie banner covers the page
+    if (new URLSearchParams(location.search).has("banner")) {
+      document.getElementById("cookie-banner").style.display = "block";
+    }
+    // ?verify=fail: like Lever when its hCaptcha turns an application away, Submit shows an
+    // error above the form again and the attached resume is gone (a reload drops files)
+    const params = new URLSearchParams(location.search);
+    document.getElementById("btn-submit").addEventListener("click", () => {
+      const form = document.getElementById("application-form");
+      if (!form.reportValidity()) return;
+      if (params.get("verify") === "fail") {
+        form.insertAdjacentHTML("beforebegin", '<div class="application-error">' +
+          "There was an error verifying your application. Please try again.</div>");
+        document.getElementById("resume-upload-input").value = "";
+        return;
+      }
+      document.body.innerHTML = "<h3>Application submitted!</h3><p>Thanks for applying.</p>";
+    });
+  </script>
+</body>
+</html>

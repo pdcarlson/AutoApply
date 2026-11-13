@@ -6,6 +6,8 @@ from pathlib import Path
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 
+from agent.forms.protected import ProtectedFieldDetector, handoff_reason, merge
+
 CONFIRM_TIMEOUT_S = 15  # how long to wait for the site's thank-you page after Submit
 CONFIRM_POLL_MS = 500  # how often to look for it meanwhile
 NOT_CONFIRMED = "Pressed Submit but never saw a confirmation."
@@ -18,7 +20,7 @@ FORM_GONE = ("The form window doesn't show the form anymore, so the agent didn't
 class RunResult:  # pylint: disable=too-many-instance-attributes
     """How a run ended."""
 
-    status: str  # needs_input, ready, submitted, failed or cancelled
+    status: str  # needs_input, ready, handoff, submitted, failed or cancelled
     reason: str = ""
     questions: list = field(default_factory=list)  # FormFields the applicant has to answer
     filled: list = field(default_factory=list)  # (label, value, source) for each filled field
@@ -31,6 +33,9 @@ class RunResult:  # pylint: disable=too-many-instance-attributes
     asked_for_code: bool = False  # no confirmation, and the site asked for an emailed code
     pressed: bool = False  # Submit was pressed (so the application may have gone out)
     window_closed: bool = False  # the page or browser went away (closed by the person)
+    blocked: bool = False  # no confirmation, and the site's bot check turned the application away
+    # Handoffs for the steps the agent left alone (CAPTCHA, sign-in, password, SSN)
+    protected: list = field(default_factory=list)
 
 
 class Cancelled(Exception):
@@ -47,6 +52,9 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
 
     hold=True (with submit=False) keeps the browser open when the fill ends `ready`: the result's
     `held` is a HeldForm that can press Submit later and stays open until its owner closes it.
+    A form with a protected step (CAPTCHA, sign-in, password or SSN) ends `handoff` instead: the
+    agent fills the rest, never presses Submit, and with hold=True the window is held the same
+    way so the applicant can do that step in it.
     Playwright objects belong to the thread that made them, so `held` must be used and closed
     from the thread that called run().
     After Submit, the run waits up to confirm_timeout_s seconds for the thank-you page.
@@ -54,7 +62,7 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
 
     def __init__(self, answerer, screenshot_dir, submit=False, show=False,  # pylint: disable=too-many-arguments,too-many-positional-arguments
                  on_event=None, should_stop=None, slow_mo=0, hold=False,
-                 confirm_timeout_s=CONFIRM_TIMEOUT_S):
+                 confirm_timeout_s=CONFIRM_TIMEOUT_S, detector=None):
         self.answerer = answerer
         self.screenshot_dir = Path(screenshot_dir)
         self.submit = submit
@@ -64,6 +72,8 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
         self.slow_mo = slow_mo
         self.hold = hold
         self.confirm_timeout_s = confirm_timeout_s
+        self.detector = detector or ProtectedFieldDetector()
+        self.protected = []  # Handoffs for the questions run() left alone
 
     def emit(self, kind, **data):
         """Tell the caller what the run is doing, if it asked."""
@@ -82,10 +92,16 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
         except OSError as error:
             return RunResult("failed", f"Couldn't read the form's questions: {error}")
 
-        answered, questions = [], []
+        answered, questions, self.protected = [], [], []
         try:
             for form_field in fields:
                 self.check_stop()
+                # A protected field is never answered, and the applicant isn't asked for it
+                # either, so its answer can't be saved
+                handoff = self.detector.check_question(form_field)
+                if handoff:
+                    merge(self.protected, [handoff])
+                    continue
                 answer = self.answerer.answer(form_field)
                 if answer:
                     answered.append((form_field, answer))
@@ -109,7 +125,7 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
         filled_shot = self.screenshot_dir / f"{shot_name}-filled.png"
         result_shot = self.screenshot_dir / f"{shot_name}-result.png"
-        result = RunResult("")  # drive() sets the status
+        result = RunResult("", protected=list(self.protected))  # drive() sets the status
         page = None
         playwright = sync_playwright().start()
         try:
@@ -130,9 +146,9 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
             finally:
                 if page is not None and result.status in ("submitted", "failed"):
                     take_screenshot(page, result_shot, result)
-                if self.hold and result.status == "ready":
+                if self.hold and result.status in ("ready", "handoff"):
                     result.held = HeldForm(playwright, browser, page, form, result_shot, result,
-                                           self.confirm_timeout_s)
+                                           self.confirm_timeout_s, self.detector)
                 else:
                     close_quietly(browser.close)
         finally:
@@ -144,6 +160,7 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
         """Fill every field on the open page, then submit it if allowed. Updates result."""
         page.goto(form.form_url())
         form.wait_until_ready(page)
+        merge(result.protected, self.detector.scan_page(page))
         self.emit("phase", name="filling")
         for form_field, answer in answered:
             self.check_stop()
@@ -157,12 +174,17 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
 
         take_screenshot(page, filled_shot, result)
         result.filled_screenshot = result.screenshot
+        merge(result.protected, self.detector.scan_page(page))  # steps that showed up meanwhile
+        if result.protected:
+            result.status = "handoff"
+            result.reason = handoff_reason(result.protected)
+            return
         if not self.submit:
             result.status = "ready"
             result.reason = "Filled in but not sent (SUBMIT_REAL_FORM is off)."
             return
         self.check_stop()
-        send(page, form, result, self.emit, self.confirm_timeout_s)
+        send(page, form, result, self.emit, self.confirm_timeout_s, detector=self.detector)
 
 
 class HeldForm:  # pylint: disable=too-many-instance-attributes
@@ -174,7 +196,7 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
     """
 
     def __init__(self, playwright, browser, page, form, result_shot, filled,  # pylint: disable=too-many-arguments,too-many-positional-arguments
-                 confirm_timeout_s):
+                 confirm_timeout_s, detector=None):
         self.playwright = playwright
         self.browser = browser
         self.page = page
@@ -182,6 +204,7 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
         self.result_shot = result_shot
         self.filled = filled  # the fill's RunResult
         self.confirm_timeout_s = confirm_timeout_s
+        self.detector = detector or ProtectedFieldDetector()
         self.closed = False
 
     def window_open(self):
@@ -212,6 +235,15 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
             return False
         try:
             return bool(self.form.is_confirmed(self.page, timeout_ms=timeout_ms))
+        except PlaywrightError:
+            return False
+
+    def blocked(self):
+        """True if the page shows the site turning the application away (its bot check)."""
+        if self.closed:
+            return False
+        try:
+            return bool(self.form.is_blocked(self.page))
         except PlaywrightError:
             return False
 
@@ -247,7 +279,7 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
                     result.status, result.reason = "failed", FORM_GONE
             else:
                 send(self.page, self.form, result, on_event or (lambda kind, **data: None),
-                     timeout, should_abort)
+                     timeout, should_abort, self.detector)
         except PlaywrightError as error:
             result.status = "failed"
             result.reason = f"Something went wrong on the page: {error.message}"
@@ -267,8 +299,11 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
         close_quietly(self.playwright.stop)
 
 
-def send(page, form, result, emit, confirm_timeout_s, should_abort=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    """Press Submit, then wait for the confirmation page. Sets result's status and reason."""
+def send(page, form, result, emit, confirm_timeout_s, should_abort=None, detector=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    """Press Submit, then wait for the confirmation page. Sets result's status and reason.
+
+    A CAPTCHA the site shows after Submit is left for the applicant (result.protected).
+    """
     emit("phase", name="submitting")
     form.submit(page)
     result.pressed = True
@@ -281,6 +316,17 @@ def send(page, form, result, emit, confirm_timeout_s, should_abort=None):  # pyl
         result.asked_for_code = True
         result.reason = ("The site asked for the verification code it emailed, and no "
                          f"confirmation came within {confirm_timeout_s:g} seconds.")
+    elif form.is_blocked(page):
+        result.blocked = True
+        result.reason = "The site's bot check turned the application away after Submit."
+    elif detector is not None:
+        try:
+            result.protected = detector.scan_captchas(page)
+        except PlaywrightError:
+            result.protected = []  # the window went away; the caller notices that itself
+        if result.protected:
+            result.reason = (f"{handoff_reason(result.protected)} The site showed one after "
+                             "Submit, so the application isn't confirmed yet.")
 
 
 def wait_for_confirmation(page, form, timeout_s, should_abort=None):

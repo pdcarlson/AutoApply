@@ -42,7 +42,7 @@ STATUSES = ("submitted", "interviewing", "offer", "rejected")
 NEW_FOR = timedelta(hours=24)
 WAITING = "Waiting for a reply"
 DRY_RUN = "Not sent: SUBMIT_REAL_FORM is off, so the agent didn't press Submit (dry run)"
-ATS_PREFIX = {"Greenhouse": "GH", "Ashby": "AB"}
+ATS_PREFIX = {"Greenhouse": "GH", "Ashby": "AB", "Lever": "LV"}
 
 NOT_READY = "This job isn’t waiting for review."
 NOT_HANDOFF = "This job isn’t waiting for you to finish it."
@@ -61,6 +61,19 @@ WATCHING = ("The agent pressed Submit but hasn't seen a confirmation page yet. T
             "the thank-you page appears.")
 WINDOW_CLOSED = ("The form window was closed before the application was confirmed. Check your "
                  "email and the site: if it went through, mark it submitted.")
+WATCHING_CAPTCHA = ("{site} showed a CAPTCHA after Submit, and the agent never solves those. "
+                    "Solve it in the open form window — the agent will record the application "
+                    "as soon as the thank-you page appears.")
+PROTECTED_WINDOW = (" The agent filled in the rest and left the form window open: finish that "
+                    "step there and press Submit — the agent will record the application as "
+                    "soon as the thank-you page appears.")
+PROTECTED_HIDDEN = (" (The agent's browser is hidden because AGENT_SHOW_BROWSER is off: open the "
+                    "job link, finish the form there, then mark it submitted.)")
+PROTECTED_STEP = "This form has a step only you can do, so the agent didn't press Submit."
+BLOCKED = ("{site}’s bot check turned the agent’s browser away, so this one has to be finished in "
+           "your own browser. Open the form there and press “Fill in my answers” (the AutoApply "
+           "Filler extension), check it and press Submit yourself. Without the extension, copy "
+           "your answers from “See its answers”, then press “I submitted it”.")
 HIDDEN_WINDOW = (" (The agent's browser is hidden because AGENT_SHOW_BROWSER is off: check your "
                  "email and the site, then mark it submitted.)")
 
@@ -158,11 +171,30 @@ def record_confirmed(store: Store, db: Db, job: dict, result,  # pylint: disable
     return record
 
 
-def watching_reason(job: dict, config, asked_for_code: bool) -> str:
-    """Why the job is in `handoff` while its open window is watched for the confirmation."""
-    reason = WATCHING_CODE.format(site=job.get("ats") or "The site") if asked_for_code \
-        else WATCHING
+def watching_reason(job: dict, config, result) -> str:
+    """Why the job is in `handoff` while its open window is watched for the confirmation.
+
+    `result` is the submit's RunResult (or None): an emailed code or a CAPTCHA it ran into
+    gets its own wording.
+    """
+    site = job.get("ats") or "The site"
+    if result is not None and result.asked_for_code:
+        reason = WATCHING_CODE.format(site=site)
+    elif result is not None and result.protected:
+        reason = WATCHING_CAPTCHA.format(site=site)
+    else:
+        reason = WATCHING
     return reason if config.show_browser else reason + HIDDEN_WINDOW
+
+
+def blocked_reason(job: dict) -> str:
+    """Why a job is in `handoff` after the site's bot check turned its application away."""
+    return BLOCKED.format(site=job.get("ats") or "The site")
+
+
+def protected_reason(config, result) -> str:
+    """Why the job is in `handoff` after a fill that left a protected step alone (US8)."""
+    return result.reason + (PROTECTED_WINDOW if config.show_browser else PROTECTED_HIDDEN)
 
 
 def _job_in(db: Db, job_id: str, state: str, code: str, message: str) -> dict:
@@ -207,10 +239,13 @@ def _unconfirmed(job: dict, config, run) -> str:
     result = run.result
     if result.window_closed:
         return WINDOW_CLOSED
+    if result.blocked:
+        return blocked_reason(job)
     session = run.ctx.session if run.ctx is not None else None
     if session is not None and session.alive:
-        return watching_reason(job, config, result.asked_for_code)
+        return watching_reason(job, config, result)
     return UNCONFIRMED
+
 
 
 def _after_submit(store: Store, worker, config, db: Db,  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-return-statements,too-many-locals
@@ -239,6 +274,9 @@ def _after_submit(store: Store, worker, config, db: Db,  # pylint: disable=too-m
     if result.status == "needs_input" and ctx is not None:
         worker.to_question(db, job, ctx, result)
         return ApiError(409, "answers_changed", ANSWERS_CHANGED)
+    if result.status == "handoff" and ctx is not None:  # the new fill found a protected step
+        worker.to_protected(db, job, ctx, result)
+        return ApiError(409, "protected_step", PROTECTED_STEP)
     if pressed:
         reason = _unconfirmed(job, config, run)
         job.update(state="handoff", phase=None, currentField=None, reason=reason)

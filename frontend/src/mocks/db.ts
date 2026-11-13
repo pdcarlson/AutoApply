@@ -8,6 +8,7 @@ import type {
   AgentQuestion,
   Answer,
   ApplicationDetail,
+  Ats,
   CommonAnswers,
   FilledField,
   JobDetail,
@@ -201,7 +202,7 @@ interface JobSeed {
   company: string;
   role: string;
   location: string;
-  ats: 'Greenhouse' | 'Ashby';
+  ats: Ats;
   source: 'matched' | 'added';
   ageDays: number;
   reason: string;
@@ -441,7 +442,7 @@ function seedApplications(): ApplicationDetail[] {
     company: string,
     role: string,
     location: string,
-    ats: 'Greenhouse' | 'Ashby',
+    ats: Ats,
     days: number,
     status: ApplicationDetail['status'],
   ): ApplicationDetail => {

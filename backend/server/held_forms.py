@@ -17,6 +17,8 @@ it. So every fill runs on its own `FormSession` thread. The fill ends like any r
             keep the window open and *watch* it (every WATCH_SECONDS, no time limit) until the
             thank-you page shows up (then `on_confirmed`, screenshot, close) or the person
             closes the window (`on_window_closed`).
+            A window that shows the site turning the application away (its bot check, after
+            the person pressed Submit in it) is reported once (`on_blocked`) and left open.
     call    run a function on the held form (screenshots for mark-submitted, tests)
     close   close the browser and end the thread (only after a saved screenshot, or in tests)
 
@@ -53,12 +55,15 @@ class FormSession:  # pylint: disable=too-many-instance-attributes
 
     def __init__(self, job_id: str, fill: Callable[[], RunResult], context=None,  # pylint: disable=too-many-arguments
                  on_confirmed: Callable | None = None,
-                 on_window_closed: Callable | None = None):
+                 on_window_closed: Callable | None = None,
+                 on_blocked: Callable | None = None):
         self.job_id = job_id
         self.context = context
         self._fill = fill
         self._on_confirmed = on_confirmed
         self._on_window_closed = on_window_closed
+        self._on_blocked = on_blocked
+        self.blocked = False  # the site's bot check turned this window's application away
         self._commands: queue.Queue = queue.Queue()
         self._filled = threading.Event()
         self._closing = threading.Event()
@@ -194,6 +199,9 @@ class FormSession:  # pylint: disable=too-many-instance-attributes
             if not held.window_open():
                 self._notify(self._on_window_closed)
                 return
+            if not self.blocked and not self._closing.is_set() and held.blocked():
+                self.blocked = True
+                self._notify(self._on_blocked)
             if self.watching and not self._closing.is_set() and held.confirmed():
                 result = self._confirmed_now(held)
                 self._notify(self._on_confirmed, result)

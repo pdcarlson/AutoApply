@@ -258,12 +258,14 @@ export const handlers = [
       ? 'Greenhouse'
       : host.endsWith('ashbyhq.com')
         ? 'Ashby'
-        : null;
+        : host.endsWith('lever.co')
+          ? 'Lever'
+          : null;
     if (!ats) {
       return fail(
         422,
         'unsupported_site',
-        `Auto Apply adds jobs from Greenhouse and Ashby links. This one is from ${host}.`,
+        `Auto Apply adds jobs from Greenhouse, Ashby and Lever links. This one is from ${host}.`,
       );
     }
     if (/closed/i.test(parsed.pathname)) {

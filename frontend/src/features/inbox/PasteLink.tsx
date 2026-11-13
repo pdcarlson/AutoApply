@@ -61,7 +61,7 @@ interface PasteLinkProps {
   onShowJob: (jobId: string) => void;
 }
 
-/** "Apply from a job link": paste a Greenhouse or Ashby URL and add it to the Inbox. */
+/** "Apply from a job link": paste a Greenhouse, Ashby or Lever URL and add it to the Inbox. */
 export function PasteLink({ onAdded, onShowJob }: PasteLinkProps) {
   const [value, setValue] = useState('');
   const [message, setMessage] = useState<Message | null>(null);

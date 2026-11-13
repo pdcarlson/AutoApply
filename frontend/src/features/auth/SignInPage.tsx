@@ -21,7 +21,7 @@ const NEXT_STEPS = [
   ],
   [
     'Paste your first job',
-    'A Greenhouse or Ashby link. The agent fills the form, and you approve it before it’s submitted.',
+    'A Greenhouse, Lever or Ashby link. The agent fills the form, and you approve it before it’s submitted.',
   ],
 ] as const;
 

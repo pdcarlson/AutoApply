@@ -4,6 +4,7 @@ import type { Ats } from '@/api/types';
 export const SUPPORTED_BOARDS: readonly { domain: string; ats: Ats; example: string }[] = [
   { domain: 'greenhouse.io', ats: 'Greenhouse', example: 'boards.greenhouse.io' },
   { domain: 'ashbyhq.com', ats: 'Ashby', example: 'jobs.ashbyhq.com' },
+  { domain: 'lever.co', ats: 'Lever', example: 'jobs.lever.co' },
 ];
 
 export const SUPPORTED_HINT = `Supported: ${SUPPORTED_BOARDS.map((b) => b.example).join(' · ')}`;
@@ -29,7 +30,9 @@ export function checkJobLink(input: string): LinkCheck {
   const host = url.hostname.replace(/^www\./, '');
   const board = SUPPORTED_BOARDS.find((b) => host === b.domain || host.endsWith(`.${b.domain}`));
   if (!board) {
-    const names = SUPPORTED_BOARDS.map((b) => b.ats).join(' and ');
+    const names = SUPPORTED_BOARDS.map((b) => b.ats)
+      .join(', ')
+      .replace(/, ([^,]*)$/, ' and $1');
     return {
       ok: false,
       title: 'This site isn’t supported',

@@ -42,3 +42,7 @@ class AtsForm(ABC):
     def asks_for_code(self, page):  # pylint: disable=unused-argument
         """Return True if the site is asking for a code it emailed (a human check)."""
         return False
+
+    def is_blocked(self, page):  # pylint: disable=unused-argument
+        """Return True if the site's bot check turned the application away after Submit."""
+        return False

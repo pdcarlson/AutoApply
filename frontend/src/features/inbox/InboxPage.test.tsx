@@ -78,7 +78,7 @@ describe('InboxPage', () => {
 
     await user.type(
       await screen.findByLabelText('Add a job by pasting its link'),
-      'https://jobs.lever.co/acme/1',
+      'https://www.linkedin.com/jobs/view/1',
     );
     await user.click(screen.getByRole('button', { name: 'Add job' }));
 

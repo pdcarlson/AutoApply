@@ -1,5 +1,5 @@
 """Reads a job link and works out which site it's on."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlsplit
 
 SITES = {
@@ -22,6 +22,9 @@ class JobLink:
     site: str
     company: str
     job_id: str
+    # The link exactly as the user pasted it. The agent opens this page, so tracking tags
+    # like ?jr_id=... reach the site. `url` is the cleaned-up link used to spot duplicates.
+    pasted: str = field(default="", compare=False)
 
     @classmethod
     def parse(cls, url):
@@ -38,7 +41,7 @@ class JobLink:
             company, job_id = greenhouse_ids(path, parts.query)
             # boards.greenhouse.io redirects to job-boards, so both hosts mean the same job
             return cls(f"https://job-boards.greenhouse.io/{company}/jobs/{job_id}",
-                       site, company, job_id)
+                       site, company, job_id, pasted=url.strip())
 
         # jobs.lever.co/<company>/<id>[/apply] and jobs.ashbyhq.com/<company>/<id>[/application]
         if len(path) < 2:

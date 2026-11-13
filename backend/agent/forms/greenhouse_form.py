@@ -13,6 +13,8 @@ API_URL = "https://boards-api.greenhouse.io/v1/boards/{company}/jobs/{job_id}?qu
 # The embed page is just the form, and it stays on Greenhouse instead of
 # redirecting to the company's own careers site like some job links do.
 EMBED_URL = "https://job-boards.greenhouse.io/embed/job_app?for={company}&token={job_id}"
+# How long to look for the form on the pasted link's page before using the embed page
+FORM_WAIT_MS = 15000
 
 KINDS = {
     "input_text": "text",
@@ -125,9 +127,13 @@ class GreenhouseForm(AtsForm):
         self.job_data = job_data
         self.url = url
 
+    def embed_url(self):
+        """Greenhouse's form-only page for this job."""
+        return EMBED_URL.format(company=self.link.company, job_id=self.link.job_id)
+
     def form_url(self):
-        """Return the embed page for this job."""
-        return self.url or EMBED_URL.format(company=self.link.company, job_id=self.link.job_id)
+        """Return the link the user pasted, or the embed page if there isn't one."""
+        return self.url or self.link.pasted or self.embed_url()
 
     def read_fields(self):
         """Ask the Job Board API for the form's questions."""
@@ -138,8 +144,20 @@ class GreenhouseForm(AtsForm):
         return fields_from_api(self.job_data)
 
     def wait_until_ready(self, page):
-        """Wait for the application form."""
-        page.locator("#application-form").wait_for(state="attached")
+        """Wait for the application form.
+
+        Some posting links redirect to the company's own careers site, which shows the form
+        inside a frame the agent can't fill. If the form isn't on the pasted link's page,
+        open Greenhouse's form-only page for the same job instead.
+        """
+        form = page.locator("#application-form")
+        try:
+            form.wait_for(state="attached", timeout=FORM_WAIT_MS)
+        except PlaywrightTimeout:
+            if self.url or page.url == self.embed_url():
+                raise
+            page.goto(self.embed_url())
+            form.wait_for(state="attached")
         # The resume upload breaks if a file goes in before the page's scripts finish loading
         page.wait_for_load_state("networkidle")
 

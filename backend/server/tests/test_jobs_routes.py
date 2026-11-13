@@ -42,7 +42,8 @@ def test_add_fake_greenhouse_job(signed_in, app):
 
     stored = app.state.store.read("jobs")[0]
     assert stored["internal"]["link"] == {"url": FAKE_URL, "site": "greenhouse",
-                                          "company": "fakecompany", "job_id": "1001"}
+                                          "company": "fakecompany", "job_id": "1001",
+                                          "pasted": FAKE_URL}
     assert stored["internal"]["jobData"]["id"] == 1001
     assert stored["timeline"][0]["text"] == "You added the link"
     listed = signed_in.get("/api/jobs").json()

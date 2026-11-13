@@ -43,7 +43,8 @@ ask_claude = agent_claude.ask_claude
 # ----- links and forms -----
 
 def link_to_dict(link: JobLink) -> dict:
-    return {"url": link.url, "site": link.site, "company": link.company, "job_id": link.job_id}
+    return {"url": link.url, "site": link.site, "company": link.company, "job_id": link.job_id,
+            "pasted": link.pasted}
 
 
 def link_of(job: dict) -> JobLink:

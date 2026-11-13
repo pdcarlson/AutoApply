@@ -25,6 +25,7 @@ from agent.jobs.job_link import JobLink
 from server.answer_bank import AnswerBank
 from server.common_answers import long_date
 from server.config import BACKEND_DIR, Config
+from server.names import NAME_KEYS
 from server.store import Store, parse_iso
 
 log = logging.getLogger(__name__)
@@ -141,7 +142,7 @@ def build_agent_profile(store: Store, bank: AnswerBank,  # pylint: disable=too-m
     skipped = set(common.get("skipped") or [])
     common = {k: (None if k in skipped else v) for k, v in common.items()}
 
-    first, _, last = " ".join((profile.get("name") or "").split()).partition(" ")
+    first, middle, last = (" ".join(str(profile.get(key) or "").split()) for key in NAME_KEYS)
     links = {link.get("id"): link.get("url", "") for link in profile.get("links") or []}
     experience = profile.get("experience") or []
     job = next((e for e in experience if e.get("current")), experience[0] if experience else {})
@@ -152,6 +153,7 @@ def build_agent_profile(store: Store, bank: AnswerBank,  # pylint: disable=too-m
     answers, ids = bank.projection(company)
     agent_profile = Profile(
         first_name=first,
+        middle_name=middle,
         last_name=last,
         email=profile.get("email", ""),
         phone=profile.get("phone", ""),

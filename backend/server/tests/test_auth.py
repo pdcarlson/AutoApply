@@ -51,7 +51,9 @@ def test_signed_in_state_survives_restart(signed_in, make_app):  # pylint: disab
 
 def test_user_comes_from_profile(signed_in, app):
     with app.state.store.tx() as db:
-        db.profile["name"] = "Jordan Rivera"
-        db.profile["email"] = ""
+        db.profile.update(firstName="Mary", middleName="Ann", lastName="Smith", email="")
     user = signed_in.get("/api/session").json()["user"]
-    assert user == {"id": "local", "name": "Jordan Rivera", "email": "demo@example.com"}
+    assert user == {"id": "local", "name": "Mary Ann Smith", "email": "demo@example.com"}
+    with app.state.store.tx() as db:
+        db.profile.update(middleName="")
+    assert signed_in.get("/api/session").json()["user"]["name"] == "Mary Smith"

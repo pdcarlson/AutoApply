@@ -26,7 +26,9 @@ const newId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 // ===== Contact =====
 
 type ContactKey =
-  | 'name'
+  | 'firstName'
+  | 'middleName'
+  | 'lastName'
   | 'email'
   | 'phone'
   | 'street'
@@ -55,14 +57,29 @@ export function ContactFields({
 }) {
   return (
     <div className={styles.contact}>
-      <div className={styles.grid2}>
+      <div className={styles.name}>
         <TextField
-          label="Full name"
-          placeholder="Your name"
-          autoComplete="name"
-          value={value.name}
-          onChange={(name) => onChange({ name })}
+          label="First name"
+          autoComplete="given-name"
+          required
+          value={value.firstName}
+          onChange={(firstName) => onChange({ firstName })}
         />
+        <TextField
+          label="Middle name (optional)"
+          autoComplete="additional-name"
+          value={value.middleName}
+          onChange={(middleName) => onChange({ middleName })}
+        />
+        <TextField
+          label="Last name"
+          autoComplete="family-name"
+          required
+          value={value.lastName}
+          onChange={(lastName) => onChange({ lastName })}
+        />
+      </div>
+      <div className={styles.grid2}>
         <TextField
           label="Email"
           type="email"

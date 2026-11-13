@@ -4,8 +4,9 @@ from agent.settings import CONFIDENCE_THRESHOLD
 
 # Link questions are worded differently on every form, so they're matched by a word in
 # the label. Only short labels count, so a long question that mentions LinkedIn isn't
-# answered with a URL.
+# answered with a URL. A "Middle Name" box (a custom question on some forms) is matched too.
 LABEL_WORDS = {
+    "middle name": "middle_name",
     "linkedin": "linkedin",
     "github": "github",
     "website": "website",

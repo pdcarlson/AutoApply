@@ -34,6 +34,7 @@ class Profile:  # pylint: disable=too-many-instance-attributes
     email: str
     phone: str = ""
     preferred_name: str = ""
+    middle_name: str = ""
     city: str = ""
     state: str = ""
     country: str = ""
@@ -82,6 +83,8 @@ class Profile:  # pylint: disable=too-many-instance-attributes
         # Leave the key out when unused, so saving never adds a new key to a profile file
         if not self.extra_facts:
             del data["extra_facts"]
+        if not self.middle_name:
+            del data["middle_name"]
         Path(path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
     def saved_answer(self, question):
@@ -100,7 +103,7 @@ class Profile:  # pylint: disable=too-many-instance-attributes
     def facts(self):
         """Return the profile as short lines Claude can read."""
         lines = [
-            f"Name: {self.first_name} {self.last_name}",
+            "Name: " + " ".join(filter(None, [self.first_name, self.middle_name, self.last_name])),
             f"Preferred name: {self.preferred_name or self.first_name}",
             f"Email: {self.email}",
             f"Phone: {self.phone}",
@@ -121,6 +124,8 @@ class Profile:  # pylint: disable=too-many-instance-attributes
             "Demographic questions (gender, race, veteran, disability): "
             + ("decline to answer" if self.eeo == "decline" else "ask the applicant"),
         ]
+        if self.middle_name:
+            lines.insert(1, f"Middle name: {self.middle_name}")
         lines += [f'Saved answer to "{saved.question}": {saved.answer}' for saved in self.answers]
         lines += self.extra_facts
         return "\n".join(lines)

@@ -48,6 +48,12 @@ redirects to the backend's own callback, and the backend sets the cookie and red
 | GET    | `/preferences`          |                                     | `200 JobPreferences`                                           |
 | PUT    | `/preferences`          | `JobPreferences`                    | `200 JobPreferences`                                           |
 
+The name is three `Profile` fields: `firstName`, `middleName` (optional, `""` when absent), and
+`lastName`. Setup requires a first and last name. A parsed resume fills all three from its name line
+("Mary Ann Smith" gives `Mary` / `Ann` / `Smith`; every word between the first and the last is the
+middle name). `Session.user.name` is the read-only display name built from them. Profiles saved
+before the split (a single `name`) are split the same way when the backend loads them.
+
 The frontend polls `/resume/parse` once a second while `status` is `parsing`, showing each entry of
 `sections` as it arrives. A finished parse fills the profile; the frontend refetches `/profile`.
 `error.code: "unreadable"` offers "Fill it in by hand".

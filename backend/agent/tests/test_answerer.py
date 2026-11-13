@@ -47,3 +47,14 @@ def test_unsure_claude_answer_means_ask():
 def test_answer_that_isnt_an_option_means_ask():
     """A dropdown answer has to be one of the dropdown's options."""
     assert Answerer(PROFILE, claude_says("Nope", 100)).answer(SPONSORSHIP) is None
+
+
+def test_middle_name_box_comes_from_the_profile():
+    """A "Middle Name" question is filled from the profile; with no middle name Claude decides."""
+    profile = copy.deepcopy(PROFILE)
+    profile.middle_name = "Ann"
+    middle = FormField("question_2", "Middle Name", "text")
+    answer = Answerer(profile, claude_says("wrong", 100)).answer(middle)
+    assert (answer.value, answer.source) == ("Ann", "profile")
+    assert "Middle name: Ann" in profile.facts() and "Middle name" not in PROFILE.facts()
+    assert Answerer(PROFILE, claude_says("", 100)).answer(middle) is None

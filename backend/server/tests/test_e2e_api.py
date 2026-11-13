@@ -92,7 +92,7 @@ def set_up(client):
     assert parse["file"]["name"] == "example_resume.pdf"
 
     profile = ok(client.get("/api/profile"))
-    assert profile["name"] == "Jordan Rivera" and profile["email"]
+    assert (profile["firstName"], profile["lastName"]) == ("Jordan", "Rivera") and profile["email"]
     assert profile["resume"]["name"] == "example_resume.pdf"
     if not profile["country"]:
         update = {k: v for k, v in profile.items() if k not in ("resume", "unplaced")}

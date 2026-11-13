@@ -75,7 +75,9 @@ class ProjectBody(BaseModel):
 
 class ProfileUpdateBody(BaseModel):
     """ProfileUpdate: every Profile field but resume and unplaced. Only the keys sent change."""
-    name: str = ""
+    firstName: str = ""
+    middleName: str = ""
+    lastName: str = ""
     email: str = ""
     phone: str = ""
     street: str = ""

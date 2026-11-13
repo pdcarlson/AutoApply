@@ -9,7 +9,8 @@ import { RequireSession } from './guards';
 import { paths } from './paths';
 
 function ProfileName() {
-  return <p>{useProfile().data?.name ?? 'Loading'}</p>;
+  const profile = useProfile().data;
+  return <p>{profile ? `${profile.firstName} ${profile.lastName}` : 'Loading'}</p>;
 }
 
 describe('expired session', () => {

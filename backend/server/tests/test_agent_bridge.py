@@ -63,8 +63,8 @@ def test_profile_projection(app):
     store.dir("resume")
     store.path("resume", "cv.pdf").write_bytes(b"%PDF-1.4")
     _set_profile(
-        app, name="Ada  Byron King", email="ada@example.com", phone="555", city="Troy",
-        state="NY", country="", _resumePath="resume/cv.pdf",
+        app, firstName=" Ada ", middleName="Byron", lastName="King", email="ada@example.com",
+        phone="555", city="Troy", state="NY", country="", _resumePath="resume/cv.pdf",
         links=[{"id": "web", "url": "https://ada.dev"}, {"id": "linkedin", "url": "li/ada"},
                {"id": "github", "url": "gh/ada"}],
         education=[{"school": "RPI", "degreeType": "B.S.", "major": "CS", "gpa": "3.9",
@@ -82,7 +82,7 @@ def test_profile_projection(app):
                                  locations=["Remote (US)", "NYC"], skipped=["workAuthorized"])
 
     profile, _ids = build_agent_profile(store, app.state.answer_bank, "Fake Company")
-    assert (profile.first_name, profile.last_name) == ("Ada", "Byron King")
+    assert (profile.first_name, profile.middle_name, profile.last_name) == ("Ada", "Byron", "King")
     assert profile.country == "United States"
     assert (profile.website, profile.linkedin, profile.github) == ("https://ada.dev", "li/ada",
                                                                    "gh/ada")
@@ -97,6 +97,7 @@ def test_profile_projection(app):
     assert profile.eeo == "ask"
     facts = profile.facts()
     assert "Authorized to work in the United States: Unknown (ask the applicant)" in facts
+    assert "Name: Ada Byron King" in facts and "Middle name: Byron" in facts
     for line in ["Skills: Python, SQL", "Wants to work in: Remote (US); NYC",
                  "Relocation: depends on the role",
                  "Expected pay: $40/hr (only give it when a number is required)",
@@ -113,7 +114,7 @@ def test_profile_defaults_and_missing_resume(app):
     _set_profile(app, _resumePath="resume/gone.pdf",
                  education=[{"school": "RPI", "end": "2027-05"}])
     profile, _ids = build_agent_profile(app.state.store, app.state.answer_bank, None)
-    assert (profile.first_name, profile.last_name) == ("Demo", "User")
+    assert (profile.first_name, profile.middle_name, profile.last_name) == ("Demo", "", "User")
     assert profile.resume_path == ""  # the file isn't there
     assert profile.work_authorized_us is False and profile.needs_sponsorship is True
     assert profile.willing_to_relocate is True and profile.eeo == "decline"

@@ -4,7 +4,8 @@
 (with "Other" for lines before the first header). It returns `(profile_patch, unplaced, labels)`:
 
 - profile_patch: the API Profile fields it could fill (contact, education, experience, projects,
-  skills, links).
+  skills, links). The name line becomes firstName/middleName/lastName ("Mary Ann Smith" ->
+  Mary / Ann / Smith); middleName is "" for a two-word name.
 - unplaced: `UnplacedSection`s for text it couldn't place. Header sections keep their header as a
   `"<Header>: "` prefix of `text`, which is how accepting one knows its label.
 - labels: the `ResumeParse.sections` lines, `{status, label}`.
@@ -18,6 +19,7 @@ import time
 from pathlib import Path
 
 from server import konefal
+from server.names import split_name
 from server.store import Store
 
 log = logging.getLogger(__name__)
@@ -274,7 +276,9 @@ class _Contact:
 
     def patch(self) -> dict:
         out = {}
-        for key in ("name", "email", "phone", "city", "state"):
+        if self.name:
+            out["firstName"], out["middleName"], out["lastName"] = split_name(self.name)
+        for key in ("email", "phone", "city", "state"):
             if getattr(self, key):
                 out[key] = getattr(self, key)
         if self.links or self.extra_links:

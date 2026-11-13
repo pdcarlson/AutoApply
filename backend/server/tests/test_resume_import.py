@@ -39,7 +39,8 @@ def header_resume_pdf(tmp_path_factory):
 
 def test_example_resume_other_section():
     patch, unplaced, labels = sections_to_profile({"Other": EXAMPLE_OTHER})
-    assert patch["name"] == "Jordan Rivera"
+    assert (patch["firstName"], patch["middleName"], patch["lastName"]) == (
+        "Jordan", "", "Rivera")
     assert patch["email"] == "jordan.rivera@example.com"
     assert patch["phone"] == "(555) 010-4477"
     assert (patch["city"], patch["state"]) == ("Poughkeepsie", "NY")
@@ -92,7 +93,7 @@ def test_header_sections_on_dicts():
         "Projects": ["Planner | React, TypeScript", "- Plans courses"],
     }
     patch, unplaced, labels = sections_to_profile(sections)
-    assert patch["name"] == "Sam Lee"
+    assert (patch["firstName"], patch["middleName"], patch["lastName"]) == ("Sam", "", "Lee")
     assert patch["links"][1]["url"] == "https://linkedin.com/in/samlee"
     assert (patch["city"], patch["state"]) == ("Boston", "MA")
     first, second = patch["experience"]
@@ -125,7 +126,7 @@ def test_header_fixture_pdf_parses_with_case_insensitive_headers(header_resume_p
     assert {"EDUCATION", "RELEVANT COURSEWORK", "EXPERIENCE", "SKILLS"} <= set(sections)
 
     patch, unplaced, labels = sections_to_profile(sections)
-    assert patch["name"] == "Alex Morgan"
+    assert (patch["firstName"], patch["lastName"]) == ("Alex", "Morgan")
     assert patch["links"][2]["url"] == "https://github.com/alexmorgan"
     school = patch["education"][0]
     assert (school["school"], school["major"], school["gpa"]) == (

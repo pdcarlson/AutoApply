@@ -60,7 +60,9 @@ const dateIn = (days: number) => new Date(Date.now() + days * 24 * HOUR).toISOSt
 const USER = { id: 'user-1', name: 'Sam Rivera', email: 'sam.rivera@example.com' };
 
 export const emptyProfile = (): Profile => ({
-  name: USER.name,
+  firstName: 'Sam',
+  middleName: '',
+  lastName: 'Rivera',
   email: USER.email,
   phone: '',
   street: '',
@@ -639,11 +641,34 @@ const canPersist =
   typeof localStorage !== 'undefined' &&
   import.meta.env.MODE !== 'test';
 
+/** "First Middle Last" for the session's display name, like the backend builds it. */
+export const displayName = (p: Pick<Profile, 'firstName' | 'middleName' | 'lastName'>) =>
+  [p.firstName, p.middleName, p.lastName]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' ');
+
+/** A profile saved before the name was split into three fields: "Mary Ann Smith" -> Mary/Ann/Smith. */
+function migrateProfile(profile: Profile & { name?: string }): Profile {
+  const { name, ...rest } = profile;
+  if (name === undefined || rest.firstName !== undefined) return rest;
+  const words = name.split(/\s+/).filter(Boolean);
+  return {
+    ...rest,
+    firstName: words[0] ?? '',
+    middleName: words.slice(1, -1).join(' '),
+    lastName: words.length > 1 ? words[words.length - 1] : '',
+  };
+}
+
 function load(): MockDb {
   if (!canPersist) return createDb();
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored) as MockDb;
+    if (stored) {
+      const saved = JSON.parse(stored) as MockDb;
+      return { ...saved, profile: migrateProfile(saved.profile) };
+    }
   } catch {
     // Corrupt or blocked storage: start fresh.
   }

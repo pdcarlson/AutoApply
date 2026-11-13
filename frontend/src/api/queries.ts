@@ -71,7 +71,11 @@ export function useUpdateProfile() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (profile: ProfileUpdate) => profileApi.update(profile),
-    onSuccess: (profile) => client.setQueryData(queryKeys.profile, profile),
+    onSuccess: (profile) => {
+      client.setQueryData(queryKeys.profile, profile);
+      // The session's display name is built from the profile's name fields.
+      void client.invalidateQueries({ queryKey: queryKeys.session });
+    },
   });
 }
 

@@ -47,7 +47,9 @@ def test_upload_parses_into_the_profile(client, app):
 
     profile = client.get("/api/profile").json()
     assert "_resumePath" not in profile
-    assert profile["name"] == "Jordan Rivera" and profile["city"] == "Poughkeepsie"
+    assert (profile["firstName"], profile["middleName"], profile["lastName"]) == (
+        "Jordan", "", "Rivera")
+    assert "name" not in profile and profile["city"] == "Poughkeepsie"
     assert profile["education"][0]["school"] == "Hudson Valley Institute of Technology"
     assert len(profile["projects"]) == 2 and profile["resume"]["name"] == "example_resume.pdf"
     assert profile["unplaced"][0]["suggestion"] is None
@@ -102,12 +104,14 @@ def test_put_profile_replaces_editable_fields_only(client):
     _upload_example(client)
     profile = client.get("/api/profile").json()
     update = {k: v for k, v in profile.items() if k not in ("resume", "unplaced")}
-    update["name"] = "Jordan R."
+    update.update(firstName="Jordan", middleName="Lee", lastName="R.")
     update["custom"] = [{"id": "cf-1", "label": "Pronouns", "value": "they/them"}]
     response = client.put("/api/profile", json=update)
     assert response.status_code == 200
     saved = response.json()
-    assert saved["name"] == "Jordan R." and saved["custom"][0]["value"] == "they/them"
+    assert (saved["firstName"], saved["middleName"], saved["lastName"]) == (
+        "Jordan", "Lee", "R.")
+    assert "name" not in saved and saved["custom"][0]["value"] == "they/them"
     assert saved["resume"] == profile["resume"] and saved["unplaced"] == profile["unplaced"]
     bad = client.put("/api/profile", json={"skills": "not a list"})
     assert bad.status_code == 422
@@ -173,7 +177,7 @@ def test_docx_resume_parses(client):
     parse = _wait_for_parse(client)
     assert parse["status"] == "done", parse
     profile = client.get("/api/profile").json()
-    assert profile["name"] == "Casey Nguyen" and profile["state"] == "TX"
+    assert (profile["firstName"], profile["lastName"]) == ("Casey", "Nguyen") and profile["state"] == "TX"
     school = profile["education"][0]
     assert (school["school"], school["degreeType"], school["major"]) == (
         "Example University", "B.A.", "Mathematics")

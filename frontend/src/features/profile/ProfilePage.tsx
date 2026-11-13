@@ -20,7 +20,7 @@ import { Choice, PillInput } from '@/components/ui/Form';
 import { Page, PageTitle } from '@/layouts/Page';
 import { RESUME_ACCEPT, validateResumeFile } from '@/lib/resumeFile';
 import { ContactFields, CustomFieldsEditor, EntryList, LinksEditor, type Contact } from './editors';
-import { toProfileUpdate } from './profileUpdate';
+import { missingName, toProfileUpdate } from './profileUpdate';
 import { ResumeFileCard } from './ResumeFileCard';
 import styles from './ProfilePage.module.css';
 
@@ -116,16 +116,20 @@ function ProfileSections({ profile }: { profile: Profile }) {
   };
 
   const contact: Contact = draft;
-  const saveButton = (fields: Partial<ProfileUpdate>) => (
-    <div>
+  const nameMissing = missingName(contact);
+  /** `blocked` explains why the section can't be saved yet. */
+  const saveButton = (fields: Partial<ProfileUpdate>, blocked: string | null = null) => (
+    <div className={styles.saveRow}>
       <Button
         variant="primary"
         size="sm"
         loading={save.isPending}
+        disabled={!!blocked}
         onClick={() => saveFields(fields)}
       >
         Save changes
       </Button>
+      {blocked && <span className="small muted">{blocked}</span>}
     </div>
   );
 
@@ -135,17 +139,22 @@ function ProfileSections({ profile }: { profile: Profile }) {
         <Panel>
           <ContactFields value={contact} onChange={patch} />
         </Panel>
-        {saveButton({
-          name: draft.name,
-          email: draft.email,
-          phone: draft.phone,
-          street: draft.street,
-          street2: draft.street2,
-          city: draft.city,
-          state: draft.state,
-          zip: draft.zip,
-          country: draft.country,
-        })}
+        {saveButton(
+          {
+            firstName: draft.firstName,
+            middleName: draft.middleName,
+            lastName: draft.lastName,
+            email: draft.email,
+            phone: draft.phone,
+            street: draft.street,
+            street2: draft.street2,
+            city: draft.city,
+            state: draft.state,
+            zip: draft.zip,
+            country: draft.country,
+          },
+          nameMissing && `Add your ${nameMissing} to save`,
+        )}
       </Section>
       <Section id="links">
         <Panel>

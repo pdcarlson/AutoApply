@@ -138,14 +138,20 @@ def test_unknown_yes_no_facts_and_extra_facts():
 
 
 def test_save_leaves_out_empty_extra_facts(tmp_path):
-    """Saving the example profile never adds an extra_facts key, and a set one round-trips."""
+    """Saving the example profile never adds an extra_facts or middle_name key, and a set one
+    round-trips."""
     profile = Profile.load(AGENT_DIR / "applicant" / "example_profile.json")
     profile.save(tmp_path / "profile.json")
-    assert "extra_facts" not in json.loads((tmp_path / "profile.json").read_text(encoding="utf-8"))
+    saved = json.loads((tmp_path / "profile.json").read_text(encoding="utf-8"))
+    assert "extra_facts" not in saved and "middle_name" not in saved
 
     profile.extra_facts = ["Skills: Python"]
     profile.save(tmp_path / "with_facts.json")
     assert Profile.load(tmp_path / "with_facts.json").extra_facts == ["Skills: Python"]
+
+    profile.middle_name = "Ann"
+    profile.save(tmp_path / "with_middle.json")
+    assert Profile.load(tmp_path / "with_middle.json").middle_name == "Ann"
 
 
 def test_save_without_a_resume(tmp_path):

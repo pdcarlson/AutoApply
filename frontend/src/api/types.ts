@@ -21,6 +21,7 @@ export interface ApiErrorBody {
 
 export interface User {
   id: string;
+  /** Display name, derived from the profile: "First Middle Last", skipping an empty middle name. */
   name: string;
   email: string;
 }
@@ -101,7 +102,12 @@ export interface UnplacedSection {
 }
 
 export interface Profile {
-  name: string;
+  /** Required to finish setup. */
+  firstName: string;
+  /** Optional; empty when the user has none. */
+  middleName: string;
+  /** Required to finish setup. */
+  lastName: string;
   email: string;
   phone: string;
   street: string;

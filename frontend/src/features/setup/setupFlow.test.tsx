@@ -39,6 +39,15 @@ describe('setup flow', () => {
     expect(
       await screen.findByRole('heading', { name: 'Check what we pulled from your resume' }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText('First name')).toHaveValue('Sam');
+    expect(screen.getByLabelText('Middle name (optional)')).toHaveValue('');
+    const lastName = screen.getByLabelText('Last name');
+    expect(lastName).toHaveValue('Rivera');
+    await user.clear(lastName);
+    expect(screen.getByRole('button', { name: /Looks right, continue/ })).toBeDisabled();
+    expect(screen.getByText('Add your last name to continue')).toBeInTheDocument();
+    await user.type(lastName, 'Rivera-Cruz');
+    await user.type(screen.getByLabelText('Middle name (optional)'), 'Lee');
     const phone = screen.getByLabelText('Phone');
     expect(phone).toHaveValue('(555) 010-2233');
     await user.clear(phone);
@@ -47,6 +56,11 @@ describe('setup flow', () => {
 
     expect(await screen.findByRole('heading', { name: 'Answer these once' })).toBeInTheDocument();
     expect(db.profile.phone).toBe('(555) 000-1111');
+    expect([db.profile.firstName, db.profile.middleName, db.profile.lastName]).toEqual([
+      'Sam',
+      'Lee',
+      'Rivera-Cruz',
+    ]);
     const authorized = screen.getByRole('radiogroup', { name: /legally authorized/ });
     await user.click(within(authorized).getByRole('radio', { name: 'Yes' }));
     await user.click(screen.getByRole('button', { name: /Confirm profile and finish/ }));

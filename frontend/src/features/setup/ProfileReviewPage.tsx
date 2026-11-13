@@ -15,7 +15,7 @@ import {
   LinksEditor,
 } from '@/features/profile/editors';
 import { SetupFooter, SetupIntro } from '@/layouts/SetupLayout';
-import { toProfileUpdate } from '@/features/profile/profileUpdate';
+import { missingName, toProfileUpdate } from '@/features/profile/profileUpdate';
 import { ResumeFileCard } from '@/features/profile/ResumeFileCard';
 import styles from './setup.module.css';
 
@@ -33,7 +33,7 @@ function ReviewForm({ profile }: { profile: Profile }) {
   const [draft, setDraft] = useState<ProfileUpdate>(() => toProfileUpdate(profile));
   const patch = (changes: Partial<ProfileUpdate>) => setDraft((d) => ({ ...d, ...changes }));
 
-  const missingName = !draft.name.trim();
+  const nameMissing = missingName(draft);
   const missingEmail = !draft.email.trim();
 
   // Accepting moves resume text into the profile on the server, so save edits first, then
@@ -147,10 +147,10 @@ function ReviewForm({ profile }: { profile: Profile }) {
         onNext={() => save.mutate(draft, { onSuccess: () => navigate(paths.setupQuestions) })}
         nextLabel="Looks right, continue"
         loading={save.isPending}
-        nextDisabled={missingName || missingEmail}
+        nextDisabled={!!nameMissing || missingEmail}
         note={
-          missingName
-            ? 'Add your name to continue'
+          nameMissing
+            ? `Add your ${nameMissing} to continue`
             : missingEmail
               ? 'Add your email to continue'
               : null

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 
 from server.errors import ApiError
+from server.names import full_name
 from server.store import DEMO_USER, Db, Store, get_store
 
 router = APIRouter()
@@ -23,7 +24,7 @@ def current_user(db: Db) -> dict:
     profile = db.profile
     return {
         "id": DEMO_USER["id"],
-        "name": (profile.get("name") or "").strip() or DEMO_USER["name"],
+        "name": full_name(profile) or DEMO_USER["name"],
         "email": (profile.get("email") or "").strip() or DEMO_USER["email"],
     }
 

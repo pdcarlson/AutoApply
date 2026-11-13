@@ -25,6 +25,8 @@ from typing import Any, Callable, Iterator
 
 from fastapi import Request
 
+from server.names import migrate_profile, split_name
+
 log = logging.getLogger(__name__)
 
 SCHEMA = 1
@@ -38,8 +40,9 @@ def default_state() -> dict:
 
 def default_profile() -> dict:
     """`emptyProfile()` from frontend/src/mocks/db.ts, with the demo user's name and email."""
+    first, middle, last = split_name(DEMO_USER["name"])
     return {
-        "name": DEMO_USER["name"],
+        "firstName": first, "middleName": middle, "lastName": last,
         "email": DEMO_USER["email"],
         "phone": "", "street": "", "street2": "", "city": "", "state": "", "zip": "",
         "country": "United States",
@@ -80,6 +83,12 @@ DOC_DEFAULTS: dict[str, Callable[[], Any]] = {
     "settings": default_settings,
     "jobs": list,
     "applications": list,
+}
+
+# Doc name -> function that upgrades a doc saved by an older version, applied on load before
+# missing keys get their defaults. The upgraded doc is written back on its next change.
+DOC_MIGRATIONS: dict[str, Callable[[Any], Any]] = {
+    "profile": migrate_profile,
 }
 
 GITIGNORE = ".gitignore"
@@ -292,6 +301,7 @@ class Store:
                 pass
             return default
         if isinstance(default, dict) and isinstance(value, dict):
+            value = DOC_MIGRATIONS.get(name, lambda doc: doc)(value)
             return {**default, **value}  # keys added in newer versions get their defaults
         if default is not None and type(value) is not type(default):
             log.warning("%s has the wrong shape; using defaults", path.name)

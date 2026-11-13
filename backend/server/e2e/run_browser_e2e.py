@@ -199,7 +199,9 @@ def drive(page: Page, shots: Shots, submit_real_form: bool) -> None:  # pylint: 
     expect(next_button).to_be_enabled()
     next_button.click()
     page.wait_for_url("**/setup/profile")
-    expect(page.get_by_label("Full name")).to_have_value("Jordan Rivera")
+    expect(page.get_by_label("First name")).to_have_value("Jordan")
+    expect(page.get_by_label("Middle name (optional)")).to_have_value("")
+    expect(page.get_by_label("Last name")).to_have_value("Rivera")
     expect(page.get_by_label("Email")).not_to_have_value("")
     shots.take("profile-review")
 

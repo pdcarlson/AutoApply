@@ -18,6 +18,7 @@ import type {
 import { acceptAnswer, advanceAgent, interpretReply, queueOrder, toApplication } from './agent';
 import {
   db,
+  displayName,
   emptyProfile,
   makeJob,
   PARSE_SECTIONS,
@@ -57,6 +58,12 @@ function toJobDetail(job: MockJob): JobDetail {
   return rest;
 }
 
+/** The Session, with the user's display name taken from the profile like the backend does. */
+const session = () => ({
+  ...db.session,
+  user: { ...db.session.user, name: displayName(db.profile) || db.session.user.name },
+});
+
 const findJob = (id: string | readonly string[] | undefined) =>
   db.jobs.find((job) => job.id === id);
 
@@ -80,7 +87,7 @@ export const handlers = [
   // ===== Auth =====
   http.get(path('/session'), async () => {
     await latency();
-    return db.signedIn ? ok(db.session) : unauthenticated();
+    return db.signedIn ? ok(session()) : unauthenticated();
   }),
   http.post(path('/auth/google'), async () => {
     await latency();
@@ -118,7 +125,7 @@ export const handlers = [
   http.post(path('/profile/confirm'), async () => {
     await latency();
     db.session.profileConfirmed = true;
-    return ok(db.session);
+    return ok(session());
   }),
 
   // ===== Resume =====

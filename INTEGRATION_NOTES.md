@@ -52,9 +52,17 @@ tools such as Simplify work.
 | `extension/background.js` | Fetches from the local server for the page. |
 | `backend/server/browser_fill.py`, `routes/extension.py` | `GET /extension/plan?url=` (the job's answers by page link; Claude is never called; protected fields are named but never given a value), `GET /extension/jobs/:id/resume`, `POST /extension/jobs/:id/submitted`. |
 
+**The Lever flow in the app.** For a Lever job, Review shows **Open the form to submit**
+instead of Submit, and the Needs-you card's **Open the form** does the same. It opens the
+job's application page with `#autoapply-fill`, and the extension fills the form by itself as it
+opens (`content.js`). The person checks it and presses Submit: one click, in their own browser.
+Without the extension the page just opens and the answers are listed to copy; **I submitted it**
+records it from any state (`POST /extension/jobs/:id/submitted`). See `formUrl` and
+`finishesInBrowser` in `frontend/src/lib/jobLinks.ts`.
+
 Checked: `fill.js` against the fake Lever page in the test suite; by hand, the loaded extension
-end to end in Chromium against a local test server (fill, resume, recorded on the thank-you
-page); and `fill.js` on two live Lever forms as a dry run (36 of 36 and 13 of 13 fields, nothing
+end to end in Chromium against a local test server (opened with `#autoapply-fill`, filled with
+no click, one Submit click, recorded on the thank-you page); and `fill.js` on two live Lever forms as a dry run (36 of 36 and 13 of 13 fields, nothing
 sent). Not yet checked: a real submit from a person's own Chrome. Greenhouse is not covered by
 the extension yet; it needs its own fill function next to `fillLever`.
 

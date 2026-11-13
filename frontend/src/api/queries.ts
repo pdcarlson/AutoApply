@@ -261,6 +261,11 @@ export function useMarkSubmitted() {
   return useMutation({ mutationFn: jobsApi.markSubmitted, onSuccess: invalidate });
 }
 
+export function useSubmittedInBrowser() {
+  const invalidate = useInvalidateWork();
+  return useMutation({ mutationFn: jobsApi.submittedInBrowser, onSuccess: invalidate });
+}
+
 // ===== Agent questions =====
 
 /** Writes a question update into the cached job so the thread re-renders without a refetch. */

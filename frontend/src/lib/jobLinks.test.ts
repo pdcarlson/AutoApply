@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkJobLink } from './jobLinks';
+import { checkJobLink, formUrl } from './jobLinks';
 
 describe('checkJobLink', () => {
   it('accepts Greenhouse, Ashby and Lever links and normalizes them', () => {
@@ -33,5 +33,21 @@ describe('checkJobLink', () => {
     const result = checkJobLink('software engineer');
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.title).toBe('That doesn’t look like a link');
+  });
+});
+
+describe('formUrl', () => {
+  it('opens Lever application pages marked for the extension to fill', () => {
+    expect(formUrl({ ats: 'Lever', url: 'https://jobs.lever.co/acme/123' })).toBe(
+      'https://jobs.lever.co/acme/123/apply#autoapply-fill',
+    );
+    expect(formUrl({ ats: 'Lever', url: 'https://jobs.lever.co/acme/123/apply/' })).toBe(
+      'https://jobs.lever.co/acme/123/apply#autoapply-fill',
+    );
+  });
+
+  it('leaves other sites’ links alone', () => {
+    const url = 'https://job-boards.greenhouse.io/acme/jobs/1';
+    expect(formUrl({ ats: 'Greenhouse', url })).toBe(url);
   });
 });

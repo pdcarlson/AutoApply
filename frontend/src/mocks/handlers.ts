@@ -384,6 +384,16 @@ export const handlers = [
     const { fields: _f, timeline: _t, screenshotUrl: _s, ...summary } = app;
     return ok(summary);
   }),
+  http.post(path('/extension/jobs/:id/submitted'), async ({ params }) => {
+    await latency();
+    const job = findJob(params.id);
+    if (!job) return notFound('Job');
+    const app = toApplication(job, 'you');
+    db.applications.unshift(app);
+    db.jobs = db.jobs.filter((j) => j !== job);
+    const { fields: _f, timeline: _t, screenshotUrl: _s, ...summary } = app;
+    return ok(summary);
+  }),
 
   // ===== Questions =====
   http.post(path('/jobs/:id/question/messages'), async ({ params, request }) => {

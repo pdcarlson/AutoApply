@@ -127,6 +127,11 @@ export const jobsApi = {
   submit: (id: string) => http.post<Application>(`/jobs/${id}/submit`),
   /** POST /jobs/:id/mark-submitted → 200 Application. The user finished a `handoff` job. */
   markSubmitted: (id: string) => http.post<Application>(`/jobs/${id}/mark-submitted`),
+  /**
+   * POST /extension/jobs/:id/submitted → 200 Application. The user submitted it in their own
+   * browser (a Lever job, say), from any state it waits in, not only `handoff`.
+   */
+  submittedInBrowser: (id: string) => http.post<Application>(`/extension/jobs/${id}/submitted`),
 };
 
 export const questionsApi = {

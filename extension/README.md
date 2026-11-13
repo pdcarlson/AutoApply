@@ -15,12 +15,16 @@ Works on Lever (`jobs.lever.co`) for now.
 ## Use
 
 1. Start AutoApply (the backend has to be running on `localhost:8080`).
-2. Add the job in the AutoApply Inbox and answer the questions it asks, so the answers exist.
-3. Open the job's application form in Chrome (the link ending in `/apply`).
-4. Press **Fill in my answers** in the AutoApply panel at the bottom right.
-5. Check the form. The panel lists anything it couldn't fill and anything that's yours to do.
-6. Press Submit yourself. When Lever's thank-you page shows, the application is recorded in
+2. Add the job in the AutoApply Inbox, press **Apply** and answer the questions it asks.
+3. When it's ready, press **Review**, then **Open the form to submit**. The form opens in a new
+   tab and fills itself in (resume included).
+4. Check the form. The panel at the bottom right lists anything it couldn't fill and anything
+   that's yours to do.
+5. Press Submit yourself. When Lever's thank-you page shows, the application is recorded in
    AutoApply.
+
+Opened any other way (a bookmark, a pasted link), the page waits for **Fill in my answers** in
+the panel instead of filling by itself.
 
 ## What it does and doesn't do
 

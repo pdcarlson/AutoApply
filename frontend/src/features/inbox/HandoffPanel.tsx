@@ -5,6 +5,7 @@ import { useToast } from '@/app/providers/toast';
 import { Button } from '@/components/ui/Button';
 import { buttonClass } from '@/components/ui/classNames';
 import { Icon } from '@/components/ui/Icon';
+import { formUrl } from '@/lib/jobLinks';
 import styles from './panels.module.css';
 
 export const DEFAULT_HANDOFF_REASON =
@@ -32,7 +33,7 @@ export function HandoffPanel({ job }: { job: Job }) {
       <div className={styles.row}>
         <a
           className={buttonClass({ variant: 'primary', size: 'sm' })}
-          href={job.url}
+          href={formUrl(job)}
           target="_blank"
           rel="noopener noreferrer"
         >

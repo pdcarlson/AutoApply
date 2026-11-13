@@ -1,7 +1,9 @@
-// Runs on Lever job pages. On the application form it offers to fill in AutoApply's answers;
-// on the thank-you page it tells AutoApply the application went out. It never presses Submit.
+// Runs on Lever job pages. On the application form it fills in AutoApply's answers (by itself
+// when AutoApply opened the page, otherwise on a click); on the thank-you page it tells AutoApply
+// the application went out. It never presses Submit.
 (() => {
   const SUBMITTED_KEY = 'autoapply-submitting';
+  const FILL_ON_OPEN = '#autoapply-fill'; // AutoApply's "Open the form" adds this to the link
   const send = (message) => chrome.runtime.sendMessage(message);
   const onForm = () => Boolean(document.querySelector('#application-form'));
   const onThanks = () => location.pathname.replace(/\/$/, '').endsWith('/thanks');
@@ -82,7 +84,12 @@
     reportSubmitted();
   } else if (onForm()) {
     const ui = panel();
-    ui.say('Your answers are ready to fill in.');
     ui.button.addEventListener('click', () => fill(ui));
+    if (location.hash === FILL_ON_OPEN) {
+      history.replaceState(null, '', location.pathname + location.search); // fill once only
+      fill(ui);
+    } else {
+      ui.say('Your answers are ready to fill in.');
+    }
   }
 })();

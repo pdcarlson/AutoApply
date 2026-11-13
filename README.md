@@ -27,7 +27,7 @@ You need Python 3.11+ and Node 20+. Commands are for Windows PowerShell.
 
 4. Open http://localhost:5173, sign in, upload your resume, check your profile, and answer the
    setup questions.
-5. Paste a Greenhouse job link into the Inbox and press **Apply**. Answer any questions the agent
+5. Paste a Greenhouse or Ashby job link into the Inbox and press **Apply**. Answer any questions the agent
    asks, then review the filled form and press **Submit**.
 
 Press Ctrl+C to stop.
@@ -39,8 +39,9 @@ Press Ctrl+C to stop.
 ```
 
 Upload `backend/agent/applicant/example_resume.pdf`, finish setup, then paste
-`https://job-boards.greenhouse.io/fakecompany/jobs/1001` and press **Apply**. The agent fills a
-local test form, so nothing goes online.
+`https://job-boards.greenhouse.io/fakecompany/jobs/1001` (or the Ashby one,
+`https://jobs.ashbyhq.com/fakecompany/00000000-0000-4000-8000-000000001001`) and press **Apply**.
+The agent fills a local test form, so nothing goes online.
 
 ## Run the tests
 
@@ -79,11 +80,12 @@ npm test
 - **Your data** (profile, resume, answers, jobs, screenshots) stays on your computer in
   `backend/data/`, which is never committed. `.\scripts\demo.ps1 -Reset` deletes it and starts
   fresh.
-- **Supported sites:** only Greenhouse forms are filled automatically. Other links are handed to
-  you to finish by hand.
+- **Supported sites:** Greenhouse and Ashby forms are filled automatically. Other links are
+  handed to you to finish by hand. On Ashby, questions the agent can't fill yet (dates, rating
+  scales) and the optional demographic survey are left for you to fill in the browser window.
 - **Two terminals instead of `demo.ps1`** (also how to run it on macOS/Linux, using
   `.venv/bin/python`): run `.venv\Scripts\python -m server` from `backend/`, and
   `npm run dev:api` from `frontend/`.
 - **The agent on its own, without the web app:** from `backend/`, run
-  `.venv\Scripts\python -m agent <greenhouse job link> --show`. It reads its profile from
+  `.venv\Scripts\python -m agent <greenhouse or ashby job link> --show`. It reads its profile from
   `PROFILE_PATH` in `backend/agent/.env`, not from the web app.

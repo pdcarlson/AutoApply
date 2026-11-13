@@ -210,7 +210,7 @@ def test_submit_on_a_job_that_isnt_ready(client, app):
     assert submit(client, "job-nope").status_code == 409
 
 
-def test_mark_submitted_on_a_handoff_job(client, app):
+def test_mark_submitted_on_a_handoff_job(client, app, unfillable):  # pylint: disable=unused-argument
     set_up_profile(client)
     job = add_job(client, ASHBY_URL)
     early = client.post(f"/api/jobs/{job['id']}/mark-submitted")

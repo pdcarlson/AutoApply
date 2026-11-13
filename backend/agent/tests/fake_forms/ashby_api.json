@@ -1,0 +1,67 @@
+{
+  "id": "00000000-0000-4000-8000-000000001001",
+  "title": "Software Engineering Intern",
+  "locationName": "Troy, NY",
+  "applicationForm": {
+    "sections": [
+      {
+        "title": "",
+        "fieldEntries": [
+          {"id": "e1", "isRequired": true, "isHidden": false,
+           "field": {"path": "_systemfield_name", "title": "Name", "type": "String"}},
+          {"id": "e2", "isRequired": true, "isHidden": false,
+           "field": {"path": "_systemfield_email", "title": "Email", "type": "Email"}},
+          {"id": "e3", "isRequired": false, "isHidden": false,
+           "field": {"path": "_systemfield_phone", "title": "Phone", "type": "Phone"}},
+          {"id": "e4", "isRequired": true, "isHidden": false,
+           "field": {"path": "_systemfield_resume", "title": "Resume", "type": "File"}},
+          {"id": "e5", "isRequired": true, "isHidden": false,
+           "field": {"path": "_systemfield_location", "title": "Where are you based?",
+                     "type": "Location"}},
+          {"id": "e6", "isRequired": false, "isHidden": false,
+           "field": {"path": "a1000000-0000-4000-8000-000000000001", "title": "LinkedIn Profile",
+                     "type": "String"}},
+          {"id": "e7", "isRequired": true, "isHidden": false,
+           "field": {"path": "a1000000-0000-4000-8000-000000000002",
+                     "title": "Will you now or in the future require visa sponsorship to work in the United States?",
+                     "type": "Boolean"}}
+        ]
+      },
+      {
+        "title": "A few more questions",
+        "fieldEntries": [
+          {"id": "e8", "isRequired": false, "isHidden": false,
+           "field": {"path": "a1000000-0000-4000-8000-000000000003",
+                     "title": "How did you hear about this job?", "type": "ValueSelect",
+                     "selectableValues": [{"label": "LinkedIn", "value": "linkedin"},
+                                          {"label": "A friend", "value": "friend"},
+                                          {"label": "Other", "value": "other"}]}},
+          {"id": "e9", "isRequired": false, "isHidden": false,
+           "field": {"path": "a1000000-0000-4000-8000-000000000004",
+                     "title": "Which languages do you speak?", "type": "MultiValueSelect",
+                     "selectableValues": [{"label": "English", "value": "en"},
+                                          {"label": "French", "value": "fr"},
+                                          {"label": "Spanish", "value": "es"}]}},
+          {"id": "e10", "isRequired": true, "isHidden": false,
+           "field": {"path": "a1000000-0000-4000-8000-000000000005",
+                     "title": "Which team interests you most?", "type": "ValueSelect",
+                     "selectableValues": [{"label": "Platform", "value": "platform"},
+                                          {"label": "Product", "value": "product"},
+                                          {"label": "Data", "value": "data"},
+                                          {"label": "Developer Tools", "value": "devtools"},
+                                          {"label": "Security", "value": "security"},
+                                          {"label": "Infrastructure", "value": "infra"}]}},
+          {"id": "e11", "isRequired": true, "isHidden": false,
+           "field": {"path": "a1000000-0000-4000-8000-000000000006",
+                     "title": "Why do you want to work here?", "type": "LongText"}},
+          {"id": "e12", "isRequired": false, "isHidden": false,
+           "field": {"path": "a1000000-0000-4000-8000-000000000007",
+                     "title": "When did you graduate?", "type": "Date"}},
+          {"id": "e13", "isRequired": false, "isHidden": true,
+           "field": {"path": "a1000000-0000-4000-8000-000000000008",
+                     "title": "Internal referral code", "type": "String"}}
+        ]
+      }
+    ]
+  }
+}

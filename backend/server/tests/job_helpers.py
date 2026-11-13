@@ -1,7 +1,7 @@
-"""Helpers for tests that add, apply and run jobs against the fake Greenhouse form.
+"""Helpers for tests that add, apply and run jobs against the fake Greenhouse and Ashby forms.
 
-The fixtures in conftest set FAKE_GREENHOUSE=true and ANTHROPIC_API_KEY="", so FAKE_URL maps
-to backend/agent/tests/fake_forms and nothing reaches the network or Claude.
+The fixtures in conftest set FAKE_GREENHOUSE=true and ANTHROPIC_API_KEY="", so FAKE_URL and
+FAKE_ASHBY_URL map to backend/agent/tests/fake_forms and nothing reaches the network or Claude.
 """
 import time
 from pathlib import Path
@@ -9,6 +9,8 @@ from pathlib import Path
 import server.worker
 
 FAKE_URL = "https://job-boards.greenhouse.io/fakecompany/jobs/1001"
+FAKE_ASHBY_URL = "https://jobs.ashbyhq.com/fakecompany/00000000-0000-4000-8000-000000001001"
+# A real-looking Ashby link. Tests use it with the `unfillable` fixture, so it never goes online.
 ASHBY_URL = "https://jobs.ashbyhq.com/acme/0a1b2c3d"
 SPONSORSHIP = "Will you now or in the future require visa sponsorship to work in the United States?"
 WHY_HERE = "Why do you want to work here?"

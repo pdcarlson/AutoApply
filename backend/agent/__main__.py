@@ -46,7 +46,7 @@ def main():
     try:
         form = form_for(link)
     except UnsupportedLink as error:
-        # Lever and Ashby links are accepted and recorded, but can't be filled yet
+        # Lever links are accepted and recorded, but can't be filled yet
         log.update(link, RunResult("failed", str(error)))
         print(error)
         return

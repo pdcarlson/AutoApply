@@ -2,6 +2,10 @@
 from abc import ABC, abstractmethod
 
 
+class PostingClosed(OSError):
+    """The site has no open posting at that link (taken down, or never existed)."""
+
+
 class AtsForm(ABC):
     """An application form on one applicant tracking system (Greenhouse, Lever or Ashby)."""
 
@@ -15,6 +19,10 @@ class AtsForm(ABC):
     @abstractmethod
     def read_fields(self):
         """Return the form's questions as a list of FormField."""
+
+    def posting(self):
+        """Return the company, job title and location read with the form ("" when unknown)."""
+        return {"company": "", "title": "", "location": ""}
 
     def wait_until_ready(self, page):
         """Wait until the form is on the page."""

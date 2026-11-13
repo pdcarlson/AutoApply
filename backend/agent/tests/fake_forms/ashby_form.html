@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Software Engineering Intern @ Fake Company</title>
+  <style>
+    .ashby-application-form-field-entry, fieldset { margin: 12px 0; border: 0; padding: 0; }
+    label.ashby-application-form-question-title { display: block; font-weight: bold; }
+    .pressed { background: #335; color: white; }
+    .option-input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    [role=listbox] { border: 1px solid #999; max-width: 320px; }
+    [role=option] { padding: 2px 6px; cursor: pointer; }
+    #errors { color: #b00; }
+  </style>
+</head>
+<body>
+  <!-- Built like a real jobs.ashbyhq.com form: there's no <form> element, and every question's
+       title label sits directly inside the box that holds its inputs. -->
+  <h1>Software Engineering Intern</h1>
+  <div id="application">
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_name">Name</label>
+      <input type="text" id="_systemfield_name" name="_systemfield_name" placeholder="Type here...">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_email">Email</label>
+      <input type="email" id="_systemfield_email" name="_systemfield_email">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_phone">Phone</label>
+      <input type="tel" id="_systemfield_phone" name="_systemfield_phone">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_resume">Resume</label>
+      <input type="file" id="_systemfield_resume">
+      <button type="button">Upload File</button>
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_location">Where are you based?</label>
+      <input data-key="_systemfield_location" class="combo" placeholder="Start typing..."
+             role="combobox" aria-autocomplete="list" aria-expanded="false"
+             data-options="Troyes, Aube, France|Troy, New York, United States|Troy, Michigan, United States|Troy, Alabama, United States|Poughkeepsie, New York, United States|Poughkeepsie, Arkansas, United States">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="a1000000-0000-4000-8000-000000000001">LinkedIn Profile</label>
+      <input type="text" id="a1000000-0000-4000-8000-000000000001" name="a1000000-0000-4000-8000-000000000001">
+    </div>
+    <div class="ashby-application-form-field-entry" data-boolean="a1000000-0000-4000-8000-000000000002">
+      <label class="ashby-application-form-question-title" for="a1000000-0000-4000-8000-000000000002">Will you now or in the future require visa sponsorship to work in the United States?</label>
+      <button type="button">Yes</button>
+      <button type="button">No</button>
+      <input type="checkbox" name="a1000000-0000-4000-8000-000000000002" hidden>
+    </div>
+
+    <fieldset class="ashby-application-form-input-radio-group">
+      <label class="ashby-application-form-question-title" for="a1000000-0000-4000-8000-000000000003">How did you hear about this job?</label>
+      <div><input class="option-input" type="radio" id="hear-0" name="hear"><label for="hear-0">LinkedIn</label></div>
+      <div><input class="option-input" type="radio" id="hear-1" name="hear"><label for="hear-1">A friend</label></div>
+      <div><input class="option-input" type="radio" id="hear-2" name="hear"><label for="hear-2">Other</label></div>
+    </fieldset>
+    <fieldset class="ashby-application-form-input-checkbox-group">
+      <label class="ashby-application-form-question-title" for="a1000000-0000-4000-8000-000000000004">Which languages do you speak?</label>
+      <div><input class="option-input" type="checkbox" id="lang-0" name="English"><label for="lang-0">English</label></div>
+      <div><input class="option-input" type="checkbox" id="lang-1" name="French"><label for="lang-1">French</label></div>
+      <div><input class="option-input" type="checkbox" id="lang-2" name="Spanish"><label for="lang-2">Spanish</label></div>
+    </fieldset>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="a1000000-0000-4000-8000-000000000005">Which team interests you most?</label>
+      <input data-key="a1000000-0000-4000-8000-000000000005" class="combo" placeholder="Start typing..."
+             role="combobox" aria-autocomplete="list" aria-expanded="false"
+             data-options="Platform|Product|Data|Developer Tools|Security|Infrastructure">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="a1000000-0000-4000-8000-000000000006">Why do you want to work here?</label>
+      <textarea id="a1000000-0000-4000-8000-000000000006" name="a1000000-0000-4000-8000-000000000006"></textarea>
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="a1000000-0000-4000-8000-000000000007">When did you graduate?</label>
+      <input type="text" id="a1000000-0000-4000-8000-000000000007" placeholder="MM/DD/YYYY">
+    </div>
+
+    <p id="errors"></p>
+    <button type="button" class="ashby-application-form-submit-button" id="submit">Submit Application</button>
+  </div>
+  <script>
+    // Picked values for the combobox questions, by field key
+    const picked = {};
+
+    document.querySelectorAll("[data-boolean]").forEach((entry) => {
+      const box = entry.querySelector("input[type=checkbox]");
+      entry.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => {
+          entry.querySelectorAll("button").forEach((other) => other.classList.remove("pressed"));
+          button.classList.add("pressed");
+          box.checked = button.textContent === "Yes";
+          entry.dataset.answer = button.textContent;
+        });
+      });
+    });
+
+    document.querySelectorAll("input.combo").forEach((input) => {
+      const options = input.dataset.options.split("|");
+      let list = null;
+      const close = () => { if (list) list.remove(); list = null; input.setAttribute("aria-expanded", "false"); };
+      const open = () => {
+        close();
+        const typed = input.value.trim().toLowerCase();
+        const shown = options.filter((option) => option.toLowerCase().includes(typed));
+        list = document.createElement("div");
+        list.setAttribute("role", "listbox");
+        shown.forEach((option) => {
+          const item = document.createElement("div");
+          item.setAttribute("role", "option");
+          item.textContent = option;
+          item.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            input.value = option;
+            picked[input.dataset.key] = option;
+            close();
+          });
+          list.appendChild(item);
+        });
+        input.after(list);
+        input.setAttribute("aria-expanded", "true");
+      };
+      input.addEventListener("focus", open);
+      input.addEventListener("input", () => { delete picked[input.dataset.key]; open(); });
+      input.addEventListener("blur", close);
+    });
+
+    // What the form would send, so tests can check every answer landed
+    window.answers = () => ({
+      name: document.getElementById("_systemfield_name").value,
+      email: document.getElementById("_systemfield_email").value,
+      phone: document.getElementById("_systemfield_phone").value,
+      resume: document.getElementById("_systemfield_resume").files.length,
+      location: picked["_systemfield_location"] || "",
+      linkedin: document.getElementById("a1000000-0000-4000-8000-000000000001").value,
+      sponsorship: document.querySelector("[data-boolean]").dataset.answer || "",
+      hear: [...document.querySelectorAll("input[name=hear]")].filter((e) => e.checked)
+        .map((e) => e.nextElementSibling.textContent),
+      languages: [...document.querySelectorAll("fieldset.ashby-application-form-input-checkbox-group input")]
+        .filter((e) => e.checked).map((e) => e.name),
+      team: picked["a1000000-0000-4000-8000-000000000005"] || "",
+      why: document.getElementById("a1000000-0000-4000-8000-000000000006").value,
+    });
+
+    document.getElementById("submit").addEventListener("click", () => {
+      const a = window.answers();
+      const missing = [["Name", a.name], ["Email", a.email], ["Resume", a.resume],
+                       ["Where are you based?", a.location], ["Sponsorship", a.sponsorship],
+                       ["Team", a.team], ["Why do you want to work here?", a.why]]
+        .filter(([, value]) => !value).map(([label]) => label);
+      if (missing.length) {
+        document.getElementById("errors").textContent = "Missing entry for required field: " + missing.join(", ");
+        return;
+      }
+      document.body.innerHTML = '<div class="ashby-application-form-success-container">' +
+        "<h2>Success</h2><p>Your application was successfully submitted. " +
+        "We'll contact you if there are next steps.</p></div>";
+    });
+  </script>
+</body>
+</html>

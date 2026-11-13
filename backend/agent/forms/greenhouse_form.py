@@ -307,6 +307,12 @@ class GreenhouseForm(AtsForm):
             self.education_options = read_education_options(self.link.company)
         return fields_from_api(self.job_data, self.education_options)
 
+    def posting(self):
+        """Return the company, job title and location from the Job Board API."""
+        data = self.job_data or {}
+        return {"company": data.get("company_name") or "", "title": data.get("title") or "",
+                "location": (data.get("location") or {}).get("name") or ""}
+
     def wait_until_ready(self, page):
         """Wait for the application form.
 

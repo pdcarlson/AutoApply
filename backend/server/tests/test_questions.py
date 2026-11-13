@@ -9,7 +9,7 @@ import pytest
 
 from agent.forms.form_field import FieldAnswer
 from server.questions import interpret, match_option
-from server.tests.job_helpers import (SPONSORSHIP, WHY_HERE, add_job, apply, job_detail,
+from server.tests.job_helpers import (FAKE_ASHBY_URL, SPONSORSHIP, WHY_HERE, add_job, apply, job_detail,
                                       set_up_profile)
 
 
@@ -120,7 +120,7 @@ def test_claude_guess_is_quoted_and_yes_uses_it(client, app, monkeypatch):
 
 
 def test_no_question_and_no_answer(client, app, asking):
-    other = add_job(client, "https://jobs.ashbyhq.com/acme/0a1b2c3d")
+    other = add_job(client, FAKE_ASHBY_URL)
     for method, part, body in (("post", "/messages", {"text": "yes"}),
                                ("put", "/answer", {"value": "Yes"}),
                                ("delete", "/answer", None),

@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from server import jobs
-from server.tests.job_helpers import (ASHBY_URL, FAKE_URL, add_job, apply, job_detail,
+from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, FAKE_URL, add_job, apply, job_detail,
                                       set_up_profile)
 
 JOB_KEYS = {"id", "company", "role", "location", "ats", "url", "source", "postedAt", "addedAt",
@@ -127,6 +127,15 @@ def test_real_greenhouse_closed_posting(signed_in, monkeypatch):
 
 
 def test_add_ashby_job(signed_in):
+    """An Ashby link's form is read like a Greenhouse one: title, location and question count."""
+    job = add_job(signed_in, FAKE_ASHBY_URL)
+    assert job["ats"] == "Ashby" and job["company"] == "Fakecompany"
+    assert job["role"] == "Software Engineering Intern" and job["location"] == "Troy, NY"
+    assert job["formSummary"]["totalFields"] == 11
+    assert job["checks"][0] == {"status": "ok", "text": "Ashby form · 11 questions"}
+
+
+def test_add_job_on_a_site_the_agent_cant_fill(signed_in, unfillable):  # pylint: disable=unused-argument
     job = add_job(signed_in, ASHBY_URL)
     assert job["ats"] == "Ashby" and job["company"] == "Acme" and job["role"] == "Ashby posting"
     assert job["formSummary"] is None and job["location"] == ""
@@ -154,7 +163,7 @@ def test_apply_queues_the_job(client):
 def test_daily_limit_defers_the_rest(client):
     set_up_profile(client)
     first = add_job(client)
-    second = add_job(client, ASHBY_URL)
+    second = add_job(client, FAKE_ASHBY_URL)
     assert client.patch("/api/settings", json={"dailyLimit": 1}).status_code == 200
     assert apply(client, first["id"], second["id"]) == {"queued": [first["id"]],
                                                         "deferred": [second["id"]]}
@@ -183,7 +192,7 @@ def test_sent_today_counts_against_the_limit(client, app):
 def test_cancel_queued_and_waiting(client):
     set_up_profile(client)
     first = add_job(client)
-    second = add_job(client, ASHBY_URL)
+    second = add_job(client, FAKE_ASHBY_URL)
     client.patch("/api/settings", json={"dailyLimit": 1})
     apply(client, first["id"], second["id"])
     response = client.post("/api/jobs/cancel", json={"jobIds": [first["id"], second["id"]]})

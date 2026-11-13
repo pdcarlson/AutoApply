@@ -63,11 +63,11 @@ $env:AUTOAPPLY_DATA_DIR = $DataDir
 if ($Offline) {
     $env:FAKE_GREENHOUSE = 'true'
     $env:USE_CLAUDE = 'false'
-    Write-Host 'Mode: OFFLINE. Only the fakecompany test links (jobs 1001, 1002) work; they open a local test form.'
+    Write-Host 'Mode: OFFLINE. Only the fakecompany test links (Greenhouse jobs 1001, 1002 and the Ashby one in the README) work; they open a local test form.'
 } else {
     $env:FAKE_GREENHOUSE = 'false'
     Remove-Item Env:USE_CLAUDE -ErrorAction SilentlyContinue
-    Write-Host 'Mode: REAL. Pasted Greenhouse links are read from Greenhouse and the real form is filled.'
+    Write-Host 'Mode: REAL. Pasted Greenhouse and Ashby links are read from the site and the real form is filled.'
 }
 if ($SubmitRealForm) {
     $env:SUBMIT_REAL_FORM = 'true'

@@ -46,7 +46,8 @@ class JobLink:
         # jobs.lever.co/<company>/<id>[/apply] and jobs.ashbyhq.com/<company>/<id>[/application]
         if len(path) < 2:
             raise UnsupportedLink(f"{url} doesn't point at a single job.")
-        return cls(f"https://{host}/{path[0]}/{path[1]}", site, path[0], path[1])
+        return cls(f"https://{host}/{path[0]}/{path[1]}", site, path[0], path[1],
+                   pasted=url.strip())
 
 
 def greenhouse_ids(path, query):

@@ -4,7 +4,7 @@
   and the bank entries that apply to `company` into an in-memory agent `Profile`. It is never
   saved.
 - `make_form(job, config)` builds the agent form for a job record, routing the fake Greenhouse
-  posting to `backend/agent/tests/fake_forms` when FAKE_GREENHOUSE is on.
+  and Ashby postings to `backend/agent/tests/fake_forms` when FAKE_GREENHOUSE is on.
 - `cached_claude(store, job_id)` is the `ask_claude` the Answerer gets: it remembers Claude's
   guesses in `job.internal.claudeCache`, so re-runs after a question are free and stable.
 - `SourceMap` turns the agent's (label, value, source, confidence) into the API `FilledField`.
@@ -19,6 +19,7 @@ from pathlib import Path
 from agent.answers import claude as agent_claude
 from agent.applicant.profile import Profile, SavedAnswer, normalize
 from agent.forms import form_for
+from agent.forms.ashby_form import AshbyForm
 from agent.forms.form_field import FieldAnswer, FormField
 from agent.forms.greenhouse_form import GreenhouseForm
 from agent.jobs.job_link import JobLink
@@ -33,9 +34,12 @@ log = logging.getLogger(__name__)
 
 FAKE_FORMS = BACKEND_DIR / "agent" / "tests" / "fake_forms"
 FAKE_COMPANY = "fakecompany"
-# Only these exact test postings map to the local fake form. Any other link, including
-# fakecompany with another job id, is treated as a real Greenhouse posting.
-FAKE_JOB_IDS = frozenset({"1001", "1002"})
+# Only these exact test postings map to the local fake forms. Any other link, including
+# fakecompany with another job id, is treated as a real posting.
+FAKE_JOB_IDS = {
+    "greenhouse": frozenset({"1001", "1002"}),
+    "ashby": frozenset({"00000000-0000-4000-8000-000000001001"}),
+}
 DEFAULT_COUNTRY = "United States"
 
 # Looked up at call time, so tests can monkeypatch `server.agent_bridge.ask_claude`.
@@ -54,24 +58,26 @@ def link_of(job: dict) -> JobLink:
 
 
 def is_fake(link: JobLink, config: Config) -> bool:
-    return bool(config.fake_greenhouse) and link.site == "greenhouse" \
-        and link.company.lower() == FAKE_COMPANY and link.job_id in FAKE_JOB_IDS
+    """True for the test postings that FAKE_GREENHOUSE routes to local fake forms."""
+    return bool(config.fake_greenhouse) and link.company.lower() == FAKE_COMPANY \
+        and link.job_id in FAKE_JOB_IDS.get(link.site, ())
 
 
-def fake_job_data() -> dict:
-    return json.loads((FAKE_FORMS / "greenhouse_api.json").read_text(encoding="utf-8"))
+def fake_job_data(site: str = "greenhouse") -> dict:
+    return json.loads((FAKE_FORMS / f"{site}_api.json").read_text(encoding="utf-8"))
 
 
 def make_form(job: dict, config: Config):
     """The agent form for a job record (`internal.link`, `internal.jobData`).
 
-    Raises agent UnsupportedLink for sites the agent can't fill (Ashby, Lever). The fake
-    Greenhouse posting never touches the network: its API payload and page are local files.
+    Raises agent UnsupportedLink for sites the agent can't fill (Lever). The fake Greenhouse
+    and Ashby postings never touch the network: their API payloads and pages are local files.
     """
     link = link_of(job)
     if is_fake(link, config):
-        return GreenhouseForm(link, job_data=fake_job_data(),
-                              url=(FAKE_FORMS / "greenhouse_form.html").resolve().as_uri())
+        form_class = AshbyForm if link.site == "ashby" else GreenhouseForm
+        return form_class(link, job_data=fake_job_data(link.site),
+                          url=(FAKE_FORMS / f"{link.site}_form.html").resolve().as_uri())
     form = form_for(link)
     cached = (job.get("internal") or {}).get("jobData")
     if cached is not None:

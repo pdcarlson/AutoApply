@@ -3,6 +3,7 @@
 - `make_app(**kw)` builds another app on the same data dir (restart tests).
 - `client` is a TestClient (lifespan runs); the user starts signed out.
 - `signed_in` signs that client in through /auth/google.
+- `unfillable` makes real links act like a site the agent can't fill (handed to the person).
 - Every session checks that backend/AutoApply/Bank.json (a tracked fixture) is never written.
 """
 import hashlib
@@ -11,6 +12,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from agent.jobs.job_link import UnsupportedLink
 from server.app import create_app
 
 KONEFAL_BANK = Path(__file__).resolve().parents[2] / "AutoApply" / "Bank.json"
@@ -49,6 +51,14 @@ def server_env(monkeypatch):
     monkeypatch.setenv("AGENT_SHOW_BROWSER", "false")
     monkeypatch.setenv("AGENT_SLOW_MO_MS", "0")
     monkeypatch.setenv("CONFIRM_TIMEOUT_S", "90")
+
+
+@pytest.fixture
+def unfillable(monkeypatch):
+    """Every real (non-fake) link acts like a site the agent can't fill, without going online."""
+    def refuse(link):
+        raise UnsupportedLink(f"AutoApply can't fill {link.site.title()} forms yet.")
+    monkeypatch.setattr("server.agent_bridge.form_for", refuse)
 
 
 @pytest.fixture

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 
 from agent.answers.answerer import Answerer
+from agent.forms.base_form import PostingClosed
 from agent.jobs.job_link import JobLink, UnsupportedLink
 from server import jobs
 from server.agent_bridge import build_agent_profile, link_to_dict, make_form, no_claude
@@ -82,56 +83,62 @@ def _conflict(db, link: dict) -> dict | None:
     return existing
 
 
-def _greenhouse_details(request: Request, link: JobLink,  # pylint: disable=too-many-locals
-                        config: Config) -> dict:
+def _form_details(request: Request, link: JobLink, ats: str,  # pylint: disable=too-many-locals
+                  config: Config) -> dict:
     """Reads the form (outside the lock) and works out the Inbox metadata for it."""
     store: Store = request.app.state.store
     probe = {"internal": {"link": link_to_dict(link), "jobData": None}}
-    form = make_form(probe, config)
+    try:
+        form = make_form(probe, config)
+    except UnsupportedLink:
+        return _handoff_details(link, ats)
     try:
         fields = form.read_fields()
+    except PostingClosed:
+        raise ApiError(422, "posting_closed", CLOSED) from None
     except urllib.error.HTTPError as error:
         if error.code == 404:
             raise ApiError(422, "posting_closed", CLOSED) from None
         raise ApiError(502, "fetch_failed", FETCH_FAILED) from None
     except (OSError, ValueError, KeyError, TypeError):
-        log.warning("Couldn't read the Greenhouse form for %s", link.url, exc_info=True)
+        log.warning("Couldn't read the %s form for %s", ats, link.url, exc_info=True)
         raise ApiError(502, "fetch_failed", FETCH_FAILED) from None
-    data = form.job_data or {}
+    posting = form.posting()
+    company = posting["company"] or _title(link.company)
 
-    profile, _ids = build_agent_profile(store, request.app.state.answer_bank,
-                                        data.get("company_name") or _title(link.company))
+    profile, _ids = build_agent_profile(store, request.app.state.answer_bank, company)
     threshold = int(store.read("settings")["confidenceThreshold"])
     answerer = Answerer(profile, no_claude, threshold=threshold)
     to_ask = sum(1 for f in fields if f.required and answerer.answer(f) is None)
 
-    checks = [{"status": "ok", "text": f"Greenhouse form · {_plural(len(fields), 'question')}"}]
+    checks = [{"status": "ok", "text": f"{ats} form · {_plural(len(fields), 'question')}"}]
     if to_ask:
         verb = "isn't" if to_ask == 1 else "aren't"
         checks.append({"status": "warn", "text": f"{_plural(to_ask, 'required question')} "
                                                  f"{verb} covered by your profile or Answer "
                                                  "bank yet"})
     return {
-        "company": data.get("company_name") or _title(link.company),
-        "role": data.get("title") or "Greenhouse posting",
-        "location": (data.get("location") or {}).get("name", "") or "",
+        "company": company,
+        "role": posting["title"] or f"{ats} posting",
+        "location": posting["location"],
         "formSummary": {"totalFields": len(fields), "fieldsToAsk": to_ask},
         "progress": {"filled": 0, "total": len(fields)},
         "checks": checks,
         "reason": (f"Asks {_plural(to_ask, 'question')} your profile doesn't cover"
                    if to_ask else "Added from a link"),
-        "jobData": data,
+        "jobData": form.job_data,
     }
 
 
-def _ashby_details(link: JobLink) -> dict:
+def _handoff_details(link: JobLink, ats: str) -> dict:
+    """Inbox metadata for a site the agent can't fill: the person finishes it on the site."""
     return {
         "company": _title(link.company),
-        "role": "Ashby posting",
+        "role": f"{ats} posting",
         "location": "",
         "formSummary": None,
         "progress": {"filled": 0, "total": 0},
-        "checks": [{"status": "warn", "text": "AutoApply can't fill Ashby forms yet. "
+        "checks": [{"status": "warn", "text": f"AutoApply can't fill {ats} forms yet. "
                                               "You'll finish this one on the site."}],
         "reason": "Added from a link",
         "jobData": None,
@@ -203,9 +210,8 @@ def add_job(body: AddJobBody, request: Request, store: Store = Depends(get_store
         if existing is not None:  # skipped earlier: adding it again restores it
             jobs.restore(existing)
             return jobs.to_api_job(existing)
-    # Reading a real Greenhouse form is a network call: keep it outside the lock.
-    details = _greenhouse_details(request, link, config) if ats == "Greenhouse" \
-        else _ashby_details(link)
+    # Reading a real form is a network call: keep it outside the lock.
+    details = _form_details(request, link, ats, config)
     with store.tx() as db:
         existing = _conflict(db, link_to_dict(link))  # someone added it meanwhile
         if existing is not None:

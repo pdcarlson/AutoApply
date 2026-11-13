@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from agent.forms.form_field import FieldAnswer, FormField
 from server import jobs
 from server.questions import make_question
-from server.tests.job_helpers import (ASHBY_URL, SPONSORSHIP, WHY_HERE, add_job, apply,
+from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, SPONSORSHIP, WHY_HERE, add_job, apply,
                                       job_detail, seed_fake_form_answers, set_up_profile,
                                       wait_for_state)
 
@@ -26,6 +26,7 @@ def offline(monkeypatch):
         raise AssertionError("tried to reach the network")
     monkeypatch.setattr(urllib.request, "urlopen", refuse)
     monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", refuse)
+    monkeypatch.setattr("agent.forms.ashby_form.urlopen", refuse)
 
 
 @pytest.fixture
@@ -160,7 +161,35 @@ def test_fills_to_ready_with_bank_answers(client, app, applied):
     assert client.get("/api/agent/status").json()["queue"] == []
 
 
-def test_ashby_job_goes_to_handoff(client, app):
+def test_fills_an_ashby_form_to_ready(client, app):
+    """An Ashby job asks its unanswered questions, then fills the (fake) Ashby form."""
+    set_up_profile(client)
+    job = add_job(client, FAKE_ASHBY_URL)
+    apply(client, job["id"])
+    assert app.state.worker.run_next() == job["id"]
+    detail = job_detail(client, job["id"])
+    assert detail["state"] == "needs_input"
+    assert detail["question"]["field"] == SPONSORSHIP
+    assert detail["question"]["type"] == "yesno"
+
+    bank = app.state.answer_bank
+    for question, answer in ((SPONSORSHIP, "No"), ("Which team interests you most?", "Data"),
+                             (WHY_HERE, "I like building tools people use.")):
+        bank.upsert_by_question(question, answer, origin="manual", source="Test")
+    with app.state.store.tx() as db:
+        jobs.requeue_at_front(db, jobs.find(db, job["id"]))
+    assert app.state.worker.run_next() == job["id"]
+    detail = job_detail(client, job["id"])
+    assert detail["state"] == "ready", detail["reason"]
+    fields = fields_by_label(detail)
+    assert fields["Name"]["value"] == "Jordan Rivera"
+    assert fields["Resume"]["value"] == "example_resume.pdf"
+    assert fields["Which team interests you most?"]["value"] == "Data"
+    assert app.state.store.path("screenshots", f"{job['id']}-filled.png").is_file()
+
+
+def test_unfillable_site_goes_to_handoff(client, app, unfillable):  # pylint: disable=unused-argument
+    """A site the agent can't fill is handed to the person to finish."""
     set_up_profile(client)
     job = add_job(client, ASHBY_URL)
     apply(client, job["id"])
@@ -212,7 +241,7 @@ def test_paused_worker_runs_nothing(client, app, applied):
     assert app.state.worker.run_next() == applied
 
 
-def test_run_next_promotes_waiting_jobs(client, app):
+def test_run_next_promotes_waiting_jobs(client, app, unfillable):  # pylint: disable=unused-argument
     set_up_profile(client)
     job = add_job(client, ASHBY_URL)
     with app.state.store.tx() as db:
@@ -259,7 +288,7 @@ def test_worker_thread_fills_in_the_background(make_app):
         job = add_job(client)
         apply(client, job["id"])
         detail = wait_for_state(client, job["id"], ("ready", "open", "needs_input", "handoff"))
-        assert detail["state"] == "ready", detail
+        assert detail["state"] == "ready", detail["reason"]
         assert app.state.store.path("screenshots", f"{job['id']}-filled.png").is_file()
     assert seen_threads == ["agent-worker"]
     assert not worker.alive  # the lifespan stopped it

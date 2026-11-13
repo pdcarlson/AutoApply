@@ -97,6 +97,11 @@ class Profile:  # pylint: disable=too-many-instance-attributes
     extra_facts: list[str] = field(default_factory=list)  # more lines for Claude to read
 
     @property
+    def full_name(self):
+        """Return the first and last name, for forms with a single Name box (like Ashby)."""
+        return " ".join(filter(None, [self.first_name, self.last_name]))
+
+    @property
     def location(self):
         """Return the city and state, the way location boxes want them."""
         return f"{self.city}, {self.state}" if self.city else ""

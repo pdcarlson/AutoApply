@@ -3,13 +3,14 @@ import urllib.request
 
 import pytest
 
+from agent.forms.ashby_form import AshbyForm
 from agent.forms.form_field import FieldAnswer, FormField
 from agent.forms.greenhouse_form import GreenhouseForm
 from agent.jobs.job_link import JobLink, UnsupportedLink
 from server import agent_bridge
 from server.agent_bridge import (SourceMap, build_agent_profile, cached_claude, link_to_dict,
                                  make_form, month_year)
-from server.tests.job_helpers import FAKE_URL, SPONSORSHIP
+from server.tests.job_helpers import FAKE_ASHBY_URL, FAKE_URL, SPONSORSHIP
 
 
 def _job(url, job_data=None):
@@ -55,7 +56,23 @@ def test_only_the_exact_test_postings_are_faked(app, url):
 
 def test_other_sites_are_unsupported(app):
     with pytest.raises(UnsupportedLink):
-        make_form(_job("https://jobs.ashbyhq.com/acme/123"), app.state.config)
+        make_form(_job("https://jobs.lever.co/acme/123"), app.state.config)
+
+
+def test_ashby_links_get_an_ashby_form(app):
+    form = make_form(_job("https://jobs.ashbyhq.com/acme/123", job_data={"title": "Cached"}),
+                     app.state.config)
+    assert isinstance(form, AshbyForm) and form.url is None
+    assert form.job_data == {"title": "Cached"}  # the posting read when the job was added
+
+
+def test_fake_ashby_form_is_local(app, monkeypatch):
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("tried to reach the network")
+    monkeypatch.setattr("agent.forms.ashby_form.urlopen", refuse)
+    form = make_form(_job(FAKE_ASHBY_URL), app.state.config)
+    assert form.url.endswith("ashby_form.html")
+    assert len(form.read_fields()) == 11
 
 
 def test_profile_projection(app):

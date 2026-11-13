@@ -86,7 +86,10 @@ def test_profile_projection(app):
                {"id": "github", "url": "gh/ada"}],
         education=[{"school": "RPI", "degreeType": "B.S.", "major": "CS", "gpa": "3.9",
                     "end": "2027-05"}],
-        experience=[{"title": "Intern", "org": "Old Co", "start": "2025-06", "end": "2025-08",
+        # an ongoing club role listed first never becomes the current employer
+        experience=[{"kind": "leadership", "title": "President", "org": "Chess Club",
+                     "start": "2025-09", "end": "", "current": True},
+                    {"title": "Intern", "org": "Old Co", "start": "2025-06", "end": "2025-08",
                      "current": False},
                     {"title": "Engineer", "org": "Now Co", "start": "2026-01", "end": "",
                      "current": True}],
@@ -125,7 +128,9 @@ def test_profile_projection(app):
                  "Relocation: depends on the role",
                  "Expected pay: $40/hr (only give it when a number is required)",
                  "Companies the applicant or family members worked for: Acme",
-                 "Pronouns: she/her", "Experience: Engineer at Now Co, January 2026–Present",
+                 "Pronouns: she/her",
+                 "Work experience: Engineer at Now Co, January 2026–Present",
+                 "Leadership: President at Chess Club, September 2025–Present",
                  "Project: Planner (React): Course planner"]:
         assert line in profile.extra_facts
 

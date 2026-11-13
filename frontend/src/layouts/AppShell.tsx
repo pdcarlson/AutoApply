@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useJobs, useSession, useSignOut } from '@/api/queries';
 import { paths } from '@/app/paths';
+import { useOverlays } from '@/app/providers/overlays';
 import { useTheme } from '@/app/providers/theme';
 import { Count } from '@/components/ui/Badges';
 import { IconButton, LinkButton } from '@/components/ui/Button';
@@ -73,6 +74,7 @@ function SideNav() {
   const user = session.data?.user;
   const signOut = useSignOut();
   const navigate = useNavigate();
+  const { open } = useOverlays();
 
   return (
     <aside className={styles.nav}>
@@ -111,6 +113,9 @@ function SideNav() {
             onClick={() => signOut.mutate(undefined, { onSettled: () => navigate(paths.signIn) })}
           >
             Sign out
+          </LinkButton>
+          <LinkButton className={styles.danger} onClick={() => open({ type: 'deleteAccount' })}>
+            Delete account
           </LinkButton>
         </div>
         <ThemeToggle />

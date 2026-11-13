@@ -179,14 +179,24 @@ def split_label(text: str) -> tuple[str | None, str]:
     return None, text
 
 
+# Header words for sections shaped like jobs (title, organization, dates, bullets) that aren't
+# work, and the Experience kind each gives. "Leadership Experience" is a leadership entry.
+EXPERIENCE_KIND_WORDS = {"Leadership": "leadership", "Volunteer": "volunteer",
+                         "Volunteering": "volunteer", "Community": "volunteer",
+                         "Activities": "activity", "Involvement": "activity"}
+
+
+def _header_words(header: str) -> list[str]:
+    return [word.strip(":,.&").title() for word in header.split()]
+
+
 def classify_header(header: str) -> str:
     """education|experience|projects|skills|coursework|custom, by the first header word."""
     known = set(konefal.resumeRead.KNOWN_HEADERS)
-    for word in header.split():
-        word = word.strip(":,.&").title()
+    for word in _header_words(header):
         if word == "Education":
             return "education"
-        if word == "Experience":
+        if word == "Experience" or word in EXPERIENCE_KIND_WORDS:
             return "experience"
         if word == "Projects":
             return "projects"
@@ -197,6 +207,14 @@ def classify_header(header: str) -> str:
         if word in known:
             return "custom"
     return "custom"
+
+
+def experience_kind(header: str) -> str:
+    """work|leadership|volunteer|activity for an Experience-type header; "work" by default."""
+    for word in _header_words(header):
+        if word in EXPERIENCE_KIND_WORDS:
+            return EXPERIENCE_KIND_WORDS[word]
+    return "work"
 
 
 def _header_title(header: str) -> str:
@@ -377,10 +395,10 @@ def _org_title(text: str) -> tuple[str, str]:
     return _clean(text), ""
 
 
-def parse_experience(lines: list[str]) -> dict:
+def parse_experience(lines: list[str], kind: str = "work") -> dict:
     """One role's lines (head line, optional continuation lines, bullets) -> Experience sans id."""
-    entry = {"title": "", "org": "", "location": "", "start": "", "end": "", "current": False,
-             "detail": ""}
+    entry = {"kind": kind, "title": "", "org": "", "location": "", "start": "", "end": "",
+             "current": False, "detail": ""}
     detail: list[str] = []
     date_text = ""
     for index, raw in enumerate(lines):
@@ -545,7 +563,7 @@ def sections_to_profile(sections: dict[str, list[str]]) -> tuple[dict, list[dict
     """resumeRead sections -> (profile_patch, unplaced, labels). Pure; see the module doc."""
     contact = _Contact()
     edu_groups: list[tuple[list[str], bool]] = []
-    exp_groups: list[list[str]] = []
+    exp_groups: list[tuple[list[str], str]] = []  # (lines, Experience kind)
     proj_groups: list[list[str]] = []
     skills_lines: list[str] = []
     has_skills_section = False
@@ -575,17 +593,22 @@ def sections_to_profile(sections: dict[str, list[str]]) -> tuple[dict, list[dict
                 current = [line]
                 if kind == "education":
                     edu_groups.append((current, False))
+                elif kind == "experience":
+                    exp_groups.append((current, "work"))
                 else:
-                    {"experience": exp_groups, "project": proj_groups}[kind].append(current)
+                    proj_groups.append(current)
             continue
 
         if not lines:
             continue
         kind = classify_header(header)
+        role_kind = experience_kind(header) if kind == "experience" else "work"
+        if role_kind != "work" and not any(_has_dates(line) for line in lines):
+            kind = "custom"  # a list of clubs or awards with no dates isn't a set of roles
         if kind == "education":
             edu_groups.extend(_group_education(lines))
         elif kind == "experience":
-            exp_groups.extend(_group(lines, _new_experience))
+            exp_groups.extend((group, role_kind) for group in _group(lines, _new_experience))
         elif kind == "projects":
             proj_groups.extend(_group(lines, _new_project))
         elif kind == "skills":
@@ -606,7 +629,8 @@ def sections_to_profile(sections: dict[str, list[str]]) -> tuple[dict, list[dict
             entry, leftovers = parse_education(group)
         education.append({"id": f"ed-{len(education) + 1}", **entry})
         unplaced.extend((line, COURSEWORK_SUGGESTION) for line in leftovers)
-    experience = [{"id": f"x-{n}", **parse_experience(g)} for n, g in enumerate(exp_groups, 1)]
+    experience = [{"id": f"x-{n}", **parse_experience(group, role_kind)}
+                  for n, (group, role_kind) in enumerate(exp_groups, 1)]
     projects = [{"id": f"p-{n}", **parse_project(g)} for n, g in enumerate(proj_groups, 1)]
     skills = parse_skills(skills_lines) if has_skills_section else _tech_skills(projects)
 

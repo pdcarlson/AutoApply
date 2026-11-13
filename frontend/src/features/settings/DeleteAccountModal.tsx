@@ -36,6 +36,7 @@ export function DeleteAccountModal() {
       <h2 className="h2" id="delete-title">
         Delete your account?
       </h2>
+      <p className="ink2">Are you sure you want to do this?</p>
       <p className="ink2">This removes everything Auto Apply has{email ? ` for ${email}` : ''}:</p>
       <ul className={styles.list}>
         {removed.map((item) => (

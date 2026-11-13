@@ -115,6 +115,7 @@ export const parsedProfile = (fileName: string, sizeBytes: number): Profile => (
   experience: [
     {
       id: 'x-1',
+      kind: 'work',
       title: 'Teaching Assistant',
       org: 'Example State University',
       location: 'Springfield, IL',

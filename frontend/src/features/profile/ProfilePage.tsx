@@ -1,22 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import type { Profile, ProfileUpdate } from '@/api/types';
-import {
-  useCommonAnswers,
-  usePreferences,
-  useProfile,
-  useReplaceResumeFile,
-  useUpdateCommonAnswers,
-  useUpdatePreferences,
-  useUpdateProfile,
-} from '@/api/queries';
+import { useProfile, useReplaceResumeFile, useUpdateProfile } from '@/api/queries';
 import { profileSection } from '@/app/paths';
 import { useToast } from '@/app/providers/toast';
 import { Button } from '@/components/ui/Button';
 import { buttonClass } from '@/components/ui/classNames';
 import { Panel } from '@/components/ui/Callouts';
 import { Loading, LoadError } from '@/components/ui/DataDisplay';
-import { Choice, PillInput } from '@/components/ui/Form';
+import { PillInput } from '@/components/ui/Form';
 import { Page, PageTitle } from '@/layouts/Page';
 import { RESUME_ACCEPT, validateResumeFile } from '@/lib/resumeFile';
 import { ContactFields, CustomFieldsEditor, EntryList, LinksEditor, type Contact } from './editors';
@@ -37,10 +29,6 @@ const SECTIONS = {
   custom: [
     'Additional information',
     'Your own fields. Name it the way forms ask for it, then type the value.',
-  ],
-  preferences: [
-    'Job preferences',
-    'Hard preferences. A posting that misses one never reaches your Inbox.',
   ],
   resume: ['Resume file', 'The file attached to every application.'],
 } as const;
@@ -212,9 +200,6 @@ function ProfileSections({ profile }: { profile: Profile }) {
         </Panel>
         {saveButton({ custom: draft.custom })}
       </Section>
-      <Section id="preferences">
-        <PreferencesSection />
-      </Section>
       <Section id="resume">
         <ResumeSection profile={profile} />
       </Section>
@@ -238,77 +223,6 @@ function Section({ id, children }: { id: SectionKey; children: ReactNode }) {
       </div>
       <div className={styles.sectionBody}>{children}</div>
     </section>
-  );
-}
-
-function PreferencesSection() {
-  const preferences = usePreferences();
-  const common = useCommonAnswers();
-  const savePrefs = useUpdatePreferences();
-  const saveCommon = useUpdateCommonAnswers();
-
-  if (preferences.isPending || common.isPending) return <Loading />;
-  if (preferences.isError || common.isError) {
-    return (
-      <LoadError
-        what="your preferences"
-        onRetry={() => {
-          void preferences.refetch();
-          void common.refetch();
-        }}
-      />
-    );
-  }
-  const prefs = preferences.data;
-
-  return (
-    <>
-      <Panel>
-        <span className="eyebrow">Role types</span>
-        <PillInput
-          items={prefs.roleTypes}
-          onChange={(roleTypes) => savePrefs.mutate({ ...prefs, roleTypes })}
-          label="Role types"
-          addLabel="Add role type"
-          placeholder="e.g. Data"
-        />
-      </Panel>
-      <Panel>
-        <span className="eyebrow">Job type</span>
-        <Choice
-          type="checkbox"
-          checked={prefs.fullTime}
-          onChange={() => savePrefs.mutate({ ...prefs, fullTime: !prefs.fullTime })}
-        >
-          Full-time, new grad
-        </Choice>
-        <Choice
-          type="checkbox"
-          checked={prefs.internship}
-          onChange={() => savePrefs.mutate({ ...prefs, internship: !prefs.internship })}
-        >
-          Internship
-        </Choice>
-      </Panel>
-      <Panel>
-        <span className="eyebrow">Locations</span>
-        <PillInput
-          items={common.data.locations}
-          onChange={(locations) => saveCommon.mutate({ ...common.data, locations })}
-          label="Locations"
-          addLabel="Add place"
-          placeholder="City, State"
-        />
-      </Panel>
-      <Panel>
-        <span className="eyebrow">How new jobs are found</span>
-        <p className="small ink2">
-          Every morning Auto Apply reads new postings from public Greenhouse and Ashby job boards.
-          Postings that meet all of your preferences land in your Inbox, newest first, with a
-          one-line reason. Nothing is submitted until you review and approve it.
-        </p>
-      </Panel>
-    </>
   );
 }
 

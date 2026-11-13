@@ -67,8 +67,20 @@ export interface Education {
   coursework: string;
 }
 
+/** A job, or a role shaped like one that isn't employment (a club office, volunteering). */
+export type ExperienceKind = 'work' | 'leadership' | 'volunteer' | 'activity';
+
+export const EXPERIENCE_KINDS: readonly { value: ExperienceKind; label: string }[] = [
+  { value: 'work', label: 'Work' },
+  { value: 'leadership', label: 'Leadership' },
+  { value: 'volunteer', label: 'Volunteer' },
+  { value: 'activity', label: 'Activity' },
+];
+
 export interface Experience {
   id: string;
+  /** Only `work` counts as employment (current employer, work history). */
+  kind: ExperienceKind;
   title: string;
   org: string;
   location: string;

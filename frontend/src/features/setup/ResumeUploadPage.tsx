@@ -66,9 +66,6 @@ export function ResumeUploadPage() {
             </div>
           </>
         )}
-        <p className="tiny muted">
-          Your resume is encrypted and attached to applications exactly as uploaded.
-        </p>
       </div>
       <SetupFooter
         onNext={() => navigate(paths.setupProfile)}

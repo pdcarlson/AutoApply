@@ -25,29 +25,15 @@ import { JobRow } from './JobRow';
 import { PasteLink } from './PasteLink';
 import styles from './InboxPage.module.css';
 
-type Filter = 'all' | 'matched' | 'added' | 'needs' | 'skip';
+type Filter = 'all' | 'needs';
 
 const FILTERS: FilterOption<Filter>[] = [
   { key: 'all', label: 'All' },
-  { key: 'matched', label: 'New matches', dot: 'mark' },
-  { key: 'added', label: 'You added', dot: 'ink' },
   { key: 'needs', label: 'Needs you', dot: 'amber' },
-  { key: 'skip', label: 'Skip suggested', dot: 'red' },
 ];
 
-const matches = (filter: Filter) => (job: Job) => {
-  switch (filter) {
-    case 'matched':
-    case 'added':
-      return job.source === filter;
-    case 'needs':
-      return job.state !== 'open';
-    case 'skip':
-      return job.state === 'open' && job.skipSuggested;
-    default:
-      return true;
-  }
-};
+const matches = (filter: Filter) => (job: Job) =>
+  filter === 'needs' ? job.state !== 'open' : true;
 
 /** Jobs you add from a link start checked; matches and skip-suggested ones don't. */
 const checkedByDefault = (job: Job) => job.source === 'added' && !job.skipSuggested;
@@ -205,12 +191,25 @@ export function InboxPage() {
           </Banner>
         )}
 
-        <FilterChips
-          label="Show"
-          value={filter}
-          onChange={setFilter}
-          options={FILTERS.map((option) => ({ ...option, count: counts[option.key] }))}
-        />
+        <div className={styles.toolbar}>
+          <FilterChips
+            label="Show"
+            value={filter}
+            onChange={setFilter}
+            options={FILTERS.map((option) => ({ ...option, count: counts[option.key] }))}
+          />
+          <div className={styles.toolbarActions}>
+            <span className={styles.applyCount}>{selected.length} selected</span>
+            <Button
+              variant="primary"
+              disabled={!selected.length}
+              loading={apply.isPending}
+              onClick={() => applyTo(selected)}
+            >
+              {selected.length ? `Apply to ${selected.length}` : 'Apply'}
+            </Button>
+          </div>
+        </div>
 
         <div className={styles.table}>
           <div className={`${styles.grid} ${styles.head}`} aria-hidden="true">
@@ -220,6 +219,7 @@ export function InboxPage() {
             <span>Where</span>
             <span>Form</span>
             <span>Status</span>
+            <span />
             <span />
           </div>
           {jobs.isPending ? (
@@ -241,13 +241,15 @@ export function InboxPage() {
                     setCheckedOverrides((prev) => ({ ...prev, [job.id]: !isChecked(job) }))
                   }
                   onSkip={() => skipJob(job)}
+                  onApply={() => applyTo([job.id])}
+                  applying={apply.isPending}
                 />
               ))}
             </ul>
           ) : (
             <p className={styles.empty}>
               {filter === 'all'
-                ? 'Your Inbox is clear. Paste a job link to add one. New matches show up here each morning.'
+                ? 'Your Inbox is clear. Paste a job link to add one.'
                 : 'Nothing in this filter.'}
             </p>
           )}
@@ -256,22 +258,6 @@ export function InboxPage() {
         <div className={styles.phoneOnly}>
           <ApplyingNow variant="card" />
         </div>
-      </div>
-
-      <div className={styles.applyBar}>
-        <span className={styles.applyHint}>
-          Jobs you add from a link start checked. The agent fills each form, then you review it
-          before it’s submitted.
-        </span>
-        <span className={styles.applyCount}>{selected.length} selected</span>
-        <Button
-          variant="primary"
-          disabled={!selected.length}
-          loading={apply.isPending}
-          onClick={() => applyTo(selected)}
-        >
-          {selected.length ? `Apply to ${selected.length}` : 'Apply'}
-        </Button>
       </div>
     </main>
   );

@@ -60,6 +60,14 @@ def test_upload_parses_into_the_profile(client, app):
         EXAMPLE_PDF.read_bytes()
 
 
+def test_experience_without_a_kind_reads_as_work(client, app):
+    with app.state.store.tx() as db:
+        db.profile.update(experience=[{"id": "x-1", "title": "Intern", "org": "Acme"},
+                                      {"id": "x-2", "kind": "leadership", "title": "President"}])
+    kinds = [e["kind"] for e in client.get("/api/profile").json()["experience"]]
+    assert kinds == ["work", "leadership"]
+
+
 def test_rejects_wrong_type_and_large_files(client):
     response = _upload(client, "resume.txt", b"hello", mime="text/plain")
     assert response.status_code == 422 and response.json()["code"] == "invalid_type"

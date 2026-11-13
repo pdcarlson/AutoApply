@@ -109,6 +109,31 @@ def test_header_sections_on_dicts():
     assert {"status": "ok", "label": "Skills · 4"} in labels
 
 
+def test_leadership_and_volunteer_sections_become_tagged_experience():
+    sections = {
+        "WORK EXPERIENCE": ["Acme Corp                                  June 2024 - Aug 2024",
+                            "Intern                                     Boston, MA",
+                            "- Built things"],
+        "LEADERSHIP EXPERIENCE": [
+            "Example Fraternity                         December 2024 - December 2025",
+            "President",
+            "- Led a 50+ member organization with a $300K budget",
+        ],
+        "Volunteer Work": ["Food Bank - Volunteer          Jan 2023 - May 2023"],
+        "Activities": ["Chess Club", "Robotics Club"],  # no dates: not roles
+    }
+    patch, unplaced, _ = sections_to_profile(sections)
+    assert [(e["kind"], e["org"], e["title"]) for e in patch["experience"]] == [
+        ("work", "Acme Corp", "Intern"),
+        ("leadership", "Example Fraternity", "President"),
+        ("volunteer", "Food Bank", "Volunteer"),
+    ]
+    leader = patch["experience"][1]
+    assert (leader["start"], leader["end"]) == ("2024-12-01", "2025-12-01")
+    assert leader["detail"] == "Led a 50+ member organization with a $300K budget"
+    assert [u["text"] for u in unplaced] == ["Activities: Chess Club; Robotics Club"]
+
+
 def test_two_degrees_under_one_school_are_two_entries():
     sections = {"EDUCATION": [
         "Example Polytechnic Institute                                        Troy, NY",

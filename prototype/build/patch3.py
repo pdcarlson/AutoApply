@@ -2,6 +2,13 @@
 rep("`A Greenhouse, Lever, or Ashby link. The agent fills the form, and you approve it before it’s submitted.`",
     "`A Greenhouse or Ashby link. The agent fills the form, and you approve it before it’s submitted.`")
 
+# Landing: no fine print under the start button
+rep("""                  (0, N.jsx)(`p`, {
+                    className: `fine-print`,
+                    children: `By continuing you agree to the Terms and Privacy policy.`,
+                  }),
+""", "")
+
 # Inbox: no digest line
 rep("""                (0, N.jsx)(`p`, { className: `digest`, children: n }),
 """, "")

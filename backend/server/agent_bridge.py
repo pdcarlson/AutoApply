@@ -41,6 +41,9 @@ FAKE_JOB_IDS = {
     "ashby": frozenset({"00000000-0000-4000-8000-000000001001"}),
 }
 DEFAULT_COUNTRY = "United States"
+# How each Experience kind is named in the agent's facts, so it can tell a job from a club role.
+EXPERIENCE_FACT_LABELS = {"work": "Work experience", "leadership": "Leadership",
+                          "volunteer": "Volunteer work", "activity": "Activity"}
 
 # Looked up at call time, so tests can monkeypatch `server.agent_bridge.ask_claude`.
 ask_claude = agent_claude.ask_claude
@@ -131,8 +134,9 @@ def _extra_facts(profile: dict, common: dict) -> list[str]:
     for item in profile.get("experience") or []:
         head = " at ".join(filter(None, [item.get("title"), item.get("org")]))
         when = _span(item.get("start", ""), item.get("end", ""), bool(item.get("current")))
+        label = EXPERIENCE_FACT_LABELS.get(item.get("kind") or "work", "Experience")
         if head:
-            facts.append(f"Experience: {head}" + (f", {when}" if when else ""))
+            facts.append(f"{label}: {head}" + (f", {when}" if when else ""))
     for item in profile.get("projects") or []:
         if item.get("name"):
             tech = f" ({item['tech']})" if item.get("tech") else ""
@@ -151,8 +155,9 @@ def build_agent_profile(store: Store, bank: AnswerBank,  # pylint: disable=too-m
 
     first, middle, last = (" ".join(str(profile.get(key) or "").split()) for key in NAME_KEYS)
     links = {link.get("id"): link.get("url", "") for link in profile.get("links") or []}
-    experience = profile.get("experience") or []
-    job = next((e for e in experience if e.get("current")), experience[0] if experience else {})
+    # Only paid work counts as the current employer, never a club or volunteer role.
+    work = [e for e in profile.get("experience") or [] if (e.get("kind") or "work") == "work"]
+    job = next((e for e in work if e.get("current")), work[0] if work else {})
     school = (profile.get("education") or [{}])[0]
     resume = profile.get("_resumePath") or ""
     resume_path = store.path(*resume.split("/")) if resume else None

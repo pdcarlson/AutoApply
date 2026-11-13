@@ -103,6 +103,10 @@
   font-size: 12.5px;
 }
 
+.user > .danger {
+  color: var(--red-text);
+}
+
 /* ===== Bottom tabs (phones) ===== */
 .bottomNav {
   display: none;

@@ -29,6 +29,8 @@ interface JobRowProps {
   onToggleExpanded: () => void;
   onToggleChecked: () => void;
   onSkip: () => void;
+  onApply: () => void;
+  applying: boolean;
 }
 
 export function JobRow({
@@ -40,6 +42,8 @@ export function JobRow({
   onToggleExpanded,
   onToggleChecked,
   onSkip,
+  onApply,
+  applying,
 }: JobRowProps) {
   const chip = jobChip(job);
   const date = jobDate(job);
@@ -98,6 +102,19 @@ export function JobRow({
         >
           <Icon name="chevron" className={cx(expanded && styles.flip)} />
         </IconButton>
+        <span className={styles.rowApply}>
+          {job.state === 'open' && (
+            <Button
+              size="sm"
+              variant="primary"
+              aria-label={`Apply to ${job.company}`}
+              disabled={applying}
+              onClick={onApply}
+            >
+              Apply
+            </Button>
+          )}
+        </span>
       </div>
       {expanded && (
         <div className={styles.detail}>

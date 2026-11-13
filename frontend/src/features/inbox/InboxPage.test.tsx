@@ -46,6 +46,21 @@ describe('InboxPage', () => {
     await waitFor(() => expect(db.jobs.find((j) => j.id === 'job-101')?.state).not.toBe('open'));
   });
 
+  it('applies to one job from its row, even when it isn’t checked', async () => {
+    signIn();
+    const user = userEvent.setup();
+    renderAt(inbox, '/inbox');
+
+    await user.click(await screen.findByRole('button', { name: 'Apply to Globex' }));
+
+    expect(await screen.findByText(/Filling 1 job/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(db.jobs.find((j) => j.company === 'Globex')?.state).not.toBe('open'),
+    );
+    // The checked job is left alone.
+    expect(db.jobs.find((j) => j.id === 'job-101')?.state).toBe('open');
+  });
+
   it('asks to confirm the profile before applying', async () => {
     signIn({ confirmed: false });
     const user = userEvent.setup();

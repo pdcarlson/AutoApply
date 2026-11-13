@@ -72,11 +72,14 @@ rep("""        (0, N.jsx)(`button`, {
         (0, N.jsxs)(`div`, {
           className: `page-foot-right`,""")
 
-# Resume upload: no Back, shorter note
+# Resume upload: no Back, no note
 rep("""        onBack: () => t(`welcome`),
         onNext: () => t(`review`),""", """        onNext: () => t(`review`),""")
-rep("children: `Your resume file is stored encrypted and attached to applications exactly as uploaded. You can delete it at any time.`",
-    "children: `Your resume is encrypted and attached to applications exactly as uploaded.`")
+rep("""            (0, N.jsx)(`p`, {
+              className: `tiny muted`,
+              children: `Your resume file is stored encrypted and attached to applications exactly as uploaded. You can delete it at any time.`,
+            }),
+""", "")
 
 # Check profile: no Back (Replace already goes back to upload)
 rep("""        onBack: () => t(`upload`),
@@ -634,7 +637,7 @@ rep("""    education: `Used for school, degree, and graduation questions.`,""", 
     links: `Portfolio, LinkedIn, GitHub, and anything else forms ask you to link.`,
     custom: `Your own fields. Name it the way forms ask for it, then type the value.`,""")
 rep("var aaProfileSubs = [`contact`, `education`, `experience`, `projects`, `skills`, `preferences`, `resume`];",
-    "var aaProfileSubs = [`contact`, `links`, `education`, `experience`, `projects`, `skills`, `custom`, `preferences`, `resume`];")
+    "var aaProfileSubs = [`contact`, `links`, `education`, `experience`, `projects`, `skills`, `custom`, `resume`];")
 rep("""      case `education`:
         return (0, N.jsxs)(N.Fragment, {
           children: [

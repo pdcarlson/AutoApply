@@ -74,9 +74,6 @@ export function SignInPage() {
           >
             Begin Onboarding
           </Button>
-          <p className={styles.finePrint}>
-            By continuing you agree to the Terms and Privacy policy.
-          </p>
         </div>
       </main>
       <aside className={styles.nextSteps} aria-label="What happens next">

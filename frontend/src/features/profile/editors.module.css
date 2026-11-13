@@ -15,11 +15,11 @@
   min-width: 0;
 }
 
-.field > label {
+.field > label,
+.fieldLabel {
   font-size: 14px;
   font-weight: 600;
 }
-
 .actions {
   display: flex;
   flex-wrap: wrap;

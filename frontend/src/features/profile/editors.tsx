@@ -4,17 +4,18 @@
  * saves per section).
  */
 import { useState } from 'react';
-import type {
-  CustomField,
-  Education,
-  Experience,
-  ProfileLink,
-  ProfileUpdate,
-  Project,
+import {
+  EXPERIENCE_KINDS,
+  type CustomField,
+  type Education,
+  type Experience,
+  type ProfileLink,
+  type ProfileUpdate,
+  type Project,
 } from '@/api/types';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Dot } from '@/components/ui/Badges';
-import { Choice, DateInput, TextAreaField, TextField } from '@/components/ui/Form';
+import { Choice, DateInput, Segmented, TextAreaField, TextField } from '@/components/ui/Form';
 import { inputClass } from '@/components/ui/classNames';
 import { Icon } from '@/components/ui/Icon';
 import { formatSpan, toBullets } from '@/lib/format';
@@ -273,8 +274,16 @@ const ENTRY_SPECS: { [K in EntryKind]: EntrySpec<EntryOf<K>> } = {
   experience: {
     add: 'Add experience',
     title: (e) => [e.title, e.org].filter(Boolean).join(' · ') || 'New experience',
-    sub: (e) => [formatSpan(e.start, e.end, e.current), e.location].filter(Boolean).join(' · '),
+    sub: (e) =>
+      [
+        e.kind !== 'work' && EXPERIENCE_KINDS.find((k) => k.value === e.kind)?.label,
+        formatSpan(e.start, e.end, e.current),
+        e.location,
+      ]
+        .filter(Boolean)
+        .join(' · '),
     blank: () => ({
+      kind: 'work',
       title: '',
       org: '',
       location: '',
@@ -284,8 +293,8 @@ const ENTRY_SPECS: { [K in EntryKind]: EntrySpec<EntryOf<K>> } = {
       detail: '',
     }),
     fields: [
-      ['title', 'Title', 'text', 'e.g. Software Intern'],
-      ['org', 'Employer', 'text', 'Company name'],
+      ['title', 'Title', 'text', 'e.g. Software Intern or Club President'],
+      ['org', 'Organization', 'text', 'Company or organization'],
       ['location', 'Location', 'text', 'City, State or Remote'],
       ['start', 'Start date', 'date'],
       ['end', 'End date', 'date'],
@@ -390,6 +399,23 @@ export function EntryList<K extends EntryKind>({
       {entries.map((entry) =>
         editing === entry.id ? (
           <div key={entry.id} className={styles.entryEdit}>
+            {kind === 'experience' && (
+              <div className={styles.field}>
+                <span className={styles.fieldLabel} id={`${entry.id}-kind`}>
+                  Type
+                </span>
+                <Segmented
+                  labelledBy={`${entry.id}-kind`}
+                  options={EXPERIENCE_KINDS}
+                  value={(entry as Experience).kind}
+                  onChange={(value) => update(entry.id, { kind: value })}
+                />
+                <span className="small muted">
+                  Only Work counts as a job. The agent uses the others for questions about
+                  leadership or involvement.
+                </span>
+              </div>
+            )}
             <div className={styles.grid2}>
               {spec.fields.map(([key, label, type, placeholder]) => (
                 <EntryField
@@ -408,7 +434,9 @@ export function EntryList<K extends EntryKind>({
                   update(entry.id, { current: !(entry as Experience).current, end: '' })
                 }
               >
-                I currently work here
+                {(entry as Experience).kind === 'work'
+                  ? 'I currently work here'
+                  : 'I’m still in this role'}
               </Choice>
             )}
             <div className={styles.actions}>

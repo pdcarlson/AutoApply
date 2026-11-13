@@ -43,11 +43,6 @@
   font-size: 16px;
 }
 
-.finePrint {
-  color: var(--muted);
-  font-size: 12.5px;
-}
-
 .nextSteps {
   display: flex;
   flex-direction: column;

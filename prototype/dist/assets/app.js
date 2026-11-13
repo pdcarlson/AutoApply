@@ -21947,10 +21947,6 @@ Error generating stack: ` +
                 ],
               }),
             e.parsing || e.done ? (0, N.jsx)(wa, {}) : (0, N.jsx)(Ca, {}),
-            (0, N.jsx)(`p`, {
-              className: `tiny muted`,
-              children: `Your resume is encrypted and attached to applications exactly as uploaded.`,
-            }),
           ],
         }),
       ],
@@ -22188,10 +22184,6 @@ Error generating stack: ` +
                             `Continue with Google`,
                           ],
                         }),
-                  }),
-                  (0, N.jsx)(`p`, {
-                    className: `fine-print`,
-                    children: `By continuing you agree to the Terms and Privacy policy.`,
                   }),
                 ],
               }),
@@ -23667,7 +23659,7 @@ Error generating stack: ` +
     { key: `answers`, href: `#answers`, label: `Answer bank`, icon: `list` },
     { key: `settings`, href: `#controls`, label: `Settings`, icon: `sliders` },
   ];
-  var aaProfileSubs = [`contact`, `links`, `education`, `experience`, `projects`, `skills`, `custom`, `preferences`, `resume`];
+  var aaProfileSubs = [`contact`, `links`, `education`, `experience`, `projects`, `skills`, `custom`, `resume`];
   function eo() {
     return {
       tab: j((e) => Hn(e.route)),

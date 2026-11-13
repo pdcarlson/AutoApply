@@ -55,8 +55,12 @@ class EducationBody(BaseModel):
     coursework: str = ""
 
 
+ExperienceKind = Literal["work", "leadership", "volunteer", "activity"]
+
+
 class ExperienceBody(BaseModel):
     id: str
+    kind: ExperienceKind = "work"
     title: str = ""
     org: str = ""
     location: str = ""
@@ -133,8 +137,14 @@ class JobPreferencesBody(BaseModel):
 # ----- helpers -----
 
 def public_profile(profile: dict) -> dict:
-    """The API Profile: drops server-only keys such as `_resumePath`."""
-    return {k: v for k, v in profile.items() if not k.startswith("_")}
+    """The API Profile: drops server-only keys such as `_resumePath`.
+
+    Experience saved before entries had a kind comes back as "work".
+    """
+    out = {k: v for k, v in profile.items() if not k.startswith("_")}
+    if "experience" in out:
+        out["experience"] = [{"kind": "work", **item} for item in out["experience"] or []]
+    return out
 
 
 def public_parse(parse: dict) -> dict:

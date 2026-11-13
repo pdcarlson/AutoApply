@@ -152,3 +152,26 @@ def test_empty_text_gives_none(tmp_path):
     with open(blank, "wb") as handle:
         writer.write(handle)
     assert konefal.read_resume(blank) is None
+
+
+def test_role_line_with_two_offices_keeps_the_company_and_place_apart():
+    """"Org    City, ST/ City, Country" is the org and its places, not a title and an org; dates
+    written with days are read; and the next "Org    City, ST" line starts a new role."""
+    work = [
+        "Northwind Pay                                              Princeton, NJ/ New Delhi, India",
+        "Software Engineering Intern\t\t\t\t      June 10th-August 16th  2024",
+        "Built payment tracking software.",
+        "Harbor Ventures                                                          Princeton, NJ",
+        "Analyst\t\t\t\t\t      June 2nd-August 16th  2024",
+        "Analyzed investment values.",
+    ]
+    patch, _unplaced, _labels = sections_to_profile(
+        {"Other": ["Casey Jordan", "casey@example.com"], "Work Experience": work})
+    first, second = patch["experience"]
+    assert (first["org"], first["title"]) == ("Northwind Pay", "Software Engineering Intern")
+    assert first["location"] == "Princeton, NJ/ New Delhi, India"
+    assert (first["start"], first["end"]) == ("2024-06-01", "2024-08-01")
+    assert first["detail"] == "Built payment tracking software."
+    assert (second["org"], second["title"]) == ("Harbor Ventures", "Analyst")
+    assert second["location"] == "Princeton, NJ"
+    assert split_line("Analyst      June 2nd, 2024")[1] == "June 2024"

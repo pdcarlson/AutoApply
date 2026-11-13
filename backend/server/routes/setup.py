@@ -202,7 +202,8 @@ def upload_resume(file: UploadFile | None = File(None), store: Store = Depends(g
         db.profile = {**default_profile(), "resume": resume, "_resumePath": relative}
         db.resume_parse = {"status": "parsing", "file": resume, "sections": [], "error": None,
                            "_parseId": parse_id}
-        body = public_parse(db.resume_parse)
+        # A copy: the parse thread adds to `sections` while this response is still being sent.
+        body = {**public_parse(db.resume_parse), "sections": []}
     resume_import.start_parse(store, path, parse_id, config.resume_parse_step_ms, name)
     return body
 

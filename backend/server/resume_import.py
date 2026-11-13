@@ -33,6 +33,12 @@ MONTH_YEAR_RE = re.compile(rf"(?<![A-Za-z])(?P<month>{_MONTH})\s+(?P<year>\d{{4}
 RANGE_RE = re.compile(
     rf"(?P<start>{_MONTH_YEAR})\s*(?:to|–|—|-)\s*(?P<end>{_MONTH_YEAR}|Present|Current|Now)\b",
     re.I)
+# Dates written with days, which the patterns above don't read: "June 10th-August 16th 2024"
+_DAY = r"\s+\d{1,2}(?:st|nd|rd|th)?"
+DAY_RANGE_RE = re.compile(
+    rf"(?<![A-Za-z])(?P<start>{_MONTH}){_DAY}\s*(?:to|–|—|-)\s*(?P<end>{_MONTH}){_DAY},?"
+    r"\s+(?P<year>\d{4})\b", re.I)
+DAY_RE = re.compile(rf"(?<![A-Za-z])(?P<month>{_MONTH}){_DAY},?\s+(?P<year>\d{{4}})\b", re.I)
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 PHONE_RE = re.compile(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
 URL_RE = re.compile(
@@ -144,8 +150,25 @@ def _dates(text: str) -> dict:
     return {"start": months[0] if len(months) > 1 else "", "end": months[-1], "current": False}
 
 
+def _plain_dates(text: str) -> str:
+    """Rewrites dates that name the day as month and year: "June 10th-August 16th 2024" ->
+    "June 2024 - August 2024", "June 10th, 2024" -> "June 2024"."""
+    text = DAY_RANGE_RE.sub(lambda m: f"{m['start']} {m['year']} - {m['end']} {m['year']}",
+                            text or "")
+    return DAY_RE.sub(lambda m: f"{m['month']} {m['year']}", text)
+
+
 def _has_dates(text: str) -> bool:
+    text = _plain_dates(text)
     return bool(RANGE_RE.search(text) or MONTH_YEAR_RE.search(text))
+
+
+def _is_place_column(text: str) -> bool:
+    """True for a column that is only a place, or places joined by "/" where the first is a
+    US "City, ST" (e.g. "Princeton, NJ/ New Delhi, India" for a role in two offices)."""
+    first = text.split("/")[0].strip()
+    found = _location(first)
+    return bool(found) and found[0] == first.split(",")[0]
 
 
 def split_line(line: str) -> tuple[str, str, str]:
@@ -154,12 +177,12 @@ def split_line(line: str) -> tuple[str, str, str]:
     Columns are split on 3+ spaces; a right-hand date column is the dates, a column that is only
     a place is the location. Otherwise a date range inside the text is cut out of it.
     """
-    cols = [c for c in COLUMNS_RE.split(line.strip()) if c]
+    cols = [c for c in COLUMNS_RE.split(_plain_dates(line).strip()) if c]
     dates = ""
     location = ""
     if len(cols) > 1 and _has_dates(cols[-1]):
         dates = cols.pop()
-    if len(cols) > 1 and _location(cols[-1]) and _location(cols[-1])[0] == cols[-1].split(",")[0]:
+    if len(cols) > 1 and _is_place_column(cols[-1]):
         location = cols.pop()
     text = ", ".join(cols)
     if not dates:
@@ -484,7 +507,10 @@ def _new_experience(line: str, group: list[str]) -> bool:
     if has_bullets:
         return True
     group_dates = any(_has_dates(g) for g in group if not _is_bullet(g))
-    return _has_dates(line) and group_dates
+    if _has_dates(line) and group_dates:
+        return True
+    # "Org    City, ST" starts the next role once the one before it has its dates
+    return group_dates and bool(split_line(line)[2])
 
 
 def _new_education(line: str, group: list[str]) -> bool:

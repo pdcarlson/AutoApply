@@ -49,7 +49,7 @@ CAPTCHA hand-offs, and "ready for review" can all be exercised.
 
 - State is kept in `localStorage`, so reloading keeps you signed in.
 - Run `autoApplyMocks.reset()` in the browser console to start over, signed out.
-- "Continue with Google" signs you straight in; the real backend redirects to Google.
+- "Begin Onboarding" signs you straight in; the real backend redirects to Google.
 - The mocks are loaded with a dynamic import behind `import.meta.env.DEV`, so they are never part
   of a production build. Delete `src/mocks` and `public/mockServiceWorker.js` once the backend is
   live (tests use the same handlers, so move or replace them at the same time).

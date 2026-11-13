@@ -1,6 +1,6 @@
 """Auth for the single local user: /session, /auth/google, /auth/logout (spec 2.13).
 
-There is no Google and no cookie. "Continue with Google" flips `state.signedIn`, which is
+There is no Google and no cookie. "Begin Onboarding" flips `state.signedIn`, which is
 persisted in state.json; the user starts signed out. Only /session checks it.
 """
 from urllib.parse import quote

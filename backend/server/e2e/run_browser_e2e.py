@@ -184,7 +184,7 @@ def drive(page: Page, shots: Shots, submit_real_form: bool) -> None:  # pylint: 
 
     # 1. Sign in.
     page.goto(WEB_URL + "/")
-    page.get_by_role("button", name="Continue with Google").click()
+    page.get_by_role("button", name="Begin Onboarding").click()
     page.wait_for_url("**/setup/resume")
     expect(page.get_by_role("heading", name="Start with your resume")).to_be_visible()
     shots.take("signed-in")

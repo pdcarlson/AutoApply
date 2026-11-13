@@ -36,7 +36,7 @@ export function SignInPage() {
     mutationFn: () => authApi.startGoogleSignIn(state.from ?? '/'),
     onSuccess: ({ authorizationUrl }) => window.location.assign(authorizationUrl),
   });
-  // Stays "waiting" after success too, while the browser leaves for Google.
+  // Stays "waiting" after success too, while the browser follows the returned URL.
   const waiting = start.isPending || start.isSuccess;
 
   return (
@@ -54,7 +54,7 @@ export function SignInPage() {
           {state.signInError === 'cancelled' && (
             <ErrorBox>
               <span>
-                <b>Google sign-in was cancelled.</b> Nothing was saved. Try again when you’re ready.
+                <b>Sign-in was cancelled.</b> Nothing was saved. Try again when you’re ready.
               </span>
             </ErrorBox>
           )}
@@ -67,15 +67,12 @@ export function SignInPage() {
             </ErrorBox>
           )}
           <Button
-            className={styles.googleBtn}
+            className={styles.startBtn}
             loading={waiting}
-            loadingLabel="Waiting for Google…"
+            loadingLabel="Starting…"
             onClick={() => start.mutate()}
           >
-            <span className={styles.googleMark} aria-hidden="true">
-              G
-            </span>
-            Continue with Google
+            Begin Onboarding
           </Button>
           <p className={styles.finePrint}>
             By continuing you agree to the Terms and Privacy policy.

@@ -32,6 +32,10 @@ export function useJobEventToasts() {
         notify(`${job.company} needs you: 1 question. The agent moved on to the next job.`, {
           action: { label: 'Answer it', run: () => navigate(inboxJob(job.id)) },
         });
+      } else if (job.state === 'handoff' && job.asksForCode) {
+        notify(`${job.ats} emailed you a code to finish ${job.company}’s application.`, {
+          action: { label: 'Enter it', run: () => navigate(inboxJob(job.id)) },
+        });
       } else if (job.state === 'handoff') {
         notify(
           `${job.company}’s form has a CAPTCHA. It’s waiting in your Inbox for you to finish.`,

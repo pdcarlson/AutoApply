@@ -174,7 +174,8 @@ def test_fills_an_ashby_form_to_ready(client, app):
 
     bank = app.state.answer_bank
     for question, answer in ((SPONSORSHIP, "No"), ("Which team interests you most?", "Data"),
-                             (WHY_HERE, "I like building tools people use.")):
+                             (WHY_HERE, "I like building tools people use."),
+                             ("When can you start a new role?", "June 2027")):
         bank.upsert_by_question(question, answer, origin="manual", source="Test")
     with app.state.store.tx() as db:
         jobs.requeue_at_front(db, jobs.find(db, job["id"]))
@@ -185,6 +186,7 @@ def test_fills_an_ashby_form_to_ready(client, app):
     assert fields["Name"]["value"] == "Jordan Rivera"
     assert fields["Resume"]["value"] == "example_resume.pdf"
     assert fields["Which team interests you most?"]["value"] == "Data"
+    assert fields["When can you start a new role?"]["value"] == "2027-06-01"
     assert app.state.store.path("screenshots", f"{job['id']}-filled.png").is_file()
 
 

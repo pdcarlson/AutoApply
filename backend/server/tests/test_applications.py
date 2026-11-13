@@ -17,7 +17,7 @@ def _record(app_id, submitted_at, **extra):
             "timeline": [{"kind": "muted", "text": "You added the link", "at": submitted_at},
                          {"kind": "current", "text": "Waiting for a reply",
                           "at": submitted_at}],
-            "screenshotUrl": None, "_resultScreenshot": "x-result.png", **extra}
+            "screenshotUrl": None, **extra}
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def test_list_is_newest_first_without_detail_keys(seeded):
 def test_detail_and_not_found(seeded):
     detail = seeded.get("/api/applications/app-old").json()
     assert detail["fields"][0]["label"] == "Email" and detail["screenshotUrl"] is None
-    assert len(detail["timeline"]) == 2 and "_resultScreenshot" not in detail
+    assert len(detail["timeline"]) == 2
     missing = seeded.get("/api/applications/app-nope")
     assert missing.status_code == 404 and missing.json()["code"] == "not_found"
 

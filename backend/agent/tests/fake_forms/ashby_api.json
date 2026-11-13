@@ -54,9 +54,9 @@
           {"id": "e11", "isRequired": true, "isHidden": false,
            "field": {"path": "a1000000-0000-4000-8000-000000000006",
                      "title": "Why do you want to work here?", "type": "LongText"}},
-          {"id": "e12", "isRequired": false, "isHidden": false,
+          {"id": "e12", "isRequired": true, "isHidden": false,
            "field": {"path": "a1000000-0000-4000-8000-000000000007",
-                     "title": "When did you graduate?", "type": "Date"}},
+                     "title": "When can you start a new role?", "type": "Date"}},
           {"id": "e13", "isRequired": false, "isHidden": true,
            "field": {"path": "a1000000-0000-4000-8000-000000000008",
                      "title": "Internal referral code", "type": "String"}}

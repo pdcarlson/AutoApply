@@ -17,6 +17,9 @@ it. So every fill runs on its own `FormSession` thread. The fill ends like any r
             keep the window open and *watch* it (every WATCH_SECONDS, no time limit) until the
             thank-you page shows up (then `on_confirmed`, screenshot, close) or the person
             closes the window (`on_window_closed`).
+    code    type the code the site emailed (POST /jobs/:id/verification-code) into a watched
+            window and wait for the confirmation. Confirmed: screenshot, close, end, like
+            submit. Not taken: reply and keep watching, so another code can be tried.
     call    run a function on the held form (screenshots for mark-submitted, tests)
     close   close the browser and end the thread (only after a saved screenshot, or in tests)
 
@@ -98,6 +101,15 @@ class FormSession:  # pylint: disable=too-many-instance-attributes
         self._commands.put(("submit", kwargs, reply))
         return self._wait(reply, RunResult("failed", GONE))
 
+    def enter_code(self, code: str, **kwargs) -> RunResult | None:
+        """Types `code` into the watched window's code prompt (HeldForm.enter_code kwargs) and
+        waits for the confirmation. Returns None when the window is gone."""
+        if not self.alive or self._closing.is_set():
+            return None
+        reply: queue.Queue = queue.Queue(maxsize=1)
+        self._commands.put(("code", {**kwargs, "code": code}, reply))
+        return self._wait(reply, None)
+
     def call(self, function: Callable):
         """Runs function(held_form) on the session thread and returns what it returns."""
         if not self.alive:
@@ -175,21 +187,9 @@ class FormSession:  # pylint: disable=too-many-instance-attributes
                 except Exception as error:  # pylint: disable=broad-except
                     reply.put((False, error))
                 continue
-            if command == "submit":
-                if not held.window_open():
-                    reply.put(None)  # the person closed it: the caller fills it again
+            if command in ("submit", "code"):
+                if self._send(held, command, dict(argument), reply):
                     return
-                result = self._submit(held, dict(argument))
-                self.submit_result = result
-                done = result.window_closed or (result.status == "submitted"
-                                                and result.screenshot == str(held.result_shot))
-                if done:
-                    held.close()  # confirmed and saved (or already gone): before the reply
-                    self._ended.set()
-                reply.put(result)
-                if done:
-                    return
-                self.watching = result.pressed and result.status != "submitted"
                 continue
             if not held.window_open():
                 self._notify(self._on_window_closed)
@@ -201,6 +201,35 @@ class FormSession:  # pylint: disable=too-many-instance-attributes
                 if result.screenshot == str(held.result_shot):
                     return
                 # No screenshot, so the window stays open until the person closes it.
+
+    def _send(self, held, command: str, kwargs: dict, reply: queue.Queue) -> bool:
+        """Runs a submit or code command and replies. True when the window may be closed.
+
+        A code is only typed into a watched window, so the job is told when that one is gone
+        (a submit's caller fills the form again instead).
+        """
+        if not held.window_open():
+            reply.put(None)  # the person closed it
+            if command == "code":
+                self._notify(self._on_window_closed)
+            return True
+        if command == "submit":
+            result = self._submit(held, kwargs)
+        else:
+            result = self._enter_code(held, kwargs)
+        self.submit_result = result
+        done = result.window_closed or (result.status == "submitted"
+                                        and result.screenshot == str(held.result_shot))
+        if done:
+            held.close()  # confirmed and saved (or already gone): before the reply
+            self._ended.set()
+        reply.put(result)
+        if done:
+            if result.window_closed and command == "code":
+                self._notify(self._on_window_closed)
+            return True
+        self.watching = result.pressed and result.status != "submitted"
+        return False
 
     def _idle_until_closed(self, held) -> None:
         """After an error: keep the window until the person closes it or `close()` is called."""
@@ -229,6 +258,17 @@ class FormSession:  # pylint: disable=too-many-instance-attributes
             result = RunResult("failed", f"The agent crashed: {error}")
         self.pressed = self.pressed or result.pressed
         return result
+
+    def _enter_code(self, held, kwargs: dict) -> RunResult:
+        code = kwargs.pop("code")
+        abort = kwargs.pop("should_abort", None)
+        try:
+            return held.enter_code(code, should_abort=lambda: self._closing.is_set()
+                                   or bool(abort and abort()), **kwargs)
+        except Exception as error:  # pylint: disable=broad-except
+            log.exception("Entering the code for job %s crashed", self.job_id)
+            return RunResult("failed", f"The agent crashed: {error}", pressed=True,
+                             asked_for_code=True)
 
     def _confirmed_now(self, held) -> RunResult:
         """The RunResult for a watched window that now shows the thank-you page."""

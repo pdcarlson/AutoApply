@@ -1,5 +1,6 @@
-"""Application routes (spec 2.11): POST /jobs/:id/submit, POST /jobs/:id/mark-submitted,
-GET /applications, GET /applications/:id and PATCH /applications/:id.
+"""Application routes (spec 2.11): POST /jobs/:id/submit, POST /jobs/:id/verification-code,
+POST /jobs/:id/mark-submitted, GET /applications, GET /applications/:id and
+PATCH /applications/:id.
 
 POST /jobs/:id/submit answers once the submit is done (the Review modal waits on it). With
 SUBMIT_REAL_FORM on it runs the browser in this request's thread, after any fill in progress.
@@ -23,6 +24,13 @@ def submit_job(job_id: str, request: Request, store: Store = Depends(get_store),
         return applications.submit(store, request.app.state.worker, config, job_id)
     finally:
         request.app.state.worker.wake()  # a freed place in today's limit, or the lock released
+
+
+@router.post("/jobs/{job_id}/verification-code")
+def enter_verification_code(job_id: str, request: Request, body: Any = Body(None),
+                            store: Store = Depends(get_store)):
+    code = body.get("code") if isinstance(body, dict) else None
+    return applications.enter_code(store, request.app.state.worker, job_id, code)
 
 
 @router.post("/jobs/{job_id}/mark-submitted")

@@ -7,7 +7,8 @@ from playwright.sync_api import sync_playwright
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile
 from agent.forms.form_field import FieldAnswer
-from agent.forms.greenhouse_form import GreenhouseForm, fields_from_api
+from agent.forms.greenhouse_form import (GreenhouseForm, education_config_from_page,
+                                         fields_from_api)
 from agent.jobs.job_link import JobLink
 from agent.runner.apply_run import ApplyRun
 
@@ -95,6 +96,37 @@ def test_required_education_asks_for_school_degree_major_and_graduation():
     assert fields["degree--0"].options == OPTIONS["degrees"]
     assert fields["end-month--0"].options[4] == "May"
     assert not any(f.required for f in education("education_optional").values())
+
+
+# What Scale AI's form page says about its Education section
+SCALE_CONFIG = {"id": 4666350005, "school_name": "required", "degree": "required",
+                "discipline": "hidden", "start_month": "hidden", "start_year": "required",
+                "end_month": "hidden", "end_year": "required"}
+
+
+def test_the_pages_education_config_says_which_boxes_are_shown_and_required():
+    job = {"questions": [], "education": "education_required"}
+    fields = {f.key: f for f in fields_from_api(job, OPTIONS, SCALE_CONFIG)}
+    assert {key: f.required for key, f in fields.items()} == {
+        "school--0": True, "degree--0": True, "start-year--0": True, "end-year--0": True}
+    optional = fields_from_api(job, OPTIONS, SCALE_CONFIG | {"start_month": "optional"})
+    assert [f.required for f in optional if f.key == "start-month--0"] == [False]
+
+
+def test_reads_the_education_config_from_the_page():
+    html = ('<script>window.__remixContext = {"job_post":{"education_config":'
+            + json.dumps(SCALE_CONFIG) + ',"questions":[]}};</script>')
+    assert education_config_from_page(html) == SCALE_CONFIG
+    assert education_config_from_page("<html>no config</html>") is None
+
+
+def test_a_required_start_year_missing_from_the_profile_is_asked(tmp_path):
+    job = {"questions": [], "education": "education_required"}
+    form = GreenhouseForm(LINK, job_data=job, education_options=OPTIONS,
+                          education_config=SCALE_CONFIG)
+    result = ApplyRun(Answerer(profile(), no_claude), tmp_path).run(form)
+    assert result.status == "needs_input"
+    assert [f.key for f in result.questions] == ["start-year--0"]
 
 
 def test_profile_answers_use_the_dropdown_wording():

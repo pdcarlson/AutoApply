@@ -75,8 +75,12 @@
       <textarea id="a1000000-0000-4000-8000-000000000006" name="a1000000-0000-4000-8000-000000000006"></textarea>
     </div>
     <div class="ashby-application-form-field-entry">
-      <label class="ashby-application-form-question-title" for="a1000000-0000-4000-8000-000000000007">When did you graduate?</label>
-      <input type="text" id="a1000000-0000-4000-8000-000000000007" placeholder="MM/DD/YYYY">
+      <label class="ashby-application-form-question-title" for="a1000000-0000-4000-8000-000000000007">When can you start a new role?</label>
+      <!-- Like Ashby's react-datepicker: the input has no id, reads only month-first dates, and
+           opens a calendar while it has focus -->
+      <div class="react-datepicker-wrapper"><div class="react-datepicker__input-container">
+        <input type="text" class="ashby-application-form-input-date" placeholder="Pick date...">
+      </div></div>
     </div>
 
     <p id="errors"></p>
@@ -128,6 +132,22 @@
       input.addEventListener("blur", close);
     });
 
+    const dateBox = document.querySelector(".ashby-application-form-input-date");
+    let calendar = null;
+    const closeCalendar = () => { if (calendar) calendar.remove(); calendar = null; };
+    dateBox.addEventListener("focus", () => {
+      closeCalendar();
+      calendar = document.createElement("div");
+      calendar.className = "react-datepicker";
+      calendar.textContent = "(calendar)";
+      dateBox.after(calendar);
+    });
+    dateBox.addEventListener("keydown", (event) => { if (event.key === "Escape") closeCalendar(); });
+    dateBox.addEventListener("input", () => {
+      const typed = dateBox.value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      picked.start = typed ? `${typed[3]}-${typed[1]}-${typed[2]}` : "";
+    });
+
     // What the form would send, so tests can check every answer landed
     window.answers = () => ({
       name: document.getElementById("_systemfield_name").value,
@@ -143,13 +163,15 @@
         .filter((e) => e.checked).map((e) => e.name),
       team: picked["a1000000-0000-4000-8000-000000000005"] || "",
       why: document.getElementById("a1000000-0000-4000-8000-000000000006").value,
+      start: picked.start || "",
     });
 
     document.getElementById("submit").addEventListener("click", () => {
       const a = window.answers();
       const missing = [["Name", a.name], ["Email", a.email], ["Resume", a.resume],
                        ["Where are you based?", a.location], ["Sponsorship", a.sponsorship],
-                       ["Team", a.team], ["Why do you want to work here?", a.why]]
+                       ["Team", a.team], ["Why do you want to work here?", a.why],
+                       ["When can you start a new role?", a.start]]
         .filter(([, value]) => !value).map(([label]) => label);
       if (missing.length) {
         document.getElementById("errors").textContent = "Missing entry for required field: " + missing.join(", ");

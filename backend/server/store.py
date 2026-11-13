@@ -89,9 +89,24 @@ DOC_DEFAULTS: dict[str, Callable[[], Any]] = {
 
 # Doc name -> function that upgrades a doc saved by an older version, applied on load before
 # missing keys get their defaults. The upgraded doc is written back on its next change.
+def migrate_applications(records: list) -> list:
+    """applications.json saved while `screenshotUrl` was the filled form and the thank-you page
+    was the server-only `_resultScreenshot`: show the thank-you page instead."""
+    migrated = []
+    for record in records:
+        if isinstance(record, dict) and "_resultScreenshot" in record:
+            record = dict(record)
+            name = record.pop("_resultScreenshot")
+            if name:
+                record["screenshotUrl"] = f"/api/screenshots/{name}"
+        migrated.append(record)
+    return migrated
+
+
 DOC_MIGRATIONS: dict[str, Callable[[Any], Any]] = {
     "profile": migrate_profile,
     "common_answers": migrate_common_answers,
+    "applications": migrate_applications,
 }
 
 GITIGNORE = ".gitignore"
@@ -303,12 +318,12 @@ class Store:
             except OSError:
                 pass
             return default
-        if isinstance(default, dict) and isinstance(value, dict):
-            value = DOC_MIGRATIONS.get(name, lambda doc: doc)(value)
-            return {**default, **value}  # keys added in newer versions get their defaults
         if default is not None and type(value) is not type(default):
             log.warning("%s has the wrong shape; using defaults", path.name)
             return default
+        value = DOC_MIGRATIONS.get(name, lambda doc: doc)(value)
+        if isinstance(default, dict):
+            return {**default, **value}  # keys added in newer versions get their defaults
         return value
 
 

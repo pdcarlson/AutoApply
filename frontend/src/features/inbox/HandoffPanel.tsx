@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { buttonClass } from '@/components/ui/classNames';
 import { Icon } from '@/components/ui/Icon';
 import styles from './panels.module.css';
+import { VerificationCodeForm } from './VerificationCodeForm';
 
 /** The agent stopped at a CAPTCHA (or a login/SSN field); the user finishes on the employer's site. */
 export function HandoffPanel({ job }: { job: Job }) {
@@ -13,6 +14,34 @@ export function HandoffPanel({ job }: { job: Job }) {
   const { open } = useOverlays();
   const markSubmitted = useMarkSubmitted();
   const skip = useSkipJob();
+
+  if (job.asksForCode) {
+    return (
+      <div className={styles.ask}>
+        <span className="eyebrow">Enter the code {job.ats} emailed you</span>
+        <p className={styles.askQuestion}>
+          {job.ats} sent a verification code to your email. Enter it here to finish this
+          application.
+        </p>
+        <VerificationCodeForm
+          job={job}
+          onSubmitted={(app) =>
+            notify(`Submitted to ${app.company}. Their confirmation page came back.`, {
+              action: {
+                label: 'See confirmation',
+                run: () => open({ type: 'application', applicationId: app.id }),
+              },
+            })
+          }
+        />
+        <div className={styles.row}>
+          <Button size="sm" variant="ghost" onClick={() => open({ type: 'job', jobId: job.id })}>
+            See its answers
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.ask}>

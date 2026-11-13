@@ -75,6 +75,19 @@ def test_missing_keys_get_defaults_and_corrupt_files_are_moved_aside(tmp_path):
     assert list(tmp_path.glob("settings.corrupt-*.json"))
 
 
+def test_older_applications_show_their_thank_you_page_screenshot(tmp_path):
+    """Saved before the after-Submit screenshot became the shown one: it replaces the filled one."""
+    (tmp_path / "applications.json").write_text(json.dumps([
+        {"id": "app-a", "screenshotUrl": "/api/screenshots/a-filled.png",
+         "_resultScreenshot": "a-result.png"},
+        {"id": "app-b", "screenshotUrl": "/api/screenshots/b-filled.png"},
+    ]), encoding="utf-8")
+    assert Store(tmp_path).read("applications") == [
+        {"id": "app-a", "screenshotUrl": "/api/screenshots/a-result.png"},
+        {"id": "app-b", "screenshotUrl": "/api/screenshots/b-filled.png"},
+    ]
+
+
 def test_delete_account_empties_dir_but_keeps_gitignore(signed_in, app, data_dir):
     signed_in.patch("/api/settings", json={"dailyLimit": 3})
     (app.state.store.dir("screenshots") / "x-filled.png").write_bytes(b"png")

@@ -53,21 +53,56 @@
   <script>
     // Test-only variants, picked with the page's query string:
     //   ?confirm_ms=N  the thank-you page shows up N ms after Submit
-    //   ?code=1        Submit asks for an emailed verification code, like Greenhouse can;
-    //                  Verify (or confirm_ms running out) shows the thank-you page
+    //   ?code=1        Submit asks for an emailed verification code in one box, like Greenhouse
+    //                  can; Verify (or confirm_ms running out) shows the thank-you page
+    //   ?code=boxes    like Greenhouse's job boards: Submit adds 8 one-character code boxes
+    //                  (security-input-0..7) to the form, and Submit again sends the code
+    // A code of all zeros is wrong: the page says so and keeps asking.
     const params = new URLSearchParams(location.search);
     const thanks = () => {
       document.body.innerHTML = "<h1>Thank you for applying to Fake Company!</h1>";
     };
-    document.getElementById("application-form").addEventListener("submit", event => {
+    const wrong = code => /^0+$/.test(code);
+    const prompt = "A verification code was sent to you@example.com. Enter the 8-character " +
+      "code to confirm you're a human.";
+    const showError = () => {
+      if (!document.getElementById("code-error")) {
+        document.getElementById("code-prompt").insertAdjacentHTML(
+          "afterend", '<p id="code-error">Incorrect security code. Please try again.</p>');
+      }
+    };
+    const form = document.getElementById("application-form");
+    form.addEventListener("submit", event => {
       event.preventDefault();
+      if (params.get("code") === "boxes") {
+        const boxes = [...document.querySelectorAll("[id^=security-input-]")];
+        if (!boxes.length) {
+          const inputs = [...Array(8).keys()].map(i =>
+            `<input id="security-input-${i}" maxlength="1" aria-label="Security code character ${i + 1}">`);
+          form.querySelector("button[type=submit]").insertAdjacentHTML(
+            "beforebegin", `<p id="code-prompt">${prompt}</p>${inputs.join("")}`);
+          return;
+        }
+        const code = boxes.map(box => box.value).join("");
+        if (code.length === 8 && !wrong(code)) {
+          thanks();
+        } else {
+          showError();
+        }
+        return;
+      }
       if (params.has("code")) {
         document.body.innerHTML =
-          "<p>A verification code was sent to you@example.com. Enter the 8-character code " +
-          "to confirm you're a human.</p>" +
+          `<p id="code-prompt">${prompt}</p>` +
           '<input id="security-code" aria-label="Security code">' +
           '<button id="verify" type="button">Verify</button>';
-        document.getElementById("verify").addEventListener("click", thanks);
+        document.getElementById("verify").addEventListener("click", () => {
+          if (wrong(document.getElementById("security-code").value)) {
+            showError();
+          } else {
+            thanks();
+          }
+        });
       } else if (params.has("confirm_ms")) {
         document.body.innerHTML = "<p>Sending your application...</p>";
       } else {

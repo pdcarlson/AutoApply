@@ -277,6 +277,12 @@ export interface Job {
   formSummary: { totalFields: number; fieldsToAsk: number } | null;
   question: AgentQuestion | null;
   readyAt: string | null;
+  /**
+   * `handoff` only: the agent pressed Submit and the site emailed the user a verification code.
+   * The form is still open, so the user enters the code here (POST /jobs/:id/verification-code)
+   * and the agent types it in and submits.
+   */
+  asksForCode: boolean;
 }
 
 export type FieldSourceKind =
@@ -376,7 +382,7 @@ export interface TimelineEvent {
 export interface ApplicationDetail extends Application {
   fields: FilledField[];
   timeline: TimelineEvent[];
-  /** Image saved when the form was submitted. Null when the user submitted it themselves. */
+  /** The page after Submit (the thank-you page); a dry run's is the filled form. Null if none was saved. */
   screenshotUrl: string | null;
 }
 

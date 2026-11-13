@@ -253,7 +253,18 @@ export function useRestoreJob() {
 
 export function useSubmitJob() {
   const invalidate = useInvalidateWork();
-  return useMutation({ mutationFn: jobsApi.submit, onSuccess: invalidate });
+  // A failed submit can still move the job (e.g. to `handoff` when the site emails a code).
+  return useMutation({ mutationFn: jobsApi.submit, onSettled: invalidate });
+}
+
+/** Sends the code the site emailed; the agent types it into the open form and submits. */
+export function useEnterCode() {
+  const invalidate = useInvalidateWork();
+  return useMutation({
+    mutationFn: ({ jobId, code }: { jobId: string; code: string }) =>
+      jobsApi.enterCode(jobId, code),
+    onSettled: invalidate,
+  });
 }
 
 export function useMarkSubmitted() {

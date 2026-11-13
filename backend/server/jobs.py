@@ -17,6 +17,8 @@ A job record in `jobs.json` is the API `Job` plus:
         screenshot      str | None  `<id>-filled.png` from the last fill that reached `ready`
         windowWatched   bool  `handoff` after an unconfirmed Submit whose window stayed open
                               and is watched for the confirmation (gone after a restart)
+        askedForCode    bool  that watched window asks for a code the site emailed (the API's
+                              `asksForCode`, while windowWatched is still set)
 
 States: open, queued, running, waiting, needs_input, handoff, ready, plus the server-only
 `skipped` (hidden, can be restored) and `submitted` (hidden; WP5 makes the Application).
@@ -31,7 +33,7 @@ from server.store import Db, iso, parse_iso
 # Keys of the API `Job`, in types.ts order. JobDetail adds DETAIL_KEYS.
 JOB_KEYS = ("id", "company", "role", "location", "ats", "url", "source", "postedAt", "addedAt",
             "closesOn", "reason", "checks", "skipSuggested", "state", "phase", "progress",
-            "formSummary", "question", "readyAt")
+            "formSummary", "question", "readyAt", "asksForCode")
 DETAIL_KEYS = ("fields", "currentField")
 
 HIDDEN_STATES = ("skipped", "submitted")
@@ -46,9 +48,18 @@ RESTART_WINDOW_GONE = ("The server restarted, so the form window closed before t
 
 # ----- serialization -----
 
+def asks_for_code(job: dict) -> bool:
+    """True while the job's open, watched window waits for a code the site emailed."""
+    internal = job.get("internal") or {}
+    return job.get("state") == "handoff" and bool(internal.get("windowWatched")
+                                                   and internal.get("askedForCode"))
+
+
 def to_api_job(job: dict) -> dict:
     """The API `Job`: no fields, currentField, timeline or internal."""
-    return {key: job.get(key) for key in JOB_KEYS}
+    out = {key: job.get(key) for key in JOB_KEYS}
+    out["asksForCode"] = asks_for_code(job)
+    return out
 
 
 def to_api_job_detail(job: dict) -> dict:

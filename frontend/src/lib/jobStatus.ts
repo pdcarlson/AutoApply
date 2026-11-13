@@ -63,7 +63,9 @@ export function runStatusText(job: Job, paused: boolean): string {
     case 'needs_input':
       return `Paused on 1 question · ${filled} of ${total} fields`;
     case 'handoff':
-      return 'Stopped at a CAPTCHA. The last step is yours.';
+      return job.asksForCode
+        ? `${job.ats} emailed you a code. Enter it to finish submitting.`
+        : 'Stopped at a CAPTCHA. The last step is yours.';
     default:
       return '';
   }
@@ -114,7 +116,7 @@ export function jobChip(job: Job): { tone: Tone; label: string } | null {
     case 'needs_input':
       return { tone: 'amber', label: 'Needs you' };
     case 'handoff':
-      return { tone: 'amber', label: 'Finish on site' };
+      return { tone: 'amber', label: job.asksForCode ? 'Needs code' : 'Finish on site' };
     default:
       return job.skipSuggested ? { tone: 'red', label: 'Skip suggested' } : null;
   }

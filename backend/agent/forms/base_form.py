@@ -58,3 +58,11 @@ class AtsForm(ABC):
     def asks_for_code(self, page):  # pylint: disable=unused-argument
         """Return True if the site is asking for a code it emailed (a human check)."""
         return False
+
+    def enter_code(self, page, code):
+        """Type the code the site emailed into its prompt and send it (press its button)."""
+        raise NotImplementedError(f"{type(self).__name__} can't enter an emailed code")
+
+    def code_rejected(self, page):  # pylint: disable=unused-argument
+        """Return True if the page says the code typed into its prompt was wrong or expired."""
+        return False

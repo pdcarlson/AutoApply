@@ -144,6 +144,18 @@ def test_text_reply_drops_one_trailing_period_for_text_fields_only():
     assert question["proposedAnswer"]["value"] == "I like it."
 
 
+def test_date_reply_is_read_as_a_date_or_asked_again():
+    """A date reply is kept as YYYY-MM-DD so the form can take it; anything else is asked again."""
+    question = {"messages": [{"from": "agent", "text": "What should I enter?"}],
+                "proposedAnswer": None, "pickOptions": None}
+    interpret(question, {"kind": "date", "options": []}, "whenever")
+    assert question["proposedAnswer"] is None
+    assert question["messages"][-1]["text"] == ("This field takes a date, like June 1, 2027. "
+                                                "What date should I put?")
+    interpret(question, {"kind": "date", "options": []}, "June 1st, 2027.")
+    assert question["proposedAnswer"] == {"value": "2027-06-01", "confidence": 95}
+
+
 @pytest.mark.parametrize("text,expected", [
     ("she/her", "She"), ("They", "They"), ("i'd say she", "She"), ("th", "They"),
     ("he or she", None), ("", None)])

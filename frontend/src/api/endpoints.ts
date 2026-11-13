@@ -125,6 +125,13 @@ export const jobsApi = {
   restore: (id: string) => http.post<Job>(`/jobs/${id}/restore`),
   /** POST /jobs/:id/submit → 200 Application. Approves a `ready` job; resolves once confirmed. */
   submit: (id: string) => http.post<Application>(`/jobs/${id}/submit`),
+  /**
+   * POST /jobs/:id/verification-code { code } → 200 Application once the site confirms it.
+   * The agent types the code the site emailed into the open form (`asksForCode`) and submits.
+   * 422 `code_rejected` (try another code) | `invalid_code`; 409 `no_code_window` | `not_handoff`.
+   */
+  enterCode: (id: string, code: string) =>
+    http.post<Application>(`/jobs/${id}/verification-code`, { code }),
   /** POST /jobs/:id/mark-submitted → 200 Application. The user finished a `handoff` job. */
   markSubmitted: (id: string) => http.post<Application>(`/jobs/${id}/mark-submitted`),
 };

@@ -20,6 +20,7 @@ LINK = JobLink.parse("https://jobs.ashbyhq.com/fakecompany/00000000-0000-4000-80
 SPONSORSHIP = "Will you now or in the future require visa sponsorship to work in the United States?"
 TEAM = "Which team interests you most?"
 WHY = "Why do you want to work here?"
+START = "When can you start a new role?"
 
 
 def fake_form():
@@ -42,9 +43,12 @@ def full_profile():
 
 
 def fake_claude(form_field, _facts):
-    """Answer only the sponsorship question, like Claude would from the profile."""
+    """Answer only the sponsorship and start date questions, like Claude would from the
+    profile."""
     if "sponsorship" in form_field.label:
         return FieldAnswer("No", "claude", 95, "Profile says no sponsorship needed.")
+    if form_field.label == START:
+        return FieldAnswer("2027-06-01", "claude", 90, "Earliest start date is June 2027.")
     return FieldAnswer("", "claude", 0, "Not in the profile.")
 
 
@@ -59,8 +63,8 @@ def test_ashby_links_get_an_ashby_form():
 
 
 def test_fields_from_api():
-    """System fields map to the profile, Yes/No questions become dropdowns, and hidden or
-    unsupported questions (like dates) are left out."""
+    """System fields map to the profile, Yes/No questions become dropdowns, dates are date
+    questions, and hidden questions are left out."""
     fields = {form_field.key: form_field for form_field in fields_from_api(API_DATA)}
     assert fields["_systemfield_name"].profile_key == "full_name"
     assert fields["_systemfield_resume"].kind == "file"
@@ -73,7 +77,8 @@ def test_fields_from_api():
     assert fields["a1000000-0000-4000-8000-000000000004"].kind == "multi_select"
     assert fields["a1000000-0000-4000-8000-000000000003"].options == \
         ["LinkedIn", "A friend", "Other"]
-    assert "a1000000-0000-4000-8000-000000000007" not in fields  # a Date question
+    start = fields["a1000000-0000-4000-8000-000000000007"]
+    assert (start.label, start.kind, start.required) == (START, "date", True)
     assert "a1000000-0000-4000-8000-000000000008" not in fields  # hidden
 
 
@@ -106,7 +111,7 @@ def test_missing_answer_stops_before_the_browser(tmp_path):
 
 def test_fills_every_kind_of_question(tmp_path):  # pylint: disable=unused-argument
     """Each Ashby input type gets its answer: text, file, location, Yes/No buttons, radio
-    buttons, checkboxes and the type-to-search dropdown."""
+    buttons, checkboxes, the type-to-search dropdown and the date picker."""
     profile = full_profile()
     profile.save_answer("Which languages do you speak?", "French")
     profile.save_answer("How did you hear about this job?", "LinkedIn")
@@ -124,14 +129,16 @@ def test_fills_every_kind_of_question(tmp_path):  # pylint: disable=unused-argum
             if answer:
                 form.fill(page, form_field, answer.value)
         answers = page.evaluate("window.answers()")
+        calendars_open = page.locator(".react-datepicker").count()
         browser.close()
     assert answers == {
         "name": "Jordan Rivera", "email": "jordan.rivera@example.com", "phone": "555-010-0123",
         "resume": 1, "location": "Troy, New York, United States",
         "linkedin": "https://www.linkedin.com/in/jordan-rivera-example", "sponsorship": "No",
         "hear": ["LinkedIn"], "languages": ["French"], "team": "Developer Tools",
-        "why": "I like building tools people use.",
+        "why": "I like building tools people use.", "start": "2027-06-01",
     }
+    assert calendars_open == 0  # closed again, so it doesn't cover the next question
 
 
 def test_fills_and_submits_the_fake_form(tmp_path):
@@ -142,6 +149,7 @@ def test_fills_and_submits_the_fake_form(tmp_path):
     assert result.status == "submitted", result.reason
     assert ("Resume", profile.resume_path, "profile") == result.filled[0]
     assert (SPONSORSHIP, "No", "claude") in result.filled
+    assert (START, "2027-06-01", "claude") in result.filled
     assert Path(result.screenshot).exists()
 
 

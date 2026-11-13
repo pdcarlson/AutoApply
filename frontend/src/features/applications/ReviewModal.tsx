@@ -1,4 +1,6 @@
 import { useJob, useSubmitJob } from '@/api/queries';
+import type { Application } from '@/api/types';
+import { VerificationCodeForm } from '@/features/inbox/VerificationCodeForm';
 import { useOverlays } from '@/app/providers/overlays';
 import { useToast } from '@/app/providers/toast';
 import { Button } from '@/components/ui/Button';
@@ -15,23 +17,21 @@ export function ReviewModal({ jobId }: { jobId: string }) {
   const submit = useSubmitJob();
   const data = job.data;
 
-  const onSubmit = () =>
-    submit.mutate(jobId, {
-      onSuccess: (app) => {
-        close();
-        notify(
-          app.confirmation
-            ? `Submitted to ${app.company}. Their confirmation page came back, so it’s confirmed.`
-            : `Submitted to ${app.company}. It’s in Applications.`,
-          {
-            action: {
-              label: 'See confirmation',
-              run: () => open({ type: 'application', applicationId: app.id }),
-            },
-          },
-        );
+  const onSubmitted = (app: Application) => {
+    close();
+    notify(
+      app.confirmation
+        ? `Submitted to ${app.company}. Their confirmation page came back, so it’s confirmed.`
+        : `Submitted to ${app.company}. It’s in Applications.`,
+      {
+        action: {
+          label: 'See confirmation',
+          run: () => open({ type: 'application', applicationId: app.id }),
+        },
       },
-    });
+    );
+  };
+  const onSubmit = () => submit.mutate(jobId, { onSuccess: onSubmitted });
 
   return (
     <Modal labelledBy="review-title" onClose={close} wide>
@@ -52,6 +52,20 @@ export function ReviewModal({ jobId }: { jobId: string }) {
         <LoadError what="this application" onRetry={() => job.refetch()} />
       ) : !data ? (
         <Loading />
+      ) : data.state === 'handoff' && data.asksForCode ? (
+        <>
+          <Note title={`${data.ats} emailed you a verification code`}>
+            The agent pressed Submit, and {data.ats} wants a code it sent to your email before it
+            takes the application. The form is still open and filled in.
+          </Note>
+          <VerificationCodeForm job={data} onSubmitted={onSubmitted} />
+          <div className={styles.reviewActions}>
+            <Button variant="ghost" onClick={close}>
+              Later
+            </Button>
+            <span className="tiny muted">It waits in your Inbox until you enter the code.</span>
+          </div>
+        </>
       ) : data.state !== 'ready' ? (
         <Note title="This one isn’t waiting for review">
           It may have been submitted already. Check Applications for its status.

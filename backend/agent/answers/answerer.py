@@ -1,7 +1,9 @@
 """Decides what the agent puts in each form field."""
 import re
+from dataclasses import replace
 
 from agent.answers import self_id
+from agent.forms.dates import iso_date
 from agent.forms.form_field import FieldAnswer
 from agent.settings import CONFIDENCE_THRESHOLD
 
@@ -38,7 +40,18 @@ class Answerer:
         self.claude_answers = {}
 
     def answer(self, form_field):
-        """Return a FieldAnswer, or None if the agent should ask the applicant instead."""
+        """Return a FieldAnswer, or None if the agent should ask the applicant instead.
+
+        Dates come back as YYYY-MM-DD however they were written ("June 2027", "ASAP").
+        """
+        found = self.first_answer(form_field)
+        if found is not None and form_field.kind == "date":
+            value = iso_date(found.value)
+            found = replace(found, value=value) if value else None
+        return found
+
+    def first_answer(self, form_field):
+        """The answer from the first source that has one that fits, or None."""
         value = self.from_profile(form_field)
         if value:
             return FieldAnswer(value, "profile")
@@ -93,5 +106,8 @@ def closest_option(options, value):
 
 
 def fits(form_field, value):
-    """Return True if the value is allowed in this field (one of the options, for dropdowns)."""
+    """Return True if the value is allowed in this field: one of the options for dropdowns, and
+    something that reads as a date for date questions."""
+    if form_field.kind == "date":
+        return bool(iso_date(value))
     return not form_field.options or value in form_field.options

@@ -1,5 +1,6 @@
 """Asks Claude how to answer a question the profile doesn't cover directly."""
 import os
+from datetime import date
 from functools import cache
 
 import anthropic
@@ -44,6 +45,10 @@ def ask_claude(form_field, facts):
         return FieldAnswer("", "claude", 0, "No Anthropic API key set.")
     if form_field.options:
         choices = "Answer with exactly one of these choices: " + " | ".join(form_field.options)
+    elif form_field.kind == "date":
+        # "June 2027" in the facts has to become a day, and "as soon as possible" needs today
+        choices = (f"Answer with one date written YYYY-MM-DD. Today is {date.today().isoformat()}"
+                   ", so a start date can't be before then.")
     else:
         choices = "Answer in a short line of text."
     prompt = PROMPT.format(facts=facts, label=form_field.label, choices=choices)

@@ -154,3 +154,36 @@
   flex-wrap: wrap;
   gap: 4px 18px;
 }
+
+.codeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.codeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.codeInput {
+  width: 16ch;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.codeInput:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--line-soft);
+  outline: none;
+}

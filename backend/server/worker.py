@@ -218,6 +218,8 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         if session.watching:
             self._to_handoff(db, job, self.watching_reason(job, session.submit_result))
             job["internal"]["windowWatched"] = True
+            job["internal"]["askedForCode"] = bool(session.submit_result
+                                                   and session.submit_result.asked_for_code)
             return
         jobs.reset_progress(job)
         self._to_ready(db, job, session.context, session.result, record_use=False,

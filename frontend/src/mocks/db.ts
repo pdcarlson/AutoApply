@@ -24,6 +24,8 @@ export interface MockFormPlan {
   askAt?: { index: number; question: AgentQuestion };
   /** The form ends in a CAPTCHA. */
   captcha?: boolean;
+  /** After Submit, the site emails a verification code (all zeros is a wrong one). */
+  emailCode?: boolean;
 }
 
 export interface MockJob extends JobDetail {
@@ -242,6 +244,7 @@ export function makeJob(seed: JobSeed): MockJob {
     formSummary: { totalFields: fields.length + asks, fieldsToAsk: asks },
     question: null,
     readyAt: null,
+    asksForCode: false,
     fields: [],
     currentField: null,
     plan,
@@ -269,6 +272,7 @@ function seedJobs(): MockJob[] {
         },
       ],
       plan: {
+        emailCode: true,
         askAt: {
           index: 6,
           question: question(

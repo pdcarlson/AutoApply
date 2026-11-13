@@ -75,10 +75,10 @@ def texts(app, job_id) -> list[str]:
         return [e["text"] for e in jobs.find(db, job_id)["timeline"]]
 
 
-def submit_unconfirmed(client, app, monkeypatch) -> str:
-    """A job whose Submit was pressed and asked for a code nobody typed in 2 s: `handoff`."""
-    use_fake_form_variant(monkeypatch, "code=1")
-    job_id = make_ready(client, app)
+def submit_unconfirmed(client, app, monkeypatch, variant="code=1", url=FAKE_URL) -> str:
+    """A job whose Submit was pressed and that asks for an emailed code: `handoff`."""
+    use_fake_form_variant(monkeypatch, variant)
+    job_id = make_ready(client, app, url)
     app.state.config.submit_real_form = True
     app.state.config.confirm_timeout_s = 2
     response = client.post(f"/api/jobs/{job_id}/submit")
@@ -169,14 +169,13 @@ def test_the_person_closing_a_ready_window(client, app, profile):
 
 def test_unconfirmed_submit_keeps_watching_until_the_code_is_entered(client, app, profile,
                                                                     monkeypatch):
-    """After the timeout the request answers (handoff) but the window stays open and watched;
-    once the person enters the code, the application is recorded and only then is it closed."""
+    """The request answers (handoff) but the window stays open and watched; once the person
+    enters the code in the window, the application is recorded and only then is it closed."""
     job_id = submit_unconfirmed(client, app, monkeypatch)
     session = held(app, job_id)
     detail = job_detail(client, job_id)
-    assert detail["state"] == "handoff"
-    assert detail["reason"].startswith(WATCHING_CODE.format(site="Greenhouse"))
-    assert "AGENT_SHOW_BROWSER is off" in detail["reason"]  # tests run headless
+    assert detail["state"] == "handoff" and detail["asksForCode"] is True
+    assert detail["reason"] == WATCHING_CODE.format(site="Greenhouse")
     time.sleep(2.5)  # well past the timeout: still open, still watched
     assert session.alive and session.watching
     assert client.get("/api/applications").json() == []
@@ -192,7 +191,7 @@ def test_unconfirmed_submit_keeps_watching_until_the_code_is_entered(client, app
     assert client.get("/api/agent/status").json()["sentToday"] == 1
     shot = app.state.store.path("screenshots", f"{job_id}-result.png")
     assert shot.is_file()
-    assert app.state.store.read("applications")[0]["_resultScreenshot"] == shot.name
+    assert app_detail["screenshotUrl"] == f"/api/screenshots/{shot.name}"
 
 
 def test_the_person_closing_a_watched_window(client, app, profile, monkeypatch):
@@ -202,8 +201,69 @@ def test_the_person_closing_a_watched_window(client, app, profile, monkeypatch):
     assert wait_until(lambda: not session.alive)
     detail = job_detail(client, job_id)
     assert detail["state"] == "handoff" and detail["reason"] == WINDOW_CLOSED
+    assert detail["asksForCode"] is False
     assert texts(app, job_id)[-1] == WINDOW_CLOSED
     assert client.get("/api/applications").json() == []
+
+
+def enter_code(client, job_id, code):
+    return client.post(f"/api/jobs/{job_id}/verification-code", json={"code": code})
+
+
+@pytest.mark.parametrize("variant", ["code=1", "code=boxes"])
+def test_the_code_entered_in_the_app_submits_it(client, app, profile, monkeypatch, variant):
+    """The agent types the code into the watched window and sends it: the application is
+    recorded as a confirmed submit and the window closes. code=boxes is Greenhouse's real
+    layout (one box per character, then Submit application again)."""
+    job_id = submit_unconfirmed(client, app, monkeypatch, variant)
+    session = held(app, job_id)
+    response = enter_code(client, job_id, " ab12 CD34 ")
+    assert response.status_code == 200, response.text
+    summary = response.json()
+    assert summary["submittedBy"] == "agent" and summary["confirmation"] is not None
+    assert not session.alive
+    assert client.get(f"/api/jobs/{job_id}").status_code == 404  # out of the Inbox
+    detail = client.get(f"/api/applications/app-{job_id}").json()
+    assert detail["timeline"][-2]["text"].endswith("Confirmation page received.")
+    assert client.get("/api/agent/status").json()["sentToday"] == 1
+    assert detail["screenshotUrl"] == f"/api/screenshots/{job_id}-result.png"
+
+
+@pytest.mark.parametrize("variant", ["code=1", "code=boxes"])
+def test_a_wrong_code_can_be_tried_again(client, app, profile, monkeypatch, variant):
+    """The site doesn't take the code: 422, the job still asks for one, the window stays open
+    and watched, and the right code then goes through."""
+    job_id = submit_unconfirmed(client, app, monkeypatch, variant)
+    session = held(app, job_id)
+    started = time.monotonic()
+    response = enter_code(client, job_id, "00000000")  # the fake form rejects all zeros
+    assert time.monotonic() - started < 15, "a shown error ends the wait early"
+    assert response.status_code == 422 and response.json()["code"] == "code_rejected"
+    detail = job_detail(client, job_id)
+    assert detail["state"] == "handoff" and detail["asksForCode"] is True
+    assert session.alive and session.watching
+    assert texts(app, job_id)[-1] == "Greenhouse didn’t take the code you entered"
+
+    response = enter_code(client, job_id, "ABCD1234")
+    assert response.status_code == 200, response.text
+    assert not session.alive and client.get(f"/api/jobs/{job_id}").status_code == 404
+
+
+def test_entering_a_code_needs_one_and_a_window_asking_for_it(client, app, profile,
+                                                             monkeypatch):
+    ready = make_ready(client, app)
+    response = enter_code(client, ready, "ABCD1234")
+    assert response.status_code == 409 and response.json()["code"] == "not_handoff"
+
+    job_id = submit_unconfirmed(client, app, monkeypatch, url=SECOND_URL)
+    response = enter_code(client, job_id, "  ")
+    assert response.status_code == 422 and response.json()["code"] == "invalid_code"
+    session = held(app, job_id)
+    session.call(lambda form: form.page.close())
+    assert wait_until(lambda: not session.alive)
+    response = enter_code(client, job_id, "ABCD1234")
+    assert response.status_code == 409 and response.json()["code"] == "no_code_window"
+    assert job_detail(client, job_id)["state"] == "handoff"
 
 
 def test_a_watched_window_survives_skip_and_apply_again(client, app, profile, monkeypatch):

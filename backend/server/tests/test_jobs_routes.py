@@ -12,7 +12,7 @@ from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, FAKE_URL, add_j
 
 JOB_KEYS = {"id", "company", "role", "location", "ats", "url", "source", "postedAt", "addedAt",
             "closesOn", "reason", "checks", "skipSuggested", "state", "phase", "progress",
-            "formSummary", "question", "readyAt"}
+            "formSummary", "question", "readyAt", "asksForCode"}
 
 
 @pytest.fixture(autouse=True)
@@ -131,8 +131,8 @@ def test_add_ashby_job(signed_in):
     job = add_job(signed_in, FAKE_ASHBY_URL)
     assert job["ats"] == "Ashby" and job["company"] == "Fakecompany"
     assert job["role"] == "Software Engineering Intern" and job["location"] == "Troy, NY"
-    assert job["formSummary"]["totalFields"] == 11
-    assert job["checks"][0] == {"status": "ok", "text": "Ashby form · 11 questions"}
+    assert job["formSummary"]["totalFields"] == 12
+    assert job["checks"][0] == {"status": "ok", "text": "Ashby form · 12 questions"}
 
 
 def test_add_job_on_a_site_the_agent_cant_fill(signed_in, unfillable):  # pylint: disable=unused-argument

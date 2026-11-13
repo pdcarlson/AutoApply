@@ -7,6 +7,7 @@ from urllib.request import Request, urlopen
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from agent.forms.base_form import AtsForm, PostingClosed
+from agent.forms.dates import parse_date
 from agent.forms.form_field import FormField
 from agent.forms.greenhouse_form import choose_location, choose_option
 
@@ -26,8 +27,8 @@ query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: Str
   }
 }"""
 
-# Ashby field types the agent can fill. Others (dates, scores, education history) are left
-# for the person.
+# Ashby field types the agent can fill. Others (scores, education history) are left for the
+# person.
 KINDS = {
     "String": "text",
     "Email": "text",
@@ -40,6 +41,7 @@ KINDS = {
     "ValueSelect": "select",
     "MultiValueSelect": "multi_select",
     "Location": "location",
+    "Date": "date",
 }
 PROFILE_FIELDS = {
     "_systemfield_name": "full_name",
@@ -151,7 +153,13 @@ class AshbyForm(AtsForm):
                 box.fill(value)
             return
         entry = self.entry(page, form_field)
-        if form_field.kind == "location":
+        if form_field.kind == "date":
+            # A calendar box with no id. It reads typed dates month first; typed as YYYY-MM-DD
+            # they're read as midnight UTC and land a day early.
+            box = entry.locator("input")
+            box.fill(parse_date(value).strftime("%m/%d/%Y"))
+            box.press("Escape")  # close the calendar so it doesn't cover the next question
+        elif form_field.kind == "location":
             # Like Greenhouse, it suggests places such as "Troy, New York, United States"
             box = entry.get_by_role("combobox")
             box.click()

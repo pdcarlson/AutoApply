@@ -74,8 +74,10 @@ npm test
   | `CONFIRM_TIMEOUT_S`  | How long Submit waits for the thank-you page. Default `90`.                   |
 
 - **Submit** presses the Submit button on the form the agent already filled. If the site emails
-  you a verification code, type it into that browser window (turn on `AGENT_SHOW_BROWSER`). A
-  filled form's window is never closed until the application is confirmed and screenshotted,
+  you a verification code (Greenhouse does this), the app asks you for it: type it into the box
+  in AutoApply, and the agent enters it into the form and submits it. No need to find the
+  browser window, and it works with `AGENT_SHOW_BROWSER` off too. A filled form's window is
+  never closed until the application is confirmed and screenshotted,
   you close it yourself, or the server stops.
 - **Your data** (profile, resume, answers, jobs, screenshots) stays on your computer in
   `backend/data/`, which is never committed. `.\scripts\demo.ps1 -Reset` deletes it and starts

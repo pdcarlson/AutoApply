@@ -1,8 +1,9 @@
 """Tests for holding a filled form open and submitting it later, on the local fake form only.
 
-The fake page's query string picks a variant: ?confirm_ms=N confirms N ms after Submit, and
+The fake page's query string picks a variant: ?confirm_ms=N confirms N ms after Submit,
 ?code=1 asks for an emailed verification code instead of confirming (its Verify button, or
-confirm_ms running out, shows the thank-you page).
+confirm_ms running out, shows the thank-you page), and ?code=boxes asks for it the way
+Greenhouse's job boards do (one box per character, then Submit again). All zeros is wrong.
 
 A HeldForm never closes its own window, so every test closes what it opened (`holding`).
 """
@@ -11,7 +12,8 @@ import time
 import pytest
 
 from agent.answers.answerer import Answerer
-from agent.runner.apply_run import FORM_GONE, WINDOW_CLOSED, ApplyRun
+from agent.runner.apply_run import (CODE_REJECTED, FORM_GONE, NO_CODE_PROMPT,
+                                    WINDOW_CLOSED, ApplyRun)
 from agent.tests.test_apply_run_events import WHY_HERE, Recorder, spy_on_browsers
 from agent.tests.test_greenhouse import example_profile, fake_claude, fake_form
 
@@ -92,13 +94,13 @@ def test_waits_for_a_late_confirmation(holding):
     assert 2.4 < took < 10
 
 
-def test_code_prompt_then_timeout_keeps_the_window(tmp_path, holding):
-    """No confirmation in time while the site asks for a code: failed and says so, but the
+def test_code_prompt_stops_the_wait_and_keeps_the_window(tmp_path, holding):
+    """The site asks for a code: the wait ends at once (failed, and it says so), but the
     window stays open on the code prompt, and a code entered later still confirms it."""
     held = holding(form=variant("code=1")).held
     started = time.monotonic()
-    sent = held.submit(confirm_timeout_s=2)
-    assert 1.9 < time.monotonic() - started < 10
+    sent = held.submit(confirm_timeout_s=60)
+    assert time.monotonic() - started < 10
     assert sent.status == "failed" and sent.asked_for_code and sent.pressed
     assert "verification code" in sent.reason
     assert (tmp_path / "job-1-result.png").exists()
@@ -108,11 +110,39 @@ def test_code_prompt_then_timeout_keeps_the_window(tmp_path, holding):
     assert held.confirmed() and held.window_open()
 
 
-def test_code_prompt_then_confirmed(holding):
-    """A code typed in during the wait (here: the page confirms by itself) counts as sent."""
-    held = holding(form=variant("code=1&confirm_ms=1500")).held
-    sent = held.submit(confirm_timeout_s=20)
-    assert sent.status == "submitted" and not sent.asked_for_code
+@pytest.mark.parametrize("query", ["code=1", "code=boxes"])
+def test_enter_code_confirms_it(tmp_path, holding, query):
+    """enter_code types the code into the prompt and sends it; the window stays open (its
+    owner closes it) and is saved to result_shot."""
+    held = holding(form=variant(query)).held
+    assert held.submit(confirm_timeout_s=60).asked_for_code
+    (tmp_path / "job-1-result.png").unlink()
+    sent = held.enter_code("ABCD1234")
+    assert sent.status == "submitted" and sent.pressed and sent.filled, sent.reason
+    assert held.window_open() and held.confirmed()
+    assert sent.screenshot == str(tmp_path / "job-1-result.png")
+    assert (tmp_path / "job-1-result.png").exists()
+
+
+@pytest.mark.parametrize("query", ["code=1", "code=boxes"])
+def test_enter_code_with_a_wrong_code(holding, query):
+    """A code the site rejects: failed, still asking, quickly (the error shows), and a second
+    try works, even though the old error is still on the page."""
+    held = holding(form=variant(query)).held
+    held.submit(confirm_timeout_s=60)
+    started = time.monotonic()
+    sent = held.enter_code("00000000", confirm_timeout_s=30)
+    assert time.monotonic() - started < 10
+    assert sent.status == "failed" and sent.asked_for_code and sent.reason == CODE_REJECTED
+    assert held.window_open() and not held.confirmed()
+    assert held.enter_code("ABCD1234").status == "submitted"
+
+
+def test_enter_code_without_a_prompt_types_nothing(holding):
+    held = holding().held
+    sent = held.enter_code("ABCD1234")
+    assert sent.status == "failed" and sent.reason == NO_CODE_PROMPT and not sent.asked_for_code
+    assert held.usable()  # still the filled form, nothing pressed
 
 
 def test_should_stop_before_submit_presses_nothing(holding):
@@ -125,7 +155,7 @@ def test_should_stop_before_submit_presses_nothing(holding):
 
 def test_abort_stops_the_wait(holding):
     """should_abort() ends the confirmation wait early; the window stays."""
-    held = holding(form=variant("code=1")).held
+    held = holding(form=variant("confirm_ms=60000")).held
     started = time.monotonic()
     sent = held.submit(confirm_timeout_s=60, should_abort=lambda: True)
     assert time.monotonic() - started < 10
@@ -134,7 +164,7 @@ def test_abort_stops_the_wait(holding):
 
 def test_window_closed_while_waiting(holding):
     """The person closes the window during the wait: failed, window_closed, and it says so."""
-    held = holding(form=variant("code=1")).held
+    held = holding(form=variant("confirm_ms=60000")).held
     sent = held.submit(confirm_timeout_s=60,
                        should_abort=lambda: held.page.close() or False)
     assert sent.status == "failed" and sent.window_closed and sent.reason == WINDOW_CLOSED

@@ -58,3 +58,23 @@ def test_middle_name_box_comes_from_the_profile():
     assert (answer.value, answer.source) == ("Ann", "profile")
     assert "Middle name: Ann" in profile.facts() and "Middle name" not in PROFILE.facts()
     assert Answerer(PROFILE, claude_says("", 100)).answer(middle) is None
+
+
+START = FormField("question_9", "When can you start a new role?", "date", True)
+
+
+def test_date_answers_are_kept_as_iso_dates():
+    """A saved "June 2027" is filled as the first of June, the way date pickers take it."""
+    profile = copy.deepcopy(PROFILE)
+    profile.save_answer(START.label, "June 2027")
+    answer = Answerer(profile, claude_says("wrong", 100)).answer(START)
+    assert (answer.value, answer.source) == ("2027-06-01", "saved")
+
+
+def test_answers_that_arent_dates_dont_fill_date_questions():
+    """A saved answer that isn't a date goes to Claude, and a non-date from Claude is asked."""
+    profile = copy.deepcopy(PROFILE)
+    profile.save_answer(START.label, "After graduation")
+    answer = Answerer(profile, claude_says("2027-06-01", 90)).answer(START)
+    assert (answer.value, answer.source) == ("2027-06-01", "claude")
+    assert Answerer(profile, claude_says("Summer", 90)).answer(START) is None

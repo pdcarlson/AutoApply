@@ -14,6 +14,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { jobChip, progressPercent, runStatusText } from '@/lib/jobStatus';
 import { usePauseToggle } from './usePauseToggle';
 import styles from './JobDrawer.module.css';
+import { VerificationCodeForm } from './VerificationCodeForm';
 
 /** "Watch it fill": a job's progress and every field the agent has filled so far. */
 export function JobDrawer({ jobId }: { jobId: string }) {
@@ -99,7 +100,7 @@ export function JobDrawer({ jobId }: { jobId: string }) {
           Answer in Inbox
         </Button>
       )}
-      {data.state === 'handoff' && (
+      {data.state === 'handoff' && !data.asksForCode && (
         <Button
           variant="primary"
           grow
@@ -150,7 +151,21 @@ export function JobDrawer({ jobId }: { jobId: string }) {
           where it stopped.
         </Note>
       )}
-      {data.state === 'handoff' && (
+      {data.state === 'handoff' && data.asksForCode && (
+        <>
+          <Note tone="amber" title={`${data.ats} emailed you a verification code`}>
+            The agent pressed Submit and the form is still open. Enter the code to finish.
+          </Note>
+          <VerificationCodeForm
+            job={data}
+            onSubmitted={(app) => {
+              close();
+              notify(`Submitted to ${app.company}. Their confirmation page came back.`);
+            }}
+          />
+        </>
+      )}
+      {data.state === 'handoff' && !data.asksForCode && (
         <Note tone="amber" title="Stopped at a CAPTCHA">
           Finish it on {data.company}’s site. These are the answers to copy over.
         </Note>

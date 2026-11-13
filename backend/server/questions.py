@@ -9,9 +9,11 @@ as on the form, so a proposed answer can be checked with the agent's `fits()`.
 """
 import re
 
+from agent.forms.dates import iso_date
 from agent.forms.form_field import FieldAnswer, FormField
 
 NOTHING_FOUND = "Nothing in your profile or Answer bank answers this."
+DATE_EXAMPLE = "June 1, 2027"
 
 
 def question_id(job_id: str, n: int) -> str:
@@ -45,6 +47,8 @@ def make_question(job_id: str, n: int, form_field: FormField,
         placeholder = "e.g. Yes"
     elif form_field.kind == "textarea":
         placeholder = "A sentence or two in your own words"
+    elif form_field.kind == "date":
+        placeholder = f"e.g. {DATE_EXAMPLE}"
     else:
         placeholder = "e.g. the right answer"
     usable_guess = guess if guess is not None and guess.value and not options else None
@@ -150,7 +154,15 @@ def interpret(question: dict, internal: dict, text: str) -> dict:
         question["proposedAnswer"] = {"value": guess.group(1), "confidence": GUESS_CONFIDENCE}
         return question
     value = text.strip()
-    if (internal or {}).get("kind") == "text" and value.endswith("."):
+    if (internal or {}).get("kind") == "date":
+        # Kept as YYYY-MM-DD, or the agent's `fits()` would reject it and ask again forever
+        value = iso_date(value)
+        if not value:
+            question["messages"].append({
+                "from": "agent",
+                "text": f"This field takes a date, like {DATE_EXAMPLE}. What date should I put?"})
+            return question
+    elif (internal or {}).get("kind") == "text" and value.endswith("."):
         value = value[:-1]
     question["proposedAnswer"] = {"value": value, "confidence": REPLY_CONFIDENCE}
     return question

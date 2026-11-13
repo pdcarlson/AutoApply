@@ -8,7 +8,13 @@ from playwright.sync_api import sync_playwright
 
 CONFIRM_TIMEOUT_S = 15  # how long to wait for the site's thank-you page after Submit
 CONFIRM_POLL_MS = 500  # how often to look for it meanwhile
+CODE_TIMEOUT_S = 20  # after the agent types an emailed code, how long to wait for the thank-you
+CONFIRMED = "The site confirmed the application."
 NOT_CONFIRMED = "Pressed Submit but never saw a confirmation."
+ASKED_FOR_CODE = "The site asked for the verification code it emailed."
+CODE_REJECTED = ("The site didn't take that code. Check that it's from the newest email the "
+                 "site sent, and try again.")
+NO_CODE_PROMPT = "The form window isn't asking for a code anymore, so nothing was typed."
 WINDOW_CLOSED = "The form window was closed before the application was confirmed."
 FORM_GONE = ("The form window doesn't show the form anymore, so the agent didn't press Submit. "
              "Finish it in that window, or close the window to have the form filled again.")
@@ -28,7 +34,7 @@ class RunResult:  # pylint: disable=too-many-instance-attributes
     filled_detail: list = field(default_factory=list)  # (label, value, source, confidence)
     filled_screenshot: str = ""  # taken after the last field is filled, before Submit
     held: "HeldForm | None" = None  # the still-open form, for a `ready` run with hold=True
-    asked_for_code: bool = False  # no confirmation, and the site asked for an emailed code
+    asked_for_code: bool = False  # no confirmation, and the site is asking for an emailed code
     pressed: bool = False  # Submit was pressed (so the application may have gone out)
     window_closed: bool = False  # the page or browser went away (closed by the person)
 
@@ -243,8 +249,7 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
                 return result
             if not self.form.is_open(self.page):
                 if self.confirmed():
-                    result.status = "submitted"
-                    result.reason = "The site confirmed the application."
+                    result.status, result.reason = "submitted", CONFIRMED
                 else:
                     result.status, result.reason = "failed", FORM_GONE
             else:
@@ -260,6 +265,48 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
             take_screenshot(self.page, self.result_shot, result)
         return result
 
+    def enter_code(self, code, should_abort=None, confirm_timeout_s=CODE_TIMEOUT_S):
+        """Type the code the site emailed into its prompt, send it, and wait for the confirmation.
+
+        For a window whose Submit was pressed and that now asks for a code (`asks_for_code`).
+        Never closes anything. Not confirmed: "failed", with `asked_for_code` True while the
+        site still asks (a wrong or expired code), so the person can try another one.
+        Confirmed: "submitted", and the window is saved to result_shot.
+        """
+        filled = self.filled
+        result = RunResult("", filled=list(filled.filled),
+                           filled_detail=list(filled.filled_detail),
+                           screenshot=filled.filled_screenshot,
+                           filled_screenshot=filled.filled_screenshot, pressed=True)
+        try:
+            if self.confirmed():
+                result.status, result.reason = "submitted", CONFIRMED
+            elif not self.form.asks_for_code(self.page):
+                result.status, result.reason = "failed", NO_CODE_PROMPT
+            else:
+                # An error still showing from an earlier try says nothing about this code.
+                old_error = self.form.code_rejected(self.page)
+                self.form.enter_code(self.page, code)
+
+                def give_up():
+                    return bool(should_abort and should_abort()) or (
+                        not old_error and self.form.code_rejected(self.page))
+                if wait_for_confirmation(self.page, self.form, confirm_timeout_s, give_up):
+                    result.status, result.reason = "submitted", CONFIRMED
+                else:
+                    result.status = "failed"
+                    result.asked_for_code = self.form.asks_for_code(self.page)
+                    result.reason = CODE_REJECTED if result.asked_for_code else NOT_CONFIRMED
+        except PlaywrightError as error:
+            result.status = "failed"
+            result.reason = f"Something went wrong on the page: {error.message}"
+            if not self.window_open():
+                result.window_closed = True
+                result.reason = WINDOW_CLOSED
+        if not result.window_closed:
+            take_screenshot(self.page, self.result_shot, result)
+        return result
+
     def close(self):
         """Close the browser. Safe to call more than once, and on a browser that's gone."""
         if self.closed:
@@ -270,26 +317,29 @@ class HeldForm:  # pylint: disable=too-many-instance-attributes
 
 
 def send(page, form, result, emit, confirm_timeout_s, should_abort=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    """Press Submit, then wait for the confirmation page. Sets result's status and reason."""
+    """Press Submit, then wait for the confirmation page. Sets result's status and reason.
+
+    Stops waiting as soon as the site asks for a code it emailed: no confirmation can come
+    until someone types it, and the agent can do that later (HeldForm.enter_code).
+    """
     emit("phase", name="submitting")
     form.submit(page)
     result.pressed = True
     emit("phase", name="confirming")
-    if wait_for_confirmation(page, form, confirm_timeout_s, should_abort):
-        result.status, result.reason = "submitted", "The site confirmed the application."
+
+    def give_up():
+        return bool(should_abort and should_abort()) or form.asks_for_code(page)
+    if wait_for_confirmation(page, form, confirm_timeout_s, give_up):
+        result.status, result.reason = "submitted", CONFIRMED
         return
     result.status, result.reason = "failed", NOT_CONFIRMED
     if form.asks_for_code(page):
         result.asked_for_code = True
-        result.reason = ("The site asked for the verification code it emailed, and no "
-                         f"confirmation came within {confirm_timeout_s:g} seconds.")
+        result.reason = ASKED_FOR_CODE
 
 
 def wait_for_confirmation(page, form, timeout_s, should_abort=None):
-    """Look for the thank-you page until it shows up or timeout_s runs out.
-
-    Returns as soon as it's seen, so a person can type an emailed code meanwhile.
-    """
+    """Look for the thank-you page until it shows up, timeout_s runs out, or should_abort()."""
     deadline = time.monotonic() + timeout_s
     while True:
         left_ms = (deadline - time.monotonic()) * 1000

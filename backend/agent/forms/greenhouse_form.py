@@ -38,18 +38,25 @@ PROFILE_FIELDS = {
 CONFIRMATION = re.compile(r"thank you for applying|application (has been )?received", re.IGNORECASE)
 # The Education section isn't in the API's question list. The API only says whether the form
 # has one ("education_optional" or "education_required"), not which of these boxes it shows
-# or requires, so all of them are read and the ones a form leaves out are skipped while
-# filling. Each is (box id, label, kind, profile attribute, required when education_required).
-# The required ones are those real forms were seen requiring (Duolingo requires all five).
+# or requires. The form's page says that in its "education_config", like
+# {"start_year": "required", "discipline": "hidden", ...}, so that's used when it can be read.
+# Each is (box id, label, kind, profile attribute, education_config name, required when
+# education_required and there's no education_config). Without the config, all the boxes are
+# read, the ones a form leaves out are skipped while filling, and the required ones are those
+# real forms were seen requiring (Duolingo requires all five).
 EDUCATION = [
-    ("school--0", "School", "school", "school", True),
-    ("degree--0", "Degree", "select", "degree", True),
-    ("discipline--0", "Discipline", "select", "major", True),
-    ("start-month--0", "Education start date month", "select", "school_start_month", False),
-    ("start-year--0", "Education start date year", "text", "school_start_year", False),
-    ("end-month--0", "Education end date month", "select", "graduation_month", True),
-    ("end-year--0", "Education end date year", "text", "graduation_year", True),
+    ("school--0", "School", "school", "school", "school_name", True),
+    ("degree--0", "Degree", "select", "degree", "degree", True),
+    ("discipline--0", "Discipline", "select", "major", "discipline", True),
+    ("start-month--0", "Education start date month", "select", "school_start_month",
+     "start_month", False),
+    ("start-year--0", "Education start date year", "text", "school_start_year",
+     "start_year", False),
+    ("end-month--0", "Education end date month", "select", "graduation_month", "end_month", True),
+    ("end-year--0", "Education end date year", "text", "graduation_year", "end_year", True),
 ]
+# Where the form's page keeps its education_config, which has no nested braces
+EDUCATION_CONFIG = re.compile(r'"education_config"\s*:\s*(\{[^{}]*\})')
 EDUCATION_KEYS = {key for key, *_ in EDUCATION}
 # Compliance box id -> the profile's self-ID answer for it
 SELF_ID_FIELDS = {
@@ -70,12 +77,21 @@ SCHOOL_WAIT_MS = 5000
 # After Submit, Greenhouse sometimes emails a code: "A verification code was sent to ...
 # Enter the 8-character code to confirm you're a human."
 CODE_PROMPT = re.compile(r"verification code|enter the \d+-character code", re.IGNORECASE)
+# The code goes into one box per character (security-input-0, -1, ...), then Submit application
+# is pressed again. A single code box with a Verify button is handled too.
+CODE_BOXES = "input[id^='security-input-']"
+CODE_BOX = re.compile(r"security code|verification code|^code$", re.IGNORECASE)
+CODE_BUTTONS = (re.compile(r"verify|confirm", re.IGNORECASE), re.compile("submit", re.IGNORECASE))
+CODE_ERROR = re.compile(r"(incorrect|invalid|expired|wrong)[^.]{0,30}(security|verification) code"
+                        r"|(security|verification) code[^.]{0,30}(incorrect|invalid|expired|wrong"
+                        r"|not valid|doesn.t match)", re.IGNORECASE)
 
 
-def fields_from_api(job, education_options=None):
+def fields_from_api(job, education_options=None, education_config=None):
     """Turn the Job Board API's question list into FormFields.
 
     education_options has the Education section's {"degrees": [...], "disciplines": [...]}.
+    education_config is the page's {"start_year": "required", ...}, or None if unknown.
     """
     fields = []
     for question in job.get("questions", []):
@@ -104,7 +120,7 @@ def fields_from_api(job, education_options=None):
     # The phone box comes with a required country dropdown that the API doesn't list
     if any(form_field.key == "phone" for form_field in fields):
         fields.append(FormField("country", "Country", "select", True, profile_key="country"))
-    return (fields + education_fields(job, education_options or {})
+    return (fields + education_fields(job, education_options or {}, education_config)
             + demographic_fields(job) + compliance_fields(job))
 
 
@@ -167,17 +183,54 @@ def compliance_keys(job):
     return {form_field.key for form_field in compliance_fields(job)}
 
 
-def education_fields(job, options):
-    """Return the Education section's boxes, or nothing if the form doesn't have one."""
+def education_fields(job, options, config=None):
+    """Return the Education section's boxes, or nothing if the form doesn't have one.
+
+    With the page's education_config, only the boxes it shows are returned, and the ones it
+    marks "required" are required. Without it, the usual boxes are guessed at.
+    """
     setting = job.get("education", "")
     if setting not in ("education_optional", "education_required"):
         return []
     choices = {"degree--0": options.get("degrees", []),
                "discipline--0": options.get("disciplines", []),
                "start-month--0": MONTHS, "end-month--0": MONTHS}
-    return [FormField(key, label, kind, required and setting == "education_required",
-                      options=list(choices.get(key, [])), profile_key=attribute)
-            for key, label, kind, attribute, required in EDUCATION]
+    fields = []
+    for key, label, kind, attribute, name, usually_required in EDUCATION:
+        if config:
+            if config.get(name) not in ("required", "optional"):
+                continue
+            required = config[name] == "required"
+        else:
+            required = usually_required and setting == "education_required"
+        fields.append(FormField(key, label, kind, required, options=list(choices.get(key, [])),
+                                profile_key=attribute))
+    return fields
+
+
+def education_config_from_page(html):
+    """Return the page's {"start_year": "required", "discipline": "hidden", ...}, or None."""
+    match = EDUCATION_CONFIG.search(html)
+    if not match:
+        return None
+    try:
+        config = json.loads(match.group(1))
+    except ValueError:
+        return None
+    return config if isinstance(config, dict) else None
+
+
+def read_education_config(company, job_id):
+    """Read which Education boxes the form shows and requires from its embed page.
+
+    Returns None if the page can't be read, and then the usual boxes are guessed at.
+    """
+    try:
+        with urlopen(EMBED_URL.format(company=company, job_id=job_id), timeout=15) as response:
+            html = response.read().decode("utf-8", errors="replace")
+    except (OSError, ValueError):
+        return None
+    return education_config_from_page(html)
 
 
 def read_education_options(company):
@@ -282,12 +335,16 @@ def choose_school(page, box, school):
 class GreenhouseForm(AtsForm):
     """A Greenhouse form. Its questions come from Greenhouse's public Job Board API."""
 
-    def __init__(self, link, job_data=None, url=None, education_options=None):
+    def __init__(self, link, job_data=None, url=None, education_options=None,
+                 education_config=None):
         super().__init__(link)
         # Tests pass in saved API data and a fake form instead of going online
         self.job_data = job_data
         self.url = url
         self.education_options = education_options
+        self.education_config = education_config
+        # Only read the config from the page when the API data is read too, so tests stay offline
+        self.reads_education_config = job_data is None and education_config is None
 
     def embed_url(self):
         """Greenhouse's form-only page for this job."""
@@ -303,9 +360,14 @@ class GreenhouseForm(AtsForm):
             url = API_URL.format(company=self.link.company, job_id=self.link.job_id)
             with urlopen(url, timeout=15) as response:
                 self.job_data = json.load(response)
-        if self.education_options is None and education_fields(self.job_data, {}):
-            self.education_options = read_education_options(self.link.company)
-        return fields_from_api(self.job_data, self.education_options)
+        if education_fields(self.job_data, {}):
+            if self.education_options is None:
+                self.education_options = read_education_options(self.link.company)
+            if self.reads_education_config:
+                self.reads_education_config = False
+                self.education_config = read_education_config(self.link.company,
+                                                              self.link.job_id)
+        return fields_from_api(self.job_data, self.education_options, self.education_config)
 
     def posting(self):
         """Return the company, job title and location from the Job Board API."""
@@ -389,5 +451,30 @@ class GreenhouseForm(AtsForm):
         """Return True if Greenhouse is asking for the verification code it emailed."""
         try:
             return page.get_by_text(CODE_PROMPT).first.is_visible()
+        except PlaywrightError:
+            return False
+
+    def enter_code(self, page, code):
+        """Type the emailed code into Greenhouse's code boxes and send it."""
+        boxes = page.locator(CODE_BOXES)
+        if boxes.count() > 1:
+            for index in range(boxes.count()):
+                boxes.nth(index).fill(code[index] if index < len(code) else "")
+        else:
+            box = page.get_by_label(CODE_BOX)
+            if box.count() == 0:
+                box = page.locator(CODE_BOXES)
+            box.first.fill(code)
+        for name in CODE_BUTTONS:
+            button = page.get_by_role("button", name=name)
+            if button.count() and button.first.is_visible():
+                button.first.click()
+                return
+        raise PlaywrightError("Couldn't find the button that sends the code.")
+
+    def code_rejected(self, page):
+        """Return True if Greenhouse says the code was wrong or expired."""
+        try:
+            return page.get_by_text(CODE_ERROR).first.is_visible()
         except PlaywrightError:
             return False

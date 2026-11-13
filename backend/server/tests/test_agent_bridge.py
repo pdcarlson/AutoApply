@@ -72,7 +72,7 @@ def test_fake_ashby_form_is_local(app, monkeypatch):
     monkeypatch.setattr("agent.forms.ashby_form.urlopen", refuse)
     form = make_form(_job(FAKE_ASHBY_URL), app.state.config)
     assert form.url.endswith("ashby_form.html")
-    assert len(form.read_fields()) == 11
+    assert len(form.read_fields()) == 12
 
 
 def test_profile_projection(app):

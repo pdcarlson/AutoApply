@@ -85,6 +85,12 @@ ids in the order the agent will work them (running, queued, then waiting).
 | POST   | `/jobs/:id/submit`         |              | `200 Application` (approve a `ready` job; respond once submitted)                                                                                |
 | POST   | `/jobs/:id/mark-submitted` |              | `200 Application` (user finished a `handoff` job themselves)                                                                                     |
 
+`POST /jobs/:id/verification-code` `{ code }` → `200 Application` once the site confirms it. For a
+`handoff` job with `asksForCode: true`: the agent pressed Submit, the site emailed the user a
+verification code, and the form is still open. The agent types the code in and submits.
+`422 code_rejected` (the site didn't take it; the job still asks, so another code can be tried)
+or `invalid_code` (empty); `409 no_code_window` (the form window is gone) or `not_handoff`.
+
 Job `state` values and what the UI does with them:
 
 | State         | Meaning                                                                | Shown in                         |

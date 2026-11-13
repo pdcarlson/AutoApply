@@ -126,15 +126,12 @@ def test_real_submit_against_the_fake_form(client, app, ready, monkeypatch):
     assert (shots / f"{ready}-filled.png").is_file() and (shots / f"{ready}-result.png").is_file()
 
     detail = client.get(f"/api/applications/{summary['id']}").json()
-    assert detail["screenshotUrl"] == f"/api/screenshots/{ready}-filled.png"
+    assert detail["screenshotUrl"] == f"/api/screenshots/{ready}-result.png"  # the thank-you page
     assert [e["kind"] for e in detail["timeline"][-2:]] == ["accent", "current"]
     count = len(detail["fields"])
     assert detail["timeline"][-2]["text"] == (f"Submitted via Greenhouse, {count} fields. "
                                               "Confirmation page received.")
     assert client.get("/api/agent/status").json()["sentToday"] == 1
-    stored = app.state.store.read("applications")[0]
-    assert stored["_resultScreenshot"] == f"{ready}-result.png"
-    assert "_resultScreenshot" not in detail
     assert all(e["text"] != REFILLED for e in detail["timeline"])
 
 
@@ -179,23 +176,27 @@ def test_submit_waits_for_a_late_confirmation(client, app, monkeypatch):
     assert response.json()["confirmation"] is not None
 
 
-def test_verification_code_not_entered_in_time(client, app, monkeypatch):
-    """The site asks for an emailed code and nobody types it in time: handoff, the reason says
-    so, and the window stays open (test_held_forms covers what happens next)."""
+def test_verification_code_asked_for(client, app, monkeypatch):
+    """The site asks for an emailed code: the request answers at once (no point waiting out the
+    timeout) with handoff, the reason asks for the code in the app, `asksForCode` is set, and
+    the window stays open (test_held_forms covers what happens next)."""
     use_fake_form_variant(monkeypatch, "code=1")
     set_up_profile(client)
     seed_fake_form_answers(app)
     job_id = make_ready(client, app)
     app.state.config.submit_real_form = True
-    app.state.config.confirm_timeout_s = 2
+    app.state.config.confirm_timeout_s = 60
     session = app.state.worker.forms.get(job_id)
+    started = time.monotonic()
     response = submit(client, job_id)
+    assert time.monotonic() - started < 30
     assert response.status_code == 502 and response.json()["code"] == "submit_unconfirmed"
     message = response.json()["message"]
-    assert message.startswith("Greenhouse asked for the verification code it emailed you. "
-                              "Enter it in the open form window")
+    assert message.startswith("Greenhouse emailed you a verification code")
+    assert "enter the code here" in message and "AGENT_SHOW_BROWSER" not in message
     detail = job_detail(client, job_id)
     assert detail["state"] == "handoff" and detail["reason"] == message
+    assert detail["asksForCode"] is True
     last = app.state.store.read("jobs")[0]["timeline"][-1]
     assert (last["kind"], last["text"]) == ("amber", message)
     assert session.alive and session.watching and app.state.worker.forms.get(job_id) is session

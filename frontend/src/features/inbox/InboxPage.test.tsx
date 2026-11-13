@@ -128,4 +128,25 @@ describe('InboxPage', () => {
     expect(await screen.findByText(/Saved to your Answer bank/)).toBeInTheDocument();
     expect(db.answers[0]).toMatchObject({ answer: 'Yes', company: 'Initech' });
   });
+
+  it('sends the code the site emailed, and takes another after a wrong one', async () => {
+    signIn();
+    const acme = db.jobs.find((j) => j.id === 'job-101')!;
+    Object.assign(acme, { state: 'handoff', asksForCode: true });
+    const user = userEvent.setup();
+    renderAt(inbox, '/inbox?job=job-101');
+
+    const box = await screen.findByLabelText(/Check your email for a message from Greenhouse/);
+    await user.type(box, '00000000');
+    await user.click(screen.getByRole('button', { name: 'Submit code' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/didn’t take that code/);
+    expect(db.jobs).toContain(acme);
+
+    await user.clear(box);
+    await user.type(box, 'AB12CD34');
+    await user.click(screen.getByRole('button', { name: 'Submit code' }));
+
+    await waitFor(() => expect(db.jobs).not.toContain(acme));
+    expect(db.applications[0]).toMatchObject({ jobId: 'job-101', submittedBy: 'agent' });
+  });
 });

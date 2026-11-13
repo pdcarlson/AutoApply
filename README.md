@@ -79,8 +79,18 @@ npm test
 - **Your data** (profile, resume, answers, jobs, screenshots) stays on your computer in
   `backend/data/`, which is never committed. `.\scripts\demo.ps1 -Reset` deletes it and starts
   fresh.
-- **Supported sites:** only Greenhouse forms are filled automatically. Other links are handed to
-  you to finish by hand.
+- **Supported sites:** Greenhouse and Lever forms are filled automatically. Ashby links are
+  accepted, but those jobs are handed to you to finish by hand. In offline mode,
+  `https://jobs.lever.co/fakelever/0a1b2c3d-4e5f` opens a local test Lever form.
+- **Finishing in your own browser:** Lever turns applications from the agent's browser away
+  ("There was an error verifying your application"). The job then moves to **Needs you**. Load
+  the `extension/` folder in Chrome (see `extension/README.md`), open the job's form in your
+  normal browser and press **Fill in my answers**. You check it and press Submit yourself, and
+  the application is recorded when the thank-you page appears.
+- **Protected steps:** the agent never types into a CAPTCHA, sign-in, password or Social Security
+  number field. It fills the rest, leaves the form window open and moves the job to **Needs
+  you**. Do that step in the window and press Submit there (turn on `AGENT_SHOW_BROWSER`); the
+  application is recorded when the thank-you page appears.
 - **Two terminals instead of `demo.ps1`** (also how to run it on macOS/Linux, using
   `.venv/bin/python`): run `.venv\Scripts\python -m server` from `backend/`, and
   `npm run dev:api` from `frontend/`.

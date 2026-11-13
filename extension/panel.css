@@ -1,0 +1,43 @@
+#autoapply-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483647;
+  width: 280px;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 14px;
+  border: 1.5px solid #1f1f1f;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f1f1f;
+  font:
+    13px/1.4 system-ui,
+    sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+#autoapply-panel p {
+  margin: 6px 0 10px;
+}
+
+#autoapply-panel button {
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #1f1f1f;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#autoapply-panel button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#autoapply-panel ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}

@@ -314,22 +314,34 @@ def menu_option(page, text):
         "option", name=re.compile(f"^{words}$", re.IGNORECASE)).first
 
 
+def pick_searched(page, box, text):
+    """Type into a search-as-you-type list and click the option named text.
+
+    Returns False if the option never shows. The search is typed a second time before giving
+    up, because the list sometimes comes back empty the first time it is asked.
+    """
+    for _attempt in range(2):
+        box.click()
+        box.fill(text)
+        try:
+            menu_option(page, text).click(timeout=SCHOOL_WAIT_MS)
+            return True
+        except PlaywrightTimeout:
+            box.fill("")
+    return False
+
+
 def choose_school(page, box, school):
     """Type the school and pick it from Greenhouse's list, or pick "Other" if it isn't there.
 
     The list comes from a search as you type, so this waits up to SCHOOL_WAIT_MS for the
     school to show up. Returns "Other" when it picked that, else None.
     """
-    box.click()
-    box.fill(school)
-    try:
-        menu_option(page, school).click(timeout=SCHOOL_WAIT_MS)
+    if pick_searched(page, box, school):
         return None
-    except PlaywrightTimeout:
-        pass
-    box.fill(OTHER_SCHOOL)
-    menu_option(page, OTHER_SCHOOL).click()
-    return OTHER_SCHOOL
+    if pick_searched(page, box, OTHER_SCHOOL):
+        return OTHER_SCHOOL
+    raise PlaywrightError(f'The school list showed neither "{school}" nor "{OTHER_SCHOOL}".')
 
 
 class GreenhouseForm(AtsForm):
@@ -413,7 +425,13 @@ class GreenhouseForm(AtsForm):
             box.set_input_files(value)
         elif form_field.kind == "multi_select":
             group = page.locator(f'fieldset:has([name="{form_field.key}"])')
-            group.get_by_label(value, exact=True).check()
+            if group.count():
+                group.get_by_label(value, exact=True).check()
+            else:
+                # Some forms show a pick-several question as a dropdown, like Discord's
+                # "Race or Ethnicity (optional)"
+                box.click()
+                choose_option(page, value)
         elif form_field.kind == "select" and box.evaluate("element => element.tagName") == "SELECT":
             box.select_option(label=value)
         elif form_field.kind == "select":

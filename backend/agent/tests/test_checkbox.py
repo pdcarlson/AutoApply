@@ -90,3 +90,31 @@ def test_boxes_stay_ticked_after_later_fields_are_filled(page):
     form.fill(page, ACK_FIELD, "Acknowledge/Confirm")
     assert page.locator(f'[id="{TERMS}_754011949"]').is_checked()
     assert page.locator(f'[id="{ACK}_754011883"]').is_checked()
+
+
+# A pick-several question drawn as a dropdown: the options only exist while it is open
+DROPDOWN_PAGE = """
+<input id="4033069002" type="text" readonly>
+<div id="menu"></div>
+<script>
+  const box = document.getElementById("4033069002");
+  box.addEventListener("click", () => {
+    for (const label of ["South Asian", "I don't wish to answer"]) {
+      const option = document.createElement("div");
+      option.setAttribute("role", "option");
+      option.textContent = label;
+      option.addEventListener("click", () => { box.value = label; menu.replaceChildren(); });
+      menu.append(option);
+    }
+  });
+</script>
+"""
+
+
+def test_picks_from_a_dropdown_when_the_question_has_no_checkboxes(page):
+    """The API calls Discord's race question pick-several, but the page shows a dropdown."""
+    page.set_content(DROPDOWN_PAGE)
+    field = FormField("4033069002", "Race or Ethnicity (optional)", "multi_select",
+                      options=["South Asian", "I don't wish to answer"])
+    _form().fill(page, field, "I don't wish to answer")
+    assert page.locator('[id="4033069002"]').input_value() == "I don't wish to answer"

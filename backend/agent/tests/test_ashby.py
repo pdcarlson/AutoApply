@@ -92,6 +92,15 @@ def test_url_questions_are_text_boxes():
     assert [(f.key, f.kind) for f in fields] == [("u1", "text")]
 
 
+def test_a_country_only_location_box_is_answered_with_the_profile_country():
+    """ElevenLabs' "Location" lists countries only, so it's a pick answered from the profile."""
+    posting = {"applicationForm": {"sections": [{"fieldEntries": [
+        {"isRequired": True, "field": {"path": "q1", "title": "Location", "type": "Location",
+                                       "locationTypes": ["Country"]}}]}]}}
+    [country] = fields_from_api(posting)
+    assert (country.kind, country.profile_key, country.required) == ("select", "country", True)
+
+
 def test_posting_summary():
     assert fake_form().posting() == {"company": "", "title": "Software Engineering Intern",
                                      "location": "Troy, NY"}

@@ -71,13 +71,18 @@ def fields_from_api(posting):
             else:
                 options = [value["label"] for value in item.get("selectableValues") or []]
             path = item["path"]
+            profile_key = PROFILE_FIELDS.get(path, "phone" if item["type"] == "Phone" else "")
+            if item.get("locationTypes") == ["Country"]:
+                # A location box that only lists countries, like ElevenLabs' "Location":
+                # it's a search-and-pick list, answered with the profile's country
+                kind, profile_key = "select", "country"
             fields.append(FormField(
                 key=path,
                 label=item.get("title", "").strip(),
                 kind=kind,
                 required=bool(entry.get("isRequired")),
                 options=options,
-                profile_key=PROFILE_FIELDS.get(path, "phone" if item["type"] == "Phone" else ""),
+                profile_key=profile_key,
             ))
     return fields
 

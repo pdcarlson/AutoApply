@@ -11,7 +11,8 @@ Extension points for later packages:
     app.state.answer_bank  AnswerBank (server.answer_bank) over <data_dir>/answer_bank.json
     app.state.worker       AgentWorker (server.worker); routes call `.wake()`, DELETE /account
                          calls `.cancel_current()`, mark-submitted calls `.held_form(job_id)`,
-                         tests call `.run_next()` directly
+                         tests call `.run_next()` directly, and the live view socket
+                         (server.routes.live) reads `.live`, the open browsers by job id
   The lifespan calls `worker.start()` when `start_worker` is true and `worker.stop()` on shutdown
   (which leaves the filled form windows alone: they end with the process).
 """
@@ -58,6 +59,8 @@ class NullWorker:
     def run_next(self) -> None:
         return None
 
+    live = None  # no browsers, so no live views
+
 
 def _install_services(app: FastAPI) -> None:
     """Builds the shared services on app.state. Later packages add theirs here, in order."""
@@ -101,6 +104,7 @@ def create_app(data_dir: Path | str | None = None, start_worker: bool = True,
     )
     app.state.config = config
     app.state.start_worker = start_worker
+    app.state.live_origins = CORS_ORIGINS  # pages allowed to open the live view socket
     _install_services(app)
 
     install_error_handlers(app)

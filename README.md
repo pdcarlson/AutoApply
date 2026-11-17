@@ -72,6 +72,13 @@ npm test
   | `AGENT_SHOW_BROWSER` | `true` shows the browser window while the agent fills the form.              |
   | `AGENT_SLOW_MO_MS`   | Slows the browser down so you can follow it, e.g. `250`.                      |
   | `CONFIRM_TIMEOUT_S`  | How long Submit waits for the thank-you page. Default `90`.                   |
+  | `BROWSER_CDP_URL`    | Optional. Use a Chromium that is already running elsewhere (its DevTools address, e.g. `http://host:9222` or a `wss://` URL) instead of launching one here. |
+
+- **The live browser.** While the agent fills a form, and afterwards while you review it, the
+  form's browser is shown live to the left of its answers (open a job from **Applying now**, or
+  **Review**). Click the picture to scroll, click and type in the form yourself; click outside
+  it to stop. It works with `AGENT_SHOW_BROWSER` off, and it is how you reach the form when the
+  browser runs on another machine.
 
 - **Submit** presses the Submit button on the form the agent already filled. If the site emails
   you a verification code (Greenhouse does this), the app asks you for it: type it into the box

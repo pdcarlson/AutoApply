@@ -52,6 +52,9 @@ class Config:  # pylint: disable=too-many-instance-attributes
     # After Submit, how long the request waits for the thank-you page before it answers (the
     # job then goes to `handoff`, and the open window keeps being watched with no time limit).
     confirm_timeout_s: int = 90
+    # The CDP address of a Chromium running somewhere else (agent.browser.RemoteBrowser). Empty:
+    # each run launches its own Chromium on this machine.
+    browser_cdp_url: str = ""
 
 
 def load_config(data_dir: Path | str | None = None) -> Config:
@@ -74,6 +77,7 @@ def load_config(data_dir: Path | str | None = None) -> Config:
         resume_parse_step_ms=_env_int("RESUME_PARSE_STEP_MS", 300),
         seed_bank_from_profile=_env_bool("SEED_BANK_FROM_PROFILE", False),
         confirm_timeout_s=_env_int("CONFIRM_TIMEOUT_S", 90),
+        browser_cdp_url=(os.getenv("BROWSER_CDP_URL") or "").strip(),
     )
 
 

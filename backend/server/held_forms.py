@@ -51,17 +51,20 @@ class FormSession:  # pylint: disable=too-many-instance-attributes
     keeps the browser open. `context` is whatever the caller wants to keep with it.
     `on_confirmed(session, result)` is called (on the session thread) when a watched window
     shows the thank-you page and its screenshot is saved; `on_window_closed(session)` when the
-    person closes a held window. Exceptions they raise are logged.
+    person closes a held window; `on_ended(session)` when the thread is done and its browser
+    is closed, however that came about. Exceptions they raise are logged.
     """
 
     def __init__(self, job_id: str, fill: Callable[[], RunResult], context=None,  # pylint: disable=too-many-arguments
                  on_confirmed: Callable | None = None,
-                 on_window_closed: Callable | None = None):
+                 on_window_closed: Callable | None = None,
+                 on_ended: Callable | None = None):
         self.job_id = job_id
         self.context = context
         self._fill = fill
         self._on_confirmed = on_confirmed
         self._on_window_closed = on_window_closed
+        self._on_ended = on_ended
         self._commands: queue.Queue = queue.Queue()
         self._filled = threading.Event()
         self._closing = threading.Event()
@@ -151,6 +154,12 @@ class FormSession:  # pylint: disable=too-many-instance-attributes
     # ----- on the session thread -----
 
     def _main(self) -> None:
+        try:
+            self._fill_and_hold()
+        finally:
+            self._notify(self._on_ended)
+
+    def _fill_and_hold(self) -> None:
         try:
             self.result = self._fill()
         except Exception as error:  # pylint: disable=broad-except

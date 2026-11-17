@@ -41,6 +41,10 @@
   width: min(720px, 100%);
 }
 
+.full {
+  width: min(1480px, 100%);
+}
+
 .modalHead {
   display: flex;
   align-items: center;
@@ -117,6 +121,28 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
+}
+
+/* Fills the window to the left of the drawer. Its empty edges still close the drawer. */
+.drawerAside {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  bottom: 0;
+  display: flex;
+  width: calc(100vw - 100%);
+  padding: 24px;
+  pointer-events: none;
+}
+
+.drawerAside > * {
+  pointer-events: auto;
+}
+
+@media (width <= 1099px) {
+  .drawerAside {
+    display: none;
+  }
 }
 
 @media (width <= 899px) {

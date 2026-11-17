@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       // `npm run dev:api` forwards /api to a locally running backend instead of the mock API.
       proxy: env.VITE_API_PROXY_TARGET
-        ? { '/api': { target: env.VITE_API_PROXY_TARGET, changeOrigin: true } }
+        ? { '/api': { target: env.VITE_API_PROXY_TARGET, changeOrigin: true, ws: true } }
         : undefined,
     },
     css: {

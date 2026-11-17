@@ -19,6 +19,8 @@ A job record in `jobs.json` is the API `Job` plus:
                               and is watched for the confirmation (gone after a restart)
         askedForCode    bool  that watched window asks for a code the site emailed (the API's
                               `asksForCode`, while windowWatched is still set)
+        liveView        bool  the job's browser is open and can be watched (the API's
+                              `liveView`; gone after a restart)
 
 States: open, queued, running, waiting, needs_input, handoff, ready, plus the server-only
 `skipped` (hidden, can be restored) and `submitted` (hidden; WP5 makes the Application).
@@ -33,7 +35,7 @@ from server.store import Db, iso, parse_iso
 # Keys of the API `Job`, in types.ts order. JobDetail adds DETAIL_KEYS.
 JOB_KEYS = ("id", "company", "role", "location", "ats", "url", "source", "postedAt", "addedAt",
             "closesOn", "reason", "checks", "skipSuggested", "state", "phase", "progress",
-            "formSummary", "question", "readyAt", "asksForCode")
+            "formSummary", "question", "readyAt", "asksForCode", "liveView")
 DETAIL_KEYS = ("fields", "currentField")
 
 HIDDEN_STATES = ("skipped", "submitted")
@@ -55,10 +57,18 @@ def asks_for_code(job: dict) -> bool:
                                                    and internal.get("askedForCode"))
 
 
+def live_view(job: dict) -> dict | None:
+    """Where the web app can watch and drive the job's open browser, if it has one."""
+    if not (job.get("internal") or {}).get("liveView"):
+        return None
+    return {"url": f"/api/jobs/{job['id']}/live"}
+
+
 def to_api_job(job: dict) -> dict:
     """The API `Job`: no fields, currentField, timeline or internal."""
     out = {key: job.get(key) for key in JOB_KEYS}
     out["asksForCode"] = asks_for_code(job)
+    out["liveView"] = live_view(job)
     return out
 
 
@@ -278,11 +288,13 @@ def recover_after_restart(db: Db, now: datetime) -> None:
     - `running` while submitting or confirming -> `handoff`: the form may have been sent.
     - `handoff` whose open window was being watched for the confirmation: the window is gone
       (it ended with the old process), and the reason says so.
+    - No job has a live view anymore: the browsers ended with the old process.
     """
     at = iso(now)
     interrupted = []
     for job in db.jobs:
         job.setdefault("internal", {})
+        job["internal"]["liveView"] = False
         if job["internal"].get("windowWatched"):
             job["internal"]["windowWatched"] = False
             if job.get("state") == "handoff":

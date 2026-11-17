@@ -17,6 +17,49 @@
   min-width: 180px;
 }
 
+/* The live form on the left, the answers and Submit on the right. */
+.reviewSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+  gap: 20px;
+  min-height: 0;
+}
+
+.reviewLive {
+  display: flex;
+  align-items: flex-start;
+  max-height: min(72vh, 680px);
+  min-width: 0;
+}
+
+.reviewLive > * {
+  align-self: flex-start;
+  box-shadow: none;
+}
+
+.reviewSide {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: min(72vh, 680px);
+  overflow-y: auto;
+}
+
+@media (width <= 899px) {
+  .reviewSplit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reviewLive {
+    max-height: 70vh;
+  }
+
+  .reviewSide {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 .screenshotFrame {
   overflow: hidden;
   border: 1px solid var(--frame);

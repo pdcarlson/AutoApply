@@ -16,7 +16,8 @@ presses Submit on that page; without one (restart, or the person closed the wind
 the form again first, in a window that is held the same way. The worker never closes a held
 window (see server.held_forms for the only closes): skip, cancel and DELETE /account leave it
 open, and a job applied to again while its window is still open goes straight back to `ready`
-on it. A window still waiting for its confirmation after Submit is watched with no time limit;
+on it. While a job's browser is open, `self.live` knows its page and the job has a
+`liveView` (server.live_view streams it to the web app). A window still waiting for its confirmation after Submit is watched with no time limit;
 when the thank-you page shows up the application is recorded (`_on_window_confirmed`).
 
 One browser run at a time: every fill and submit holds `_run_lock`. POST /jobs/:id/submit runs
@@ -36,6 +37,7 @@ from pathlib import Path
 
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile, normalize
+from agent.browser import LocalBrowser, RemoteBrowser
 from agent.forms.form_field import FormField
 from agent.jobs.job_link import UnsupportedLink
 from agent.runner.apply_run import ApplyRun, RunResult
@@ -45,6 +47,7 @@ from server.agent_bridge import (SourceMap, build_agent_profile, cached_claude, 
 from server.answer_bank import AnswerBank
 from server.config import Config
 from server.held_forms import FormSession, HeldForms
+from server.live_view import LiveViews
 from server.store import Store, iso, new_id
 
 log = logging.getLogger(__name__)
@@ -111,6 +114,7 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         self._active: set[str] = set()  # run ids in progress (fill or submit)
         self._cancelled: set[str] = set()  # run ids cancel_current() stopped
         self.forms = HeldForms()  # filled forms held open for review, by job id
+        self.live = LiveViews()  # the open browser pages, by job id, for the live view
 
     # ----- thread lifecycle -----
 
@@ -342,16 +346,39 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             show=self.config.show_browser, slow_mo=self.config.slow_mo_ms,
             on_event=lambda kind, **data: self._on_event(ctx, submit, kind, data),
             should_stop=lambda: self.should_stop(ctx), hold=True,
-            confirm_timeout_s=self.config.confirm_timeout_s)
+            confirm_timeout_s=self.config.confirm_timeout_s, browser=self.browser_source())
         self._active.add(ctx.run_id)
         try:
             ctx.session = FormSession(ctx.job_id, lambda: run.run(ctx.form, shot_name=ctx.job_id),
                                       context=ctx, on_confirmed=self._on_window_confirmed,
-                                      on_window_closed=self._on_window_closed).start()
+                                      on_window_closed=self._on_window_closed,
+                                      on_ended=self._on_browser_closed).start()
             return ctx.session.wait_filled()
         finally:
             self._active.discard(ctx.run_id)
             self._cancelled.discard(ctx.run_id)
+
+    def browser_source(self):
+        """Where runs get their browser: BROWSER_CDP_URL's, or one launched on this machine."""
+        if self.config.browser_cdp_url:
+            return RemoteBrowser(self.config.browser_cdp_url, slow_mo=self.config.slow_mo_ms)
+        return LocalBrowser(show=self.config.show_browser, slow_mo=self.config.slow_mo_ms)
+
+    def _on_browser_open(self, ctx: RunContext, page) -> None:
+        """The run's browser is open: the job can be watched from now on."""
+        self.live.set(ctx.job_id, ctx, page)
+        self._set_live_view(ctx.job_id, True)
+
+    def _on_browser_closed(self, session: FormSession) -> None:
+        """A run's thread ended, so its browser is closed: nothing to watch anymore."""
+        if self.live.drop(session.job_id, session.context):
+            self._set_live_view(session.job_id, False)
+
+    def _set_live_view(self, job_id: str, live: bool) -> None:
+        with self.store.tx() as db:
+            job = jobs.find(db, job_id)
+            if job is not None:
+                job["internal"]["liveView"] = live
 
     def should_stop(self, ctx: RunContext) -> bool:
         if self._stopping.is_set() or ctx.run_id in self._cancelled:
@@ -372,6 +399,9 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             and not internal.get("cancelRequested")
 
     def _on_event(self, ctx: RunContext, submit: bool, kind: str, data: dict) -> None:
+        if kind == "browser":
+            self._on_browser_open(ctx, data["page"])
+            return
         if submit and kind == "phase" and data.get("name") == "submitting":
             ctx.pressed_submit = True  # emitted right before Submit is pressed
         with self.store.tx() as db:

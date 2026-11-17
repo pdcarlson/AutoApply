@@ -12,7 +12,7 @@ from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, FAKE_URL, add_j
 
 JOB_KEYS = {"id", "company", "role", "location", "ats", "url", "source", "postedAt", "addedAt",
             "closesOn", "reason", "checks", "skipSuggested", "state", "phase", "progress",
-            "formSummary", "question", "readyAt", "asksForCode"}
+            "formSummary", "question", "readyAt", "asksForCode", "liveView"}
 
 
 @pytest.fixture(autouse=True)

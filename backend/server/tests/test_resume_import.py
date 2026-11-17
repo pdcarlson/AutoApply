@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from server import konefal
-from server.resume_import import sections_to_profile, split_line
+from server.resume_import import _dates, sections_to_profile, split_line
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -151,6 +151,192 @@ def test_two_degrees_under_one_school_are_two_entries():
          "start": "2022-08-01", "end": "2025-12-01"},
     ]
     assert unplaced == []
+
+
+GAP = " " * 40  # the space pypdf leaves before a right-aligned date or place
+
+# The lines a PDF gives for a resume whose long bullets wrap onto a second line
+WRAPPED = {
+    "EDUCATION": [
+        f"Northeastern University{GAP}Boston, MA",
+        f"Bachelor of Science in Computer Science | GPA: 3.65/4.00{GAP}Expected May 2028",
+        "Relevant Coursework: Data Structures & Algorithms, Database Systems, Computer Networks,",
+        "Operating Systems, Software Engineering",
+    ],
+    "EXPERIENCE": [
+        f"HarborTech Solutions{GAP}Boston, MA",
+        f"Software Engineering Intern{GAP}May 2026 – Aug 2026",
+        "•  Built REST API endpoints using Python, Flask, and PostgreSQL for an internal analytics",
+        "dashboard used by 20+ employees.",
+        "•  Developed reusable React components for filtering and exporting reports, reducing the",
+        "operations team's manual steps.",
+    ],
+    "PROJECTS": [
+        f"Campus Event Finder | React, Node.js, Express, PostgreSQL{GAP}Jan 2026 – Apr 2026",
+        "•  Developed a full-stack web app allowing students to find campus events, and bookmark",
+        "events.",
+        "•  Designed REST endpoints and a database schema for saved events; added",
+        "input validation and basic authentication.",
+        "•  Deployed the application and documented local setup in GitHub.",
+        f"Personal Budget Tracker | Python, Flask, SQLite, Chart.js{GAP}Sep 2025 – Dec 2025",
+        "•  Created a budget tracking application to visualize spending trends by",
+        "month.",
+    ],
+    "LEADERSHIP & ACTIVITIES": [
+        f"Computer Science Club | Member{GAP}Sep 2024 – Present",
+        "•  Participate in weekly technical workshops and student hackathons.",
+        f"Peer Tutor, Intro to Programming | Northeastern University{GAP}Sep 2025 – Present",
+        "•  Help students debug Python and Java assignments during weekly tutoring",
+        "hours.",
+    ],
+}
+
+
+def test_wrapped_bullet_lines_stay_with_their_entry():
+    """A bullet's wrapped second line ("events.") is part of that bullet, not a new entry."""
+    patch, unplaced, _ = sections_to_profile(WRAPPED)
+    assert [p["name"] for p in patch["projects"]] == ["Campus Event Finder",
+                                                     "Personal Budget Tracker"]
+    assert patch["projects"][0]["detail"].split("\n") == [
+        "Developed a full-stack web app allowing students to find campus events, and "
+        "bookmark events.",
+        "Designed REST endpoints and a database schema for saved events; added input validation "
+        "and basic authentication.",
+        "Deployed the application and documented local setup in GitHub.",
+    ]
+    assert patch["projects"][1]["detail"] == ("Created a budget tracking application to visualize "
+                                              "spending trends by month.")
+    assert [(e["kind"], e["org"], e["title"]) for e in patch["experience"]] == [
+        ("work", "HarborTech Solutions", "Software Engineering Intern"),
+        ("leadership", "Computer Science Club", "Member"),
+        ("leadership", "Northeastern University", "Peer Tutor, Intro to Programming"),
+    ]
+    assert patch["experience"][0]["detail"].split("\n") == [
+        "Built REST API endpoints using Python, Flask, and PostgreSQL for an internal analytics "
+        "dashboard used by 20+ employees.",
+        "Developed reusable React components for filtering and exporting reports, reducing the "
+        "operations team's manual steps.",
+    ]
+    assert patch["education"][0]["coursework"].endswith("Operating Systems, Software Engineering")
+    assert unplaced == []
+
+
+@pytest.mark.parametrize("lines, count", [
+    # A new role after a finished bullet, with its dates on the next line
+    (["Acme Corp", "Intern     June 2024 - Aug 2024", "- Built things.",
+      "Globex Inc", "Analyst     June 2023 - Aug 2023", "- Ran reports."], 2),
+    # A new role after a bullet with no period, named in one capitalized line
+    (["Acme Corp     June 2024 - Aug 2024", "- Built things",
+      "iOS Developer at Initech     June 2023 - Aug 2023", "- Shipped an app"], 2),
+])
+def test_a_new_entry_after_a_bullet_is_not_joined_to_it(lines, count):
+    """Joining wrapped lines never swallows the next role's head line."""
+    patch, _, _ = sections_to_profile({"EXPERIENCE": lines})
+    assert len(patch["experience"]) == count
+
+
+@pytest.mark.parametrize("text, dates", [
+    ("2019 – Present", ("2019-01-01", "", True)),
+    ("2021–present", ("2021-01-01", "", True)),
+    ("Apr 2023  Present", ("2023-04-01", "", True)),        # the dash glyph was lost
+    ("Dates: 03/2021 – 06/2022", ("2021-03-01", "2022-06-01", False)),
+    ("2023-03 .. present", ("2023-03-01", "", True)),
+    ("Sep. 2021 – May 2026", ("2021-09-01", "2026-05-01", False)),
+    ("Spring 2024", ("", "2024-01-01", False)),
+    ("Expected Dec 2027", ("", "2027-12-01", False)),
+])
+def test_date_forms(text, dates):
+    """Year-only, numeric, season and dash-less dates."""
+    found = _dates(text)
+    assert (found["start"], found["end"], found["current"]) == dates
+
+
+def test_roles_without_bullet_characters():
+    """PDFs often drop bullet glyphs: roles come from dates, short head lines and indents."""
+    sections = {"EXPERIENCE": [
+        # title then organization, the bullets wrapped and unmarked
+        "Software Engineer I                                        Jun. 2026 – Present",
+        "Halcyon Logistics                                                   Boston, MA",
+        "Build and maintain shipment-tracking microservices in Go and gRPC, handling 40M+",
+        "status events per day",
+        "Cut p95 latency of the route-quote API from 820ms to 210ms with a Redis cache",
+        # dates on the second line, under "Title  Org"
+        "Data Scientist  Ripple Fitness",
+        "Portland, OR · Jul 2021  Mar 2023",
+        "  Forecast class demand across 60 studios",
+        # a left-hand timeline: start date, then end date on the next line
+        "        Jun 2017        Digital Marketing Specialist",
+        "        Dec 2019       Monarch & Finch Agency · Milwaukee, WI",
+        "                           Planned paid search campaigns for 10 retail clients",
+    ]}
+    patch, _, _ = sections_to_profile(sections)
+    roles = [(e["title"], e["org"], e["location"], e["start"], e["end"], e["current"])
+             for e in patch["experience"]]
+    assert roles == [
+        ("Software Engineer I", "Halcyon Logistics", "Boston, MA", "2026-06-01", "", True),
+        ("Data Scientist", "Ripple Fitness", "Portland, OR", "2021-07-01", "2023-03-01", False),
+        ("Digital Marketing Specialist", "Monarch & Finch Agency", "Milwaukee, WI",
+         "2017-06-01", "2019-12-01", False),
+    ]
+    assert patch["experience"][0]["detail"].split("\n") == [
+        "Build and maintain shipment-tracking microservices in Go and gRPC, handling 40M+ "
+        "status events per day",
+        "Cut p95 latency of the route-quote API from 820ms to 210ms with a Redis cache",
+    ]
+
+
+def test_federal_style_roles_with_labels():
+    """"Title:" and "Dates:" lines; the employer is the line above the dates."""
+    sections = {"WORK EXPERIENCE": [
+        "U.S. Department of Transportation, Federal Transit Administration",
+        "1200 New Jersey Avenue SE, Washington, DC 20590",
+        "Dates: 03/2021 – Present  |  Hours per week: 40",
+        "Title: Management and Program Analyst",
+        "    PROGRAM EVALUATION: Lead evaluations of competitive grant programs.",
+        "U.S. Department of Veterans Affairs, Veterans Benefits Administration",
+        "810 Vermont Avenue NW, Washington, DC 20420",
+        "Dates: 07/2018 – 03/2021  |  Hours per week: 40",
+        "Title: Program Analyst (converted to permanent 07/2019)",
+        "    DATA ANALYSIS: Analyzed claims-processing data for 56 regional offices.",
+    ]}
+    patch, _, _ = sections_to_profile(sections)
+    assert [(e["title"], e["org"], e["location"], e["start"], e["end"])
+            for e in patch["experience"]] == [
+        ("Management and Program Analyst",
+         "U.S. Department of Transportation, Federal Transit Administration",
+         "Washington, DC", "2021-03-01", ""),
+        ("Program Analyst", "U.S. Department of Veterans Affairs, Veterans Benefits Administration",
+         "Washington, DC", "2018-07-01", "2021-03-01"),
+    ]
+
+
+def test_education_school_on_its_own_line_and_year_dates():
+    """The school is the line naming one; "M.Arch — ETH Zürich" has no major."""
+    sections = {"EDUCATION": [
+        "M.S., Statistics", "University of Washington", "2019  2021 · GPA 3.9",
+        "B.A., Mathematics & Economics", "Pomona College", "2015  2019",
+        "M.Arch — ETH Zürich                                      2014–2016",
+    ]}
+    patch, unplaced, _ = sections_to_profile(sections)
+    pick = ("school", "degreeType", "major", "gpa", "start", "end")
+    assert [tuple(e[k] for k in pick) for e in patch["education"]] == [
+        ("University of Washington", "M.S.", "Statistics", "3.9", "2019-01-01", "2021-01-01"),
+        ("Pomona College", "B.A.", "Mathematics & Economics", "", "2015-01-01", "2019-01-01"),
+        ("ETH Zürich", "M.Arch", "", "", "2014-01-01", "2016-01-01"),
+    ]
+    assert unplaced == []
+
+
+def test_contact_quirks():
+    """Credentials after a name, a two-space phone, an icon glyph glued to a URL."""
+    sections = {"Other": [
+        "Anthony DiMarco, P.E.                                 Atlanta, GA",
+        "✉sofia@example.com        ☎ 206  555 0124        inlinkedin.com/in/someone",
+    ]}
+    patch, _, _ = sections_to_profile(sections)
+    assert (patch["firstName"], patch["lastName"]) == ("Anthony", "DiMarco")
+    assert (patch["city"], patch["state"], patch["phone"]) == ("Atlanta", "GA", "206 555 0124")
+    assert patch["links"][1]["url"] == "https://linkedin.com/in/someone"
 
 
 def test_split_line_takes_a_right_hand_date_column():

@@ -10,7 +10,7 @@ submitted and a screenshot of that was saved. The only closes are:
 
 Playwright's sync API is thread-bound: a browser can only be used from the thread that launched
 it. So every fill runs on its own `FormSession` thread. The fill ends like any run; when it ends
-`ready` (ApplyRun(hold=True)) the browser stays open and the thread serves commands:
+`ready` or `handoff` (ApplyRun(hold=True)) the browser stays open and the thread serves commands:
 
     submit  press Submit on the filled page and wait up to the timeout for the confirmation.
             Confirmed: save the screenshot, close, end. Pressed but not confirmed: reply, then
@@ -24,6 +24,8 @@ it. So every fill runs on its own `FormSession` thread. The fill ends like any r
     close   close the browser and end the thread (only after a saved screenshot, or in tests)
 
 Between commands the thread checks every WATCH_SECONDS whether the person closed the window.
+A `handoff` window has a protected step (US8): the worker watches it from the start, for the
+person to finish that step there and press Submit themselves.
 
 `HeldForms` is the worker's registry of live sessions by job id. There is no cap, and nothing in
 a job's lifecycle (skip, cancel, apply again, DELETE /account) closes one: the window stays, and
@@ -47,11 +49,11 @@ GONE = "The browser stopped responding while submitting."
 class FormSession:  # pylint: disable=too-many-instance-attributes
     """One job's browser on its own thread: fills the form, then holds it (see the module doc).
 
-    `fill()` runs on the session thread and returns the RunResult; a `ready` result with `held`
-    keeps the browser open. `context` is whatever the caller wants to keep with it.
-    `on_confirmed(session, result)` is called (on the session thread) when a watched window
-    shows the thank-you page and its screenshot is saved; `on_window_closed(session)` when the
-    person closes a held window. Exceptions they raise are logged.
+    `fill()` runs on the session thread and returns the RunResult; a `ready` or `handoff`
+    result with `held` keeps the browser open. `context` is whatever the caller wants to keep
+    with it. `on_confirmed(session, result)` is called (on the session thread) when a watched
+    window shows the thank-you page and its screenshot is saved; `on_window_closed(session)` when
+    the person closes a held window. Exceptions they raise are logged.
     """
 
     def __init__(self, job_id: str, fill: Callable[[], RunResult], context=None,  # pylint: disable=too-many-arguments
@@ -67,7 +69,8 @@ class FormSession:  # pylint: disable=too-many-instance-attributes
         self._closing = threading.Event()
         self._ended = threading.Event()  # the window is closed (or about to be): no more commands
         self.result: RunResult | None = None
-        self.watching = False  # Submit was pressed, no confirmation yet: watching for it
+        # Submit was pressed (or a protected step was left to the person), no confirmation yet
+        self.watching = False
         self.pressed = False  # Submit was pressed on this window at some point
         self.submit_result: RunResult | None = None  # the last submit's result
         self._thread = threading.Thread(target=self._main, name=f"form-{job_id}", daemon=True)

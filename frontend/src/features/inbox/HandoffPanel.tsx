@@ -8,7 +8,13 @@ import { Icon } from '@/components/ui/Icon';
 import styles from './panels.module.css';
 import { VerificationCodeForm } from './VerificationCodeForm';
 
-/** The agent stopped at a CAPTCHA (or a login/SSN field); the user finishes on the employer's site. */
+export const DEFAULT_HANDOFF_REASON =
+  'The form ends with a CAPTCHA. The agent never solves CAPTCHAs, so the last step is yours.';
+
+/**
+ * The agent stopped at a step only the user can do (a CAPTCHA, login, password or SSN field);
+ * the user finishes on the employer's site. `job.reason` says which.
+ */
 export function HandoffPanel({ job }: { job: Job }) {
   const notify = useToast();
   const { open } = useOverlays();
@@ -46,9 +52,7 @@ export function HandoffPanel({ job }: { job: Job }) {
   return (
     <div className={styles.ask}>
       <span className="eyebrow">Finish on {job.company}’s site</span>
-      <p className={styles.askQuestion}>
-        The form ends with a CAPTCHA. The agent never solves CAPTCHAs, so the last step is yours.
-      </p>
+      <p className={styles.askQuestion}>{job.reason || DEFAULT_HANDOFF_REASON}</p>
       <p className="small ink2">
         Forms that ask for a Social Security number or a login come to you the same way. Every
         answer the agent would have entered is listed under its answers, so copying them over is

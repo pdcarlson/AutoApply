@@ -5,6 +5,10 @@ Each tick: `promote_waiting`, then (unless paused) the first `queued` id in `sta
 browser is launched inside the thread that runs the job and never leaves it. The first fill
 never presses Submit: it ends at `needs_input`, `handoff`, `ready` or (on failure) `open`.
 
+Protected steps (US8): a form with a CAPTCHA, sign-in, password or SSN field is filled
+everywhere else and ends `handoff`. Its window is held and watched like one waiting for its
+confirmation, so the application is recorded once the person finishes it there.
+
 Runs and ownership: claiming a job sets `internal.runId`. Cancel, skip and DELETE /account
 detach the job (runId -> None); `should_stop` notices before the next field and the run's
 result is dropped. Event and result handlers only touch a job their run still owns.
@@ -215,6 +219,9 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         `handoff` instead (the form may have been sent).
         """
         job["internal"].update(runId=None, cancelRequested=False)
+        if session.watching and not session.pressed:  # held for a protected step
+            self._to_protected(db, job, session.context, session.result)
+            return
         if session.watching:
             self._to_handoff(db, job, self.watching_reason(job, session.submit_result))
             job["internal"]["windowWatched"] = True
@@ -296,6 +303,9 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         if session is None or result.held is None:  # needs_input, failed or cancelled
             return SubmitOutcome(ctx, result, True)
         self.forms.hold(session)
+        if result.status == "handoff":  # a protected step: the person finishes it, not Submit
+            session.watching = True
+            return SubmitOutcome(ctx, result, True)
         outcome = self._submit_held(session, run_id)
         if outcome is None:
             outcome = SubmitOutcome(ctx, RunResult("failed", "The new form window closed "
@@ -417,6 +427,7 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             # Held before the job shows `ready`, so a submit right away finds it. Kept even if
             # the job was cancelled or skipped meanwhile: applying again reuses the window.
             self.forms.hold(session)
+            session.watching = result.status == "handoff"  # the person finishes it there
         return self._finish(job_id, run_id, lambda db, job: self._apply_result(db, job, ctx,
                                                                                result))
 
@@ -449,6 +460,8 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
             self._to_question(db, job, ctx, result)
         elif result.status == "ready":
             self._to_ready(db, job, ctx, result)
+        elif result.status == "handoff":
+            self._to_protected(db, job, ctx, result)
         elif result.status == "cancelled":
             # The run still owns the job, so the worker is shutting down: put it back in line.
             jobs.reset_progress(job)
@@ -501,12 +514,28 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         jobs.remove_from_queue(db, job["id"])
         jobs.add_event(job, "muted", event, now)
 
+    def to_protected(self, db, job: dict, ctx: RunContext, result: RunResult) -> None:
+        """`handoff` on a protected step (a submit whose new fill found one)."""
+        self._to_protected(db, job, ctx, result)
+
+    def _to_protected(self, db, job: dict, ctx: RunContext, result: RunResult) -> None:
+        """`handoff` for a form with a protected step: the rest is filled and its window held."""
+        filled = [ctx.sources.filled_field(ctx.field_by_label(label), label, value, source,
+                                           confidence)
+                  for label, value, source, confidence in result.filled_detail]
+        count = len(filled)
+        self._to_handoff(db, job, applications.protected_reason(self.config, result))
+        job.update(fields=filled, progress={"filled": count,
+                                            "total": count + len(result.protected)})
+        job["internal"]["screenshot"] = Path(result.filled_screenshot).name \
+            if result.filled_screenshot else None
+        job["internal"].update(windowWatched=result.held is not None, askedForCode=False)
+
     # ----- held windows (called on their FormSession threads) -----
 
     def watching_reason(self, job: dict, result: RunResult | None) -> str:
         """Why a job is in `handoff` while its window waits for the confirmation."""
-        return applications.watching_reason(job, self.config,
-                                            bool(result and result.asked_for_code))
+        return applications.watching_reason(job, self.config, result)
 
     def _on_window_confirmed(self, session: FormSession, result: RunResult) -> None:
         """A watched window shows the thank-you page (screenshot saved): record the application."""

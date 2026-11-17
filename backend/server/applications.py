@@ -73,6 +73,15 @@ WINDOW_CLOSED = ("The form window was closed before the application was confirme
                  "email and the site: if it went through, mark it submitted.")
 HIDDEN_WINDOW = (" (The agent's browser is hidden because AGENT_SHOW_BROWSER is off: check your "
                  "email and the site, then mark it submitted.)")
+WATCHING_CAPTCHA = ("{site} showed a CAPTCHA after Submit, and the agent never solves those. "
+                    "Solve it in the open form window: the agent will record the application "
+                    "as soon as the thank-you page appears.")
+PROTECTED_WINDOW = (" The agent filled in the rest and left the form window open: finish that "
+                    "step there and press Submit. The agent will record the application as "
+                    "soon as the thank-you page appears.")
+PROTECTED_HIDDEN = (" (The agent's browser is hidden because AGENT_SHOW_BROWSER is off: open the "
+                    "job link, finish the form there, then mark it submitted.)")
+PROTECTED_STEP = "This form has a step only you can do, so the agent didn't press Submit."
 
 
 # ----- serialization -----
@@ -177,11 +186,25 @@ def _after_submit_shot(result) -> str | None:
     return None
 
 
-def watching_reason(job: dict, config, asked_for_code: bool) -> str:
-    """Why the job is in `handoff` while its open window is watched for the confirmation."""
-    if asked_for_code:  # typed in through the app, so a hidden browser doesn't matter
-        return WATCHING_CODE.format(site=job.get("ats") or "The site")
-    return WATCHING if config.show_browser else WATCHING + HIDDEN_WINDOW
+def watching_reason(job: dict, config, result) -> str:
+    """Why the job is in `handoff` while its open window is watched for the confirmation.
+
+    `result` is the submit's RunResult (or None): an emailed code or a CAPTCHA it ran into
+    gets its own wording.
+    """
+    site = job.get("ats") or "The site"
+    if result is not None and result.asked_for_code:
+        return WATCHING_CODE.format(site=site)  # typed in through the app, so hidden is fine
+    if result is not None and result.protected:
+        reason = WATCHING_CAPTCHA.format(site=site)
+    else:
+        reason = WATCHING
+    return reason if config.show_browser else reason + HIDDEN_WINDOW
+
+
+def protected_reason(config, result) -> str:
+    """Why the job is in `handoff` after a fill that left a protected step alone (US8)."""
+    return result.reason + (PROTECTED_WINDOW if config.show_browser else PROTECTED_HIDDEN)
 
 
 def watch(job: dict, session, result) -> None:
@@ -235,7 +258,7 @@ def _unconfirmed(job: dict, config, run) -> str:
         return WINDOW_CLOSED
     session = run.ctx.session if run.ctx is not None else None
     if session is not None and session.alive:
-        return watching_reason(job, config, result.asked_for_code)
+        return watching_reason(job, config, result)
     return UNCONFIRMED
 
 
@@ -265,6 +288,9 @@ def _after_submit(store: Store, worker, config, db: Db,  # pylint: disable=too-m
     if result.status == "needs_input" and ctx is not None:
         worker.to_question(db, job, ctx, result)
         return ApiError(409, "answers_changed", ANSWERS_CHANGED)
+    if result.status == "handoff" and ctx is not None:  # the new fill found a protected step
+        worker.to_protected(db, job, ctx, result)
+        return ApiError(409, "protected_step", PROTECTED_STEP)
     if pressed:
         reason = _unconfirmed(job, config, run)
         job.update(state="handoff", phase=None, currentField=None, reason=reason)

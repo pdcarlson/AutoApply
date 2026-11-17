@@ -83,6 +83,11 @@ def review_and_submit(filled):
     """
     held = filled.held
     print_result(filled)
+    if filled.status == "handoff":  # a protected step, so the agent never presses Submit
+        print("\nThe agent left that step alone. Finish it in the open browser window and press "
+              "Submit there.")
+        keep_open_until_done(held)
+        return filled
     print("\nThe form is filled in the open browser window. Check it there before sending.")
     choice = input('Type "submit" to send this application, or press Enter to stop: ')
     if choice.strip().lower() != "submit":

@@ -71,7 +71,8 @@ def seed_fake_form_answers(app, why: str = "I like building tools people use.") 
 
 def use_fake_form_variant(monkeypatch, query: str) -> None:
     """Fills from now on use the fake form's test-only variant `query` (see the page's script):
-    "confirm_ms=N" confirms N ms after Submit, "code=1" asks for an emailed code instead."""
+    "confirm_ms=N" confirms N ms after Submit, "code=1" asks for an emailed code instead, and
+    "protect=ssn|password|captcha" adds a step the agent must leave to the person."""
     original = server.worker.make_form
 
     def make_form(job, config):

@@ -18,8 +18,10 @@ import type {
   CommonAnswers,
   GoogleSignInStart,
   Job,
+  JobBoard,
   JobDetail,
   JobPreferences,
+  PostingApplyResult,
   Profile,
   ProfileUpdate,
   ResumeFile,
@@ -134,6 +136,17 @@ export const jobsApi = {
     http.post<Application>(`/jobs/${id}/verification-code`, { code }),
   /** POST /jobs/:id/mark-submitted → 200 Application. The user finished a `handoff` job. */
   markSubmitted: (id: string) => http.post<Application>(`/jobs/${id}/mark-submitted`),
+};
+
+export const postingsApi = {
+  /** GET /postings → 200 JobBoard: open postings, ranked by fit to the profile. */
+  list: () => http.get<JobBoard>('/postings'),
+  /**
+   * POST /postings/:id/apply → 200 PostingApplyResult. Adds the posting to the Inbox and
+   * queues it. 409 `profile_not_confirmed` | `already_applied` | `already_in_inbox`;
+   * 422 `posting_closed`.
+   */
+  apply: (id: string) => http.post<PostingApplyResult>(`/postings/${id}/apply`),
 };
 
 export const questionsApi = {

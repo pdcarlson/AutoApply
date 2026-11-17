@@ -145,8 +145,11 @@ def _handoff_details(link: JobLink, ats: str) -> dict:
     }
 
 
-def _new_record(link: JobLink, ats: str, details: dict, now: str) -> dict:
+def _new_record(link: JobLink, ats: str, details: dict, now: str,
+                posted_at: str | None = None) -> dict:
+    """A new Inbox job. `posted_at` is set for a posting picked from the job board."""
     job_data = details.pop("jobData")
+    matched = posted_at is not None
     return {
         "id": new_id("job"),
         "company": details["company"],
@@ -154,8 +157,8 @@ def _new_record(link: JobLink, ats: str, details: dict, now: str) -> dict:
         "location": details["location"],
         "ats": ats,
         "url": link.url,
-        "source": "added",
-        "postedAt": None,
+        "source": "matched" if matched else "added",
+        "postedAt": posted_at,
         "addedAt": now,
         "closesOn": None,
         "reason": details["reason"],
@@ -169,7 +172,9 @@ def _new_record(link: JobLink, ats: str, details: dict, now: str) -> dict:
         "readyAt": None,
         "fields": [],
         "currentField": None,
-        "timeline": [{"kind": "muted", "text": "You added the link", "at": now}],
+        "timeline": [{"kind": "muted", "at": now,
+                      "text": "You picked it from Jobs" if matched
+                      else "You added the link"}],
         "approvedAt": None,
         "internal": {
             "link": link_to_dict(link),
@@ -182,6 +187,30 @@ def _new_record(link: JobLink, ats: str, details: dict, now: str) -> dict:
             "screenshot": None,
         },
     }
+
+
+def add_from_link(url: str, request: Request, store: Store, config: Config,
+                  posted_at: str | None = None) -> dict:
+    """Adds the posting at `url` to the Inbox and returns its record (spec 2.9).
+
+    A job skipped earlier is restored instead. Raises the 422 and 409 errors of POST /jobs.
+    """
+    link, ats = _parse_link(url)
+    with store.tx() as db:
+        existing = _conflict(db, link_to_dict(link))
+        if existing is not None:  # skipped earlier: adding it again restores it
+            jobs.restore(existing)
+            return existing
+    # Reading a real form is a network call: keep it outside the lock.
+    details = _form_details(request, link, ats, config)
+    with store.tx() as db:
+        existing = _conflict(db, link_to_dict(link))  # someone added it meanwhile
+        if existing is not None:
+            jobs.restore(existing)
+            return existing
+        record = _new_record(link, ats, details, store.now_iso(), posted_at)
+        db.jobs.append(record)
+        return record
 
 
 # ----- routes -----
@@ -204,22 +233,7 @@ def get_job(job_id: str, store: Store = Depends(get_store)):
 @router.post("/jobs", status_code=201)
 def add_job(body: AddJobBody, request: Request, store: Store = Depends(get_store),
             config: Config = Depends(get_config)):
-    link, ats = _parse_link(body.url)
-    with store.tx() as db:
-        existing = _conflict(db, link_to_dict(link))
-        if existing is not None:  # skipped earlier: adding it again restores it
-            jobs.restore(existing)
-            return jobs.to_api_job(existing)
-    # Reading a real form is a network call: keep it outside the lock.
-    details = _form_details(request, link, ats, config)
-    with store.tx() as db:
-        existing = _conflict(db, link_to_dict(link))  # someone added it meanwhile
-        if existing is not None:
-            jobs.restore(existing)
-            return jobs.to_api_job(existing)
-        record = _new_record(link, ats, details, store.now_iso())
-        db.jobs.append(record)
-        return jobs.to_api_job(record)
+    return jobs.to_api_job(add_from_link(body.url, request, store, config))
 
 
 @router.post("/jobs/apply")

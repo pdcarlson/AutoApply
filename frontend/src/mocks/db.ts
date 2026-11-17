@@ -12,6 +12,7 @@ import type {
   FilledField,
   JobDetail,
   JobPreferences,
+  Posting,
   Profile,
   ResumeParse,
   Session,
@@ -46,6 +47,8 @@ export interface MockDb {
   queue: string[];
   lastTick: number;
   jobs: MockJob[];
+  /** The job board, already ranked. `status` and `jobId` are worked out per request. */
+  postings: Posting[];
   applications: ApplicationDetail[];
   answers: Answer[];
 }
@@ -436,6 +439,61 @@ export function screenshotFor(app: { company: string; role: string; fields: Fill
 
 const escapeXml = (s: string) => s.replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
+function seedPostings(): Posting[] {
+  const posting = (
+    id: string,
+    company: string,
+    role: string,
+    location: string,
+    ats: Posting['ats'],
+    ageDays: number,
+    score: number,
+    reasons: string[],
+  ): Posting => ({
+    id,
+    company,
+    role,
+    location,
+    ats,
+    url:
+      ats === 'Greenhouse'
+        ? `https://boards.greenhouse.io/${slug(company)}/jobs/${id.replace(/\D/g, '')}`
+        : `https://jobs.ashbyhq.com/${slug(company)}/${id}`,
+    postedAt: isoAgo(ageDays),
+    internship: /intern/i.test(role),
+    fit: { score, reasons },
+    status: 'open',
+    jobId: null,
+  });
+  return [
+    posting(
+      'p-2001',
+      'Northwind Data',
+      'Software Engineer Intern',
+      'Remote (US)',
+      'Greenhouse',
+      2,
+      92,
+      ['Close to Software engineer', 'Asks for Python, SQL', 'Internship', 'In Remote (US)'],
+    ),
+    posting('p-2002', 'Brightline Robotics', 'Frontend Engineer', 'Chicago, IL', 'Ashby', 5, 74, [
+      'Close to Frontend',
+      'Asks for React, TypeScript',
+    ]),
+    posting(
+      'p-2003',
+      'Harbor Freight Analytics',
+      'Data Analyst',
+      'Austin, TX',
+      'Greenhouse',
+      9,
+      26,
+      ['Asks for SQL'],
+    ),
+    posting('p-2004', 'Kestrel Health', 'Account Executive', 'London', 'Ashby', 12, 9, []),
+  ];
+}
+
 let refSeq = 100_000;
 export const nextReference = (ats: string) =>
   `${ats === 'Ashby' ? 'AS' : 'GH'}-${((refSeq += 7919) % 900_000) + 100_000}`;
@@ -637,6 +695,7 @@ export function createDb(): MockDb {
     queue: [],
     lastTick: Date.now(),
     jobs: seedJobs(),
+    postings: seedPostings(),
     applications: seedApplications(),
     answers: seedAnswers(),
   };

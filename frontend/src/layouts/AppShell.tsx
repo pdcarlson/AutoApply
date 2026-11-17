@@ -23,6 +23,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: paths.inbox, label: 'Inbox', icon: 'inbox' },
+  { to: paths.jobs, label: 'Jobs', icon: 'search' },
   { to: paths.applications, label: 'Applications', icon: 'briefcase' },
   { to: paths.profile, label: 'Profile', icon: 'user' },
   { to: paths.answers, label: 'Answer bank', icon: 'list' },

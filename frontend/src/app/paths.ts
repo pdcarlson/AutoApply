@@ -6,6 +6,7 @@ export const paths = {
   setupProfile: '/setup/profile',
   setupQuestions: '/setup/questions',
   inbox: '/inbox',
+  jobs: '/jobs',
   applications: '/applications',
   answers: '/answers',
   profile: '/profile',

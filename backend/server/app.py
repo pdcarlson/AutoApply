@@ -9,6 +9,7 @@ Extension points for later packages:
     app.state.config       Config (server.config)
     app.state.store        Store  (server.store)
     app.state.answer_bank  AnswerBank (server.answer_bank) over <data_dir>/answer_bank.json
+    app.state.job_feed     JobFeed (agent.jobs.job_feed): the postings the job board ranks
     app.state.worker       AgentWorker (server.worker); routes call `.wake()`, DELETE /account
                          calls `.cancel_current()`, mark-submitted calls `.held_form(job_id)`,
                          tests call `.run_next()` directly
@@ -22,7 +23,9 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from agent.jobs.job_feed import JobFeed
 from server import jobs, konefal
+from server.agent_bridge import fake_boards
 from server.answer_bank import AnswerBank
 from server.config import Config, load_config
 from server.errors import install_error_handlers
@@ -68,6 +71,10 @@ def _install_services(app: FastAPI) -> None:
     if config.seed_bank_from_profile:
         bank.seed_from_profile(config.profile_path)  # once per data dir; reads PROFILE_PATH only
     app.state.answer_bank = bank
+    # With FAKE_GREENHOUSE the board lists the local test postings and never goes online.
+    feed_path = config.data_dir / "job_feed.json"
+    app.state.job_feed = JobFeed(feed_path, boards=fake_boards(), keep=None) \
+        if config.fake_greenhouse else JobFeed(feed_path)
     with app.state.store.tx() as db:  # jobs a previous process left mid-run (spec 2.3)
         jobs.recover_after_restart(db, app.state.store.now())
     app.state.worker = AgentWorker(app.state.store, bank, config)

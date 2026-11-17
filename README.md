@@ -27,8 +27,9 @@ You need Python 3.11+ and Node 20+. Commands are for Windows PowerShell.
 
 4. Open http://localhost:5173, sign in, upload your resume, check your profile, and answer the
    setup questions.
-5. Paste a Greenhouse or Ashby job link into the Inbox and press **Apply**. Answer any questions the agent
-   asks, then review the filled form and press **Submit**.
+5. Paste a Greenhouse or Ashby job link into the Inbox and press **Apply**, or open **Jobs** and press
+   **Apply** on a posting there. Answer any questions the agent asks, then review the filled form and
+   press **Submit**.
 
 Press Ctrl+C to stop.
 

@@ -13,6 +13,7 @@ import type {
   Job,
   JobDetail,
   JobPreferences,
+  Posting,
   ProfileUpdate,
 } from '@/api/types';
 import { acceptAnswer, advanceAgent, interpretReply, queueOrder, toApplication } from './agent';
@@ -81,6 +82,14 @@ const isFile = (value: FormDataEntryValue | null): value is File =>
   typeof value === 'object' && value !== null && 'name' in value && 'size' in value;
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z]+/g, '');
+/** A posting with where it stands now: in the Inbox, applied to, or still open. */
+function toPosting(posting: Posting): Posting {
+  const job = db.jobs.find((j) => j.url === posting.url);
+  if (job) return { ...posting, status: 'in_inbox', jobId: job.id };
+  const applied = db.applications.some((a) => a.url === posting.url);
+  return { ...posting, status: applied ? 'applied' : 'open' };
+}
+
 const titleCase = (s: string) => s.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 export const handlers = [
@@ -409,6 +418,45 @@ export const handlers = [
     db.jobs = db.jobs.filter((j) => j !== job);
     const { fields: _f, timeline: _t, screenshotUrl: _s, ...summary } = app;
     return ok(summary);
+  }),
+
+  // ===== Job board =====
+  http.get(path('/postings'), async () => {
+    await latency();
+    if (!db.signedIn) return unauthenticated();
+    return ok({
+      postings: db.postings.map(toPosting),
+      fetchedAt: new Date(db.lastTick).toISOString(),
+      refreshing: false,
+    });
+  }),
+  http.post(path('/postings/:id/apply'), async ({ params }) => {
+    await latency();
+    const posting = db.postings.find((p) => p.id === params.id);
+    if (!posting) return notFound('Posting');
+    if (!db.session.profileConfirmed) {
+      return fail(409, 'profile_not_confirmed', 'Confirm your profile before applying.');
+    }
+    if (toPosting(posting).status !== 'open') {
+      return fail(409, 'already_in_inbox', 'That job is already in your Inbox.');
+    }
+    const job = makeJob({
+      id: `job-${Date.now()}`,
+      company: posting.company,
+      role: posting.role,
+      location: posting.location,
+      ats: posting.ats,
+      source: 'matched',
+      ageDays: 0,
+      reason: posting.fit.reasons.join(' · ') || 'Picked from Jobs',
+      checks: posting.fit.reasons.map((text) => ({ status: 'ok', text })),
+    });
+    job.url = posting.url;
+    job.state = 'queued';
+    db.jobs.push(job);
+    db.queue.push(job.id);
+    db.lastTick = Date.now();
+    return ok({ job: toJob(job), deferred: false });
   }),
 
   // ===== Questions =====

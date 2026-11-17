@@ -350,6 +350,42 @@ export interface ApplyResult {
   deferred: string[];
 }
 
+// ===== Job board =====
+
+export type PostingStatus = 'open' | 'in_inbox' | 'applied';
+
+/** An open job collected from a company's Greenhouse or Ashby board. */
+export interface Posting {
+  id: string;
+  company: string;
+  role: string;
+  location: string;
+  ats: Ats;
+  url: string;
+  postedAt: string | null;
+  internship: boolean;
+  /** How well it fits the profile: 0–100, with a short reason for each thing that matched. */
+  fit: { score: number; reasons: string[] };
+  status: PostingStatus;
+  /** The Inbox job made from it (status `in_inbox`). */
+  jobId: string | null;
+}
+
+export interface JobBoard {
+  /** Best fit first. */
+  postings: Posting[];
+  /** When the postings were last collected. Null before the first collection finishes. */
+  fetchedAt: string | null;
+  /** True while the backend is collecting postings from the boards. */
+  refreshing: boolean;
+}
+
+export interface PostingApplyResult {
+  job: Job;
+  /** True when the daily limit holds it until tomorrow. */
+  deferred: boolean;
+}
+
 // ===== Applications =====
 
 export type ApplicationStatus = 'submitted' | 'interviewing' | 'offer' | 'rejected';

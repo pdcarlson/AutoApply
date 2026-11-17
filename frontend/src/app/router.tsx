@@ -7,6 +7,7 @@ import { SignInPage } from '@/features/auth/SignInPage';
 import { ApplicationsPage } from '@/features/applications/ApplicationsPage';
 import { AnswerBankPage } from '@/features/answers/AnswerBankPage';
 import { InboxPage } from '@/features/inbox/InboxPage';
+import { JobBoardPage } from '@/features/jobs/JobBoardPage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { CommonQuestionsPage } from '@/features/setup/CommonQuestionsPage';
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to={paths.inbox} replace /> },
           { path: paths.inbox, element: <InboxPage /> },
+          { path: paths.jobs, element: <JobBoardPage /> },
           { path: paths.applications, element: <ApplicationsPage /> },
           { path: paths.answers, element: <AnswerBankPage /> },
           { path: paths.profile, element: <ProfilePage /> },

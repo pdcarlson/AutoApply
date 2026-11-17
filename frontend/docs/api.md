@@ -85,6 +85,10 @@ ids in the order the agent will work them (running, queued, then waiting).
 | POST   | `/jobs/:id/submit`         |              | `200 Application` (approve a `ready` job; respond once submitted)                                                                                |
 | POST   | `/jobs/:id/mark-submitted` |              | `200 Application` (user finished a `handoff` job themselves)                                                                                     |
 
+`POST /jobs/:id/submit` answers `409 protected_step` when the form has a CAPTCHA, sign-in,
+password or SSN field: the agent never fills or submits those, the job goes to `handoff`, and
+`reason` says which step is the user's.
+
 `POST /jobs/:id/verification-code` `{ code }` → `200 Application` once the site confirms it. For a
 `handoff` job with `asksForCode: true`: the agent pressed Submit, the site emailed the user a
 verification code, and the form is still open. The agent types the code in and submits.
@@ -108,6 +112,21 @@ Only Greenhouse (`*.greenhouse.io`) and Ashby (`*.ashbyhq.com`) links are accept
 The frontend polls `/jobs` and `/agent/status` every 2 s while any job is `queued` or `running`,
 and shows a toast when a job moves to `needs_input`, `handoff`, `ready`, or from `queued` to
 `waiting`.
+
+## Job board
+
+| Method | Path                  | Body | Response                                                                                                                             |
+| ------ | --------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/postings`           |      | `200 JobBoard { postings, fetchedAt, refreshing }`                                                                                   |
+| POST   | `/postings/:id/apply` |      | `200 PostingApplyResult { job, deferred }`; `409 profile_not_confirmed \| already_applied \| already_in_inbox`; `422 posting_closed` |
+
+`postings` holds open jobs from company boards on Greenhouse and Ashby, ranked by `fit.score`
+(0–100) against the profile. `fit.reasons` says what matched. For beta testing the backend keeps
+only the 50 postings whose forms ask the fewest required questions (`KEEP` in
+`agent/jobs/job_feed.py`). It collects them on the first request and again when they are more
+than 12 hours old; `refreshing` is true meanwhile, and the frontend polls until it is false.
+Applying adds the posting to the Inbox as a `matched` job and queues it, the same as
+`POST /jobs` followed by `POST /jobs/apply`.
 
 ## Agent questions
 

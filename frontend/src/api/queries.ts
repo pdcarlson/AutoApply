@@ -7,6 +7,7 @@ import {
   authApi,
   commonAnswersApi,
   jobsApi,
+  postingsApi,
   preferencesApi,
   profileApi,
   questionsApi,
@@ -39,6 +40,7 @@ export const queryKeys = {
   agentStatus: ['agent', 'status'] as const,
   jobs: ['jobs'] as const,
   job: (id: string) => ['jobs', id] as const,
+  postings: ['postings'] as const,
   applications: ['applications'] as const,
   application: (id: string) => ['applications', id] as const,
   answers: ['answers'] as const,
@@ -223,6 +225,7 @@ function useInvalidateWork() {
       client.invalidateQueries({ queryKey: queryKeys.agentStatus }),
       client.invalidateQueries({ queryKey: queryKeys.applications }),
       client.invalidateQueries({ queryKey: queryKeys.answers }),
+      client.invalidateQueries({ queryKey: queryKeys.postings }),
     ]);
 }
 
@@ -270,6 +273,22 @@ export function useEnterCode() {
 export function useMarkSubmitted() {
   const invalidate = useInvalidateWork();
   return useMutation({ mutationFn: jobsApi.markSubmitted, onSuccess: invalidate });
+}
+
+// ===== Job board =====
+
+export function usePostings() {
+  return useQuery({
+    queryKey: queryKeys.postings,
+    queryFn: postingsApi.list,
+    // The first visit starts collecting postings; keep asking until they're in.
+    refetchInterval: (query) => (query.state.data?.refreshing ? LIVE_POLL_MS : false),
+  });
+}
+
+export function useApplyToPosting() {
+  const invalidate = useInvalidateWork();
+  return useMutation({ mutationFn: postingsApi.apply, onSuccess: invalidate });
 }
 
 // ===== Agent questions =====

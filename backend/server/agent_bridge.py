@@ -22,6 +22,7 @@ from agent.forms import form_for
 from agent.forms.ashby_form import AshbyForm
 from agent.forms.form_field import FieldAnswer, FormField
 from agent.forms.greenhouse_form import GreenhouseForm
+from agent.jobs.job_board import AshbyBoard, GreenhouseBoard
 from agent.jobs.job_link import JobLink
 from server import self_id
 from server.answer_bank import AnswerBank
@@ -68,6 +69,13 @@ def is_fake(link: JobLink, config: Config) -> bool:
 
 def fake_job_data(site: str = "greenhouse") -> dict:
     return json.loads((FAKE_FORMS / f"{site}_api.json").read_text(encoding="utf-8"))
+
+
+def fake_boards() -> list:
+    """Job boards that list the fake Greenhouse and Ashby postings, read from local files."""
+    ashby = fake_job_data("ashby")
+    return [GreenhouseBoard(FAKE_COMPANY, data={"jobs": [fake_job_data("greenhouse")]}),
+            AshbyBoard(FAKE_COMPANY, data={"jobs": [{**ashby, "location": ashby["locationName"]}]})]
 
 
 def make_form(job: dict, config: Config):

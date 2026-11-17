@@ -23,6 +23,7 @@ import type {
   CommonAnswers,
   Job,
   JobPreferences,
+  PostingApplyResult,
   Profile,
   ProfileUpdate,
 } from './types';
@@ -286,9 +287,24 @@ export function usePostings() {
   });
 }
 
-export function useApplyToPosting() {
+/** Applies to postings one after another. A posting that can't be added doesn't stop the rest. */
+export function useApplyToPostings() {
   const invalidate = useInvalidateWork();
-  return useMutation({ mutationFn: postingsApi.apply, onSuccess: invalidate });
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const started: PostingApplyResult[] = [];
+      const failed: string[] = [];
+      for (const id of ids) {
+        try {
+          started.push(await postingsApi.apply(id));
+        } catch (error) {
+          failed.push(error instanceof Error ? error.message : 'It couldn’t be added.');
+        }
+      }
+      return { started, failed };
+    },
+    onSuccess: invalidate,
+  });
 }
 
 // ===== Agent questions =====

@@ -64,12 +64,35 @@ describe('JobBoardPage', () => {
       }),
     );
 
-    expect(await screen.findByText(/Filling Northwind Data/)).toBeInTheDocument();
+    expect(await screen.findByText(/Filling 1 job/)).toBeInTheDocument();
     const job = db.jobs.find((j) => j.company === 'Northwind Data')!;
     expect(job.source).toBe('matched');
     expect(job.state).not.toBe('open');
     const inInbox = await screen.findByRole('link', { name: 'In your Inbox' });
     expect(inInbox.closest('li')).toHaveTextContent(/Northwind Data/);
+  });
+
+  it('applies to every checked posting at once, like the Inbox', async () => {
+    signIn();
+    const user = userEvent.setup();
+    renderAt(board, '/jobs');
+
+    await user.click(
+      await screen.findByRole('checkbox', {
+        name: 'Select Northwind Data, Software Engineer Intern',
+      }),
+    );
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Select Brightline Robotics, Frontend Engineer' }),
+    );
+    expect(screen.getByText('2 selected')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Apply to 2' }));
+
+    expect(await screen.findByText(/Filling 2 jobs/)).toBeInTheDocument();
+    expect(await screen.findAllByRole('link', { name: 'In your Inbox' })).toHaveLength(2);
+    expect(screen.getByText('0 selected')).toBeVisible();
+    const queued = db.jobs.filter((j) => j.source === 'matched' && j.state !== 'open');
+    expect(queued.map((j) => j.company)).toEqual(['Northwind Data', 'Brightline Robotics']);
   });
 
   it('asks for the profile to be confirmed before applying', async () => {

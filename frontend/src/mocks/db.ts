@@ -248,6 +248,7 @@ export function makeJob(seed: JobSeed): MockJob {
     question: null,
     readyAt: null,
     asksForCode: false,
+    liveView: null,
     fields: [],
     currentField: null,
     plan,

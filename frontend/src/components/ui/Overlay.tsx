@@ -35,17 +35,19 @@ interface ModalProps {
   labelledBy: string;
   onClose: () => void;
   wide?: boolean;
+  /** As wide as the window allows, for a modal with something to look at beside its text. */
+  full?: boolean;
   children: ReactNode;
 }
 
-export function Modal({ labelledBy, onClose, wide, children }: ModalProps) {
+export function Modal({ labelledBy, onClose, wide, full, children }: ModalProps) {
   const ref = useDialogBehavior(onClose);
   return createPortal(
     <div className={styles.modalLayer}>
       <div className={styles.scrim} onClick={onClose} />
       <div
         ref={ref}
-        className={cx(styles.modal, wide && styles.wide)}
+        className={cx(styles.modal, wide && styles.wide, full && styles.full)}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
@@ -74,11 +76,13 @@ interface DrawerProps {
   onClose: () => void;
   head: ReactNode;
   footer?: ReactNode;
+  /** Shown to the left of the drawer, in the rest of the window (wide screens only). */
+  aside?: ReactNode;
   children: ReactNode;
 }
 
 /** Panel that slides in from the right, for details about one job or application. */
-export function Drawer({ labelledBy, onClose, head, footer, children }: DrawerProps) {
+export function Drawer({ labelledBy, onClose, head, footer, aside, children }: DrawerProps) {
   const ref = useDialogBehavior(onClose);
   return createPortal(
     <>
@@ -98,6 +102,7 @@ export function Drawer({ labelledBy, onClose, head, footer, children }: DrawerPr
         </div>
         <div className={styles.drawerBody}>{children}</div>
         {footer && <div className={styles.drawerFoot}>{footer}</div>}
+        {aside && <div className={styles.drawerAside}>{aside}</div>}
       </div>
     </>,
     document.body,

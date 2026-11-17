@@ -11,6 +11,7 @@ import { FieldList, Loading, LoadError } from '@/components/ui/DataDisplay';
 import { Icon } from '@/components/ui/Icon';
 import { Drawer, DrawerSection } from '@/components/ui/Overlay';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { LiveBrowser } from '@/features/liveBrowser/LiveBrowser';
 import { jobChip, progressPercent, runStatusText } from '@/lib/jobStatus';
 import { usePauseToggle } from './usePauseToggle';
 import styles from './JobDrawer.module.css';
@@ -124,8 +125,12 @@ export function JobDrawer({ jobId }: { jobId: string }) {
     </>
   );
 
+  const aside = data.liveView && (
+    <LiveBrowser url={data.liveView.url} label={`${data.company} application form`} />
+  );
+
   return (
-    <Drawer labelledBy="drawer-title" onClose={close} head={head} footer={footer}>
+    <Drawer labelledBy="drawer-title" onClose={close} head={head} footer={footer} aside={aside}>
       <div className={styles.runStatus}>
         <div className={styles.runRow}>
           <b>{runStatusText(data, paused) || 'Not started'}</b>

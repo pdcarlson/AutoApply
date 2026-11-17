@@ -6,6 +6,7 @@ from pathlib import Path
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 
+from agent.browser import LocalBrowser, page_address
 from agent.forms.protected import ProtectedFieldDetector, handoff_reason, merge
 
 CONFIRM_TIMEOUT_S = 15  # how long to wait for the site's thank-you page after Submit
@@ -51,7 +52,8 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
     """Takes one form from link to submitted.
 
     on_event(kind, **data) hears about progress: "phase" (name: opening, filling, submitting or
-    confirming), "field" (label) before each fill, and "filled" (label, value, source, confidence)
+    confirming), "browser" (page: the open page's PageAddress, see agent.browser) once it is
+    open, "field" (label) before each fill, and "filled" (label, value, source, confidence)
     after it. should_stop() is checked before each field; when it returns True the run ends
     with status "cancelled" and the browser is closed.
 
@@ -63,11 +65,12 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
     Playwright objects belong to the thread that made them, so `held` must be used and closed
     from the thread that called run().
     After Submit, the run waits up to confirm_timeout_s seconds for the thank-you page.
+    `browser` is where the browser comes from (agent.browser); by default one is launched here.
     """
 
     def __init__(self, answerer, screenshot_dir, submit=False, show=False,  # pylint: disable=too-many-arguments,too-many-positional-arguments
                  on_event=None, should_stop=None, slow_mo=0, hold=False,
-                 confirm_timeout_s=CONFIRM_TIMEOUT_S, detector=None):
+                 confirm_timeout_s=CONFIRM_TIMEOUT_S, detector=None, browser=None):
         self.answerer = answerer
         self.screenshot_dir = Path(screenshot_dir)
         self.submit = submit
@@ -79,6 +82,7 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
         self.confirm_timeout_s = confirm_timeout_s
         self.detector = detector or ProtectedFieldDetector()
         self.protected = []  # Handoffs for the questions run() left alone
+        self.browser = browser or LocalBrowser(show=show, slow_mo=slow_mo, expose=False)
 
     def emit(self, kind, **data):
         """Tell the caller what the run is doing, if it asked."""
@@ -135,9 +139,11 @@ class ApplyRun:  # pylint: disable=too-many-instance-attributes
         playwright = sync_playwright().start()
         try:
             self.emit("phase", name="opening")
-            browser = playwright.chromium.launch(headless=not self.show, slow_mo=self.slow_mo)
+            browser, endpoint = self.browser.open(playwright)
             try:
                 page = browser.new_page()
+                if endpoint:
+                    self.emit("browser", page=page_address(page, endpoint))
                 page.set_default_timeout(15000)
                 self.drive(page, form, answered, result, filled_shot)
             except Cancelled:

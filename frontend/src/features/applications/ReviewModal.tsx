@@ -1,6 +1,7 @@
 import { useJob, useSubmitJob } from '@/api/queries';
 import type { Application } from '@/api/types';
 import { VerificationCodeForm } from '@/features/inbox/VerificationCodeForm';
+import { LiveBrowser } from '@/features/liveBrowser/LiveBrowser';
 import { useOverlays } from '@/app/providers/overlays';
 import { useToast } from '@/app/providers/toast';
 import { Button } from '@/components/ui/Button';
@@ -33,8 +34,57 @@ export function ReviewModal({ jobId }: { jobId: string }) {
   };
   const onSubmit = () => submit.mutate(jobId, { onSuccess: onSubmitted });
 
+  const live = data?.liveView ?? null;
+
+  const body = job.isError ? (
+    <LoadError what="this application" onRetry={() => job.refetch()} />
+  ) : !data ? (
+    <Loading />
+  ) : data.state === 'handoff' && data.asksForCode ? (
+    <>
+      <Note title={`${data.ats} emailed you a verification code`}>
+        The agent pressed Submit, and {data.ats} wants a code it sent to your email before it takes
+        the application. The form is still open and filled in.
+      </Note>
+      <VerificationCodeForm job={data} onSubmitted={onSubmitted} />
+      <div className={styles.reviewActions}>
+        <Button variant="ghost" onClick={close}>
+          Later
+        </Button>
+        <span className="tiny muted">It waits in your Inbox until you enter the code.</span>
+      </div>
+    </>
+  ) : data.state !== 'ready' ? (
+    <Note title="This one isn’t waiting for review">
+      It may have been submitted already. Check Applications for its status.
+    </Note>
+  ) : (
+    <>
+      <Note title="Nothing has been sent yet">
+        The agent filled all {data.fields.length} fields and stopped before Submit. Check the
+        answers below{live ? ' and the form itself' : ''}, then submit it.
+      </Note>
+      <FieldList fields={data.fields} wide={!live} />
+      {submit.isError && <ErrorBox>That didn’t go through. {submit.error.message}</ErrorBox>}
+      <div className={styles.reviewActions}>
+        <Button
+          variant="primary"
+          loading={submit.isPending}
+          loadingLabel="Submitting…"
+          onClick={onSubmit}
+        >
+          Submit application
+        </Button>
+        <Button variant="ghost" disabled={submit.isPending} onClick={close}>
+          Not yet
+        </Button>
+        <span className="tiny muted">It stays under Ready to submit until you approve it.</span>
+      </div>
+    </>
+  );
+
   return (
-    <Modal labelledBy="review-title" onClose={close} wide>
+    <Modal labelledBy="review-title" onClose={close} wide full={!!live}>
       <ModalHead onClose={close}>
         <div className={styles.headText}>
           <span className="eyebrow">Review before submitting</span>
@@ -48,51 +98,15 @@ export function ReviewModal({ jobId }: { jobId: string }) {
           )}
         </div>
       </ModalHead>
-      {job.isError ? (
-        <LoadError what="this application" onRetry={() => job.refetch()} />
-      ) : !data ? (
-        <Loading />
-      ) : data.state === 'handoff' && data.asksForCode ? (
-        <>
-          <Note title={`${data.ats} emailed you a verification code`}>
-            The agent pressed Submit, and {data.ats} wants a code it sent to your email before it
-            takes the application. The form is still open and filled in.
-          </Note>
-          <VerificationCodeForm job={data} onSubmitted={onSubmitted} />
-          <div className={styles.reviewActions}>
-            <Button variant="ghost" onClick={close}>
-              Later
-            </Button>
-            <span className="tiny muted">It waits in your Inbox until you enter the code.</span>
+      {live && data ? (
+        <div className={styles.reviewSplit}>
+          <div className={styles.reviewLive}>
+            <LiveBrowser url={live.url} label={`${data.company} application form`} />
           </div>
-        </>
-      ) : data.state !== 'ready' ? (
-        <Note title="This one isn’t waiting for review">
-          It may have been submitted already. Check Applications for its status.
-        </Note>
+          <div className={styles.reviewSide}>{body}</div>
+        </div>
       ) : (
-        <>
-          <Note title="Nothing has been sent yet">
-            The agent filled all {data.fields.length} fields and stopped before Submit. Check the
-            answers below, then submit it.
-          </Note>
-          <FieldList fields={data.fields} wide />
-          {submit.isError && <ErrorBox>That didn’t go through. {submit.error.message}</ErrorBox>}
-          <div className={styles.reviewActions}>
-            <Button
-              variant="primary"
-              loading={submit.isPending}
-              loadingLabel="Submitting…"
-              onClick={onSubmit}
-            >
-              Submit application
-            </Button>
-            <Button variant="ghost" disabled={submit.isPending} onClick={close}>
-              Not yet
-            </Button>
-            <span className="tiny muted">It stays under Ready to submit until you approve it.</span>
-          </div>
-        </>
+        body
       )}
     </Modal>
   );

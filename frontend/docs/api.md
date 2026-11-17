@@ -95,6 +95,26 @@ verification code, and the form is still open. The agent types the code in and s
 `422 code_rejected` (the site didn't take it; the job still asks, so another code can be tried)
 or `invalid_code` (empty); `409 no_code_window` (the form window is gone) or `not_handoff`.
 
+### Live view
+
+While a job's browser is open (the agent is filling the form, or the filled form is held for
+review or waiting for a code), the job has `liveView: { url }`; otherwise `liveView` is `null`.
+`url` is a WebSocket endpoint: a path on the API (`/api/jobs/:id/live`), or a full `ws(s)://`
+or `http(s)://` URL if the browser is hosted somewhere else. The UI shows the stream to the
+left of the job's answers and lets the user click, scroll and type in it.
+
+| Direction       | Message                                                                                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| server → client | Binary: one JPEG of the page as it looks now. Sent when the page changes; a slow client skips frames.                                                      |
+| client → server | `{ type: "mouse", action: "move" \| "down" \| "up", x, y, button: "none" \| "left" \| "middle" \| "right", buttons, clickCount, modifiers }`               |
+| client → server | `{ type: "wheel", x, y, deltaX, deltaY, modifiers }` (deltas in page pixels)                                                                               |
+| client → server | `{ type: "key", action: "down" \| "up", key, code, keyCode, text, repeat, modifiers }` (`text` is what a keydown types, `""` for shortcuts and named keys) |
+| client → server | `{ type: "text", text }` (pasted text, inserted at the cursor)                                                                                             |
+
+`x` and `y` are fractions (0 to 1) of the picture's width and height. `modifiers` is
+`{ alt, ctrl, meta, shift }` booleans. Unknown messages are ignored. Close codes: `4404` the job
+has no open browser, `4410` the browser went away, `4403` the page's origin isn't allowed.
+
 Job `state` values and what the UI does with them:
 
 | State         | Meaning                                                                | Shown in                         |

@@ -283,6 +283,17 @@ export interface Job {
    * and the agent types it in and submits.
    */
   asksForCode: boolean;
+  /** Set while the job's browser is open: where to watch and drive it (see LiveView). */
+  liveView: LiveView | null;
+}
+
+/**
+ * A job's browser, streamed. `url` is a WebSocket endpoint (a path on the API, or a full
+ * ws(s)/http(s) URL when the browser is hosted elsewhere) that speaks the protocol in
+ * docs/api.md, "Live view".
+ */
+export interface LiveView {
+  url: string;
 }
 
 export type FieldSourceKind =

@@ -18,11 +18,13 @@ Extension points for later packages:
   (which leaves the filled form windows alone: they end with the process).
 """
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from agent.jobs.job_feed import JobFeed
 from server import jobs, konefal
@@ -115,6 +117,8 @@ def create_app(data_dir: Path | str | None = None, start_worker: bool = True,
     _install_services(app)
 
     install_error_handlers(app)
+    secret_key = config.session_secret or secrets.token_hex(32)
+    app.add_middleware(SessionMiddleware, secret_key=secret_key, same_site="lax")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=CORS_ORIGINS,

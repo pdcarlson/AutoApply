@@ -51,6 +51,7 @@ def server_env(monkeypatch):
     monkeypatch.setenv("AGENT_SHOW_BROWSER", "false")
     monkeypatch.setenv("AGENT_SLOW_MO_MS", "0")
     monkeypatch.setenv("CONFIRM_TIMEOUT_S", "90")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "")
 
 
 @pytest.fixture
@@ -87,6 +88,17 @@ def app(make_app):  # pylint: disable=redefined-outer-name
 @pytest.fixture
 def client(app):  # pylint: disable=redefined-outer-name
     with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def google_client(monkeypatch, make_app):  # pylint: disable=redefined-outer-name
+    """A client with Google sign-in turned on (Google itself is faked in the tests)."""
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "test-client")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI", "http://testserver/api/auth/google/callback")
+    monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
+    with TestClient(make_app()) as test_client:
         yield test_client
 
 

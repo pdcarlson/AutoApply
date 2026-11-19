@@ -299,10 +299,10 @@ def _accept_unplaced(profile: dict, section: dict) -> None:
 
 
 @router.post("/profile/confirm")
-def confirm_profile(store: Store = Depends(get_store)):
+def confirm_profile(request: Request, store: Store = Depends(get_store)):
     with store.tx() as db:
         db.state["profileConfirmed"] = True
-        return session_of(db)
+        return session_of(db, request)
 
 
 # ----- common answers -----

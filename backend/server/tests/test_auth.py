@@ -1,3 +1,6 @@
+from urllib.parse import parse_qs, urlparse
+
+import httpx
 from fastapi.testclient import TestClient
 
 
@@ -57,3 +60,56 @@ def test_user_comes_from_profile(signed_in, app):
     with app.state.store.tx() as db:
         db.profile.update(middleName="")
     assert signed_in.get("/api/session").json()["user"]["name"] == "Mary Smith"
+
+
+def _start_google_sign_in(client, return_to="/"):
+    url = client.post("/api/auth/google", json={"returnTo": return_to}).json()["authorizationUrl"]
+    return parse_qs(urlparse(url).query)
+
+
+def _fake_google(monkeypatch):
+    def fake_post(url, **_kwargs):
+        return httpx.Response(200, json={"access_token": "token"},
+                              request=httpx.Request("POST", url))
+
+    def fake_get(url, **_kwargs):
+        user = {"sub": "123", "name": "Test User", "email": "test@example.com"}
+        return httpx.Response(200, json=user, request=httpx.Request("GET", url))
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+
+def test_google_sign_in_url(google_client):
+    params = _start_google_sign_in(google_client)
+    assert params["client_id"] == ["test-client"]
+    assert params["scope"] == ["openid email profile"]
+    assert params["state"][0]
+    assert google_client.get("/api/session").status_code == 401
+
+
+def test_google_callback_signs_in(google_client, monkeypatch):
+    _fake_google(monkeypatch)
+    state = _start_google_sign_in(google_client, "/inbox")["state"][0]
+    response = google_client.get("/api/auth/google/callback",
+                                 params={"code": "abc", "state": state}, follow_redirects=False)
+    assert response.headers["location"] == "/auth/callback?returnTo=/inbox"
+    user = google_client.get("/api/session").json()["user"]
+    assert user == {"id": "123", "name": "Test User", "email": "test@example.com"}
+    assert google_client.post("/api/auth/logout").status_code == 204
+    assert google_client.get("/api/session").status_code == 401
+
+
+def test_google_callback_rejects_wrong_state(google_client, monkeypatch):
+    _fake_google(monkeypatch)
+    _start_google_sign_in(google_client)
+    response = google_client.get("/api/auth/google/callback",
+                                 params={"code": "abc", "state": "wrong"}, follow_redirects=False)
+    assert response.headers["location"] == "/auth/callback?error=invalid_state"
+    assert google_client.get("/api/session").status_code == 401
+
+
+def test_google_callback_cancelled(google_client):
+    _start_google_sign_in(google_client)
+    response = google_client.get("/api/auth/google/callback",
+                                 params={"error": "access_denied"}, follow_redirects=False)
+    assert response.headers["location"] == "/auth/callback?error=access_denied"

@@ -56,6 +56,7 @@ def delete_account(request: Request, store: Store = Depends(get_store)):
     worker = request.app.state.worker
     worker.cancel_current()
     store.wipe()
+    request.session.clear()
     worker.wake()
     log.info("Account data deleted")
     return Response(status_code=204)

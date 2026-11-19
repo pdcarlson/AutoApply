@@ -10,7 +10,7 @@ You need Python 3.11+ and Node 20+. Commands are for Windows PowerShell.
    python -m venv .venv
    .venv\Scripts\python -m pip install -r server/requirements.txt
    .venv\Scripts\python -m playwright install chromium
-   copy agent\.env.example agent\.env
+   copy .env.example .env
    ```
 
 2. Set up the frontend (once), from `frontend/`:
@@ -64,16 +64,14 @@ npm test
 
 ## Notes
 
-- **Settings** are in `backend/agent/.env`. Restart after changing them.
-
-  | Setting              | What it does                                                                  |
-  | -------------------- | ----------------------------------------------------------------------------- |
-  | `SUBMIT_REAL_FORM`   | `false` (default): Submit records the application but never sends it. `true`: Submit really applies. |
-  | `ANTHROPIC_API_KEY`  | Optional. With a key, Claude drafts answers. Without one, the agent asks you. |
-  | `AGENT_SHOW_BROWSER` | `true` shows the browser window while the agent fills the form.              |
-  | `AGENT_SLOW_MO_MS`   | Slows the browser down so you can follow it, e.g. `250`.                      |
-  | `CONFIRM_TIMEOUT_S`  | How long Submit waits for the thank-you page. Default `90`.                   |
-  | `BROWSER_CDP_URL`    | Optional. Use a Chromium that is already running elsewhere (its DevTools address, e.g. `http://host:9222` or a `wss://` URL) instead of launching one here. |
+| Setting              | What it does                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SUBMIT_REAL_FORM`   | `false` (default): Submit records the application but never sends it. `true`: Submit really applies.                                                        |
+| `ANTHROPIC_API_KEY`  | Optional. With a key, Claude drafts answers. Without one, the agent asks you.                                                                               |
+| `AGENT_SHOW_BROWSER` | `true` shows the browser window while the agent fills the form.                                                                                             |
+| `AGENT_SLOW_MO_MS`   | Slows the browser down so you can follow it, e.g. `250`.                                                                                                    |
+| `CONFIRM_TIMEOUT_S`  | How long Submit waits for the thank-you page. Default `90`.                                                                                                 |
+| `BROWSER_CDP_URL`    | Optional. Use a Chromium that is already running elsewhere (its DevTools address, e.g. `http://host:9222` or a `wss://` URL) instead of launching one here. |
 
 - **The live browser.** While the agent fills a form, and afterwards while you review it, the
   form's browser is shown live to the left of its answers (open a job from **Applying now**, or
@@ -98,4 +96,4 @@ npm test
   `npm run dev:api` from `frontend/`.
 - **The agent on its own, without the web app:** from `backend/`, run
   `.venv\Scripts\python -m agent <greenhouse or ashby job link> --show`. It reads its profile from
-  `PROFILE_PATH` in `backend/agent/.env`, not from the web app.
+  `PROFILE_PATH` in `.env`, not from the web app.

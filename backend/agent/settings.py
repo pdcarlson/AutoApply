@@ -1,11 +1,11 @@
-"""Settings for the agent, read from agent/.env."""
+"""Settings for the agent, read from the .env at the repo root."""
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 AGENT_DIR = Path(__file__).parent
-load_dotenv(AGENT_DIR / ".env")
+load_dotenv(AGENT_DIR / "../../.env")
 
 # Until we trust it, the agent fills real forms but never presses Submit on them.
 SUBMIT_REAL_FORM = os.getenv("SUBMIT_REAL_FORM", "false").lower() == "true"

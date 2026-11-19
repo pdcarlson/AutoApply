@@ -1,6 +1,6 @@
-"""Server configuration, read from the environment and backend/agent/.env.
+"""Server configuration, read from the environment and the root .env.
 
-`agent.settings` is imported first so it loads agent/.env; variables already set in the process
+`agent.settings` is imported first so it loads .env; variables already set in the process
 environment win over the file, which is how tests and scripts force values.
 """
 import os
@@ -41,6 +41,12 @@ class Config:  # pylint: disable=too-many-instance-attributes
     data_dir: Path
     host: str = "127.0.0.1"
     port: int = 8080
+    # Google sign-in and the session cookie
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = ""
+    session_secret: str = ""
+    frontend_url: str = "http://localhost:5173"
     submit_real_form: bool = False
     claude_enabled: bool = False
     profile_path: Path = agent_settings.PROFILE_PATH
@@ -61,13 +67,18 @@ def load_config(data_dir: Path | str | None = None) -> Config:
     """Builds a Config from the current environment. `data_dir` overrides AUTOAPPLY_DATA_DIR."""
     if data_dir is None:
         data_dir = os.getenv("AUTOAPPLY_DATA_DIR") or DEFAULT_DATA_DIR
-    return Config(
+    config = Config(
         data_dir=Path(data_dir).resolve(),
         host=os.getenv("AUTOAPPLY_HOST") or "127.0.0.1",
         port=_env_int("AUTOAPPLY_PORT", 8080),
-        # The one switch for pressing Submit lives in agent/.env (or the environment).
+        google_client_id=(os.getenv("GOOGLE_OAUTH_CLIENT_ID") or "").strip(),
+        google_client_secret=(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip(),
+        google_redirect_uri=(os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or "").strip(),
+        session_secret=(os.getenv("SESSION_SECRET") or "").strip(),
+        frontend_url=(os.getenv("FRONTEND_URL") or "http://localhost:5173").rstrip("/"),
+        # The one switch for pressing Submit lives in .env (or the environment).
         submit_real_form=agent_settings.SUBMIT_REAL_FORM,
-        # USE_CLAUDE=false turns Claude off even when agent/.env has a key: Windows shells
+        # USE_CLAUDE=false turns Claude off even when .env has a key: Windows shells
         # can't set ANTHROPIC_API_KEY to an empty value (they delete it, and .env fills it in).
         claude_enabled=bool(os.getenv("ANTHROPIC_API_KEY")) and _env_bool("USE_CLAUDE", True),
         profile_path=Path(agent_settings.PROFILE_PATH),
@@ -79,6 +90,25 @@ def load_config(data_dir: Path | str | None = None) -> Config:
         confirm_timeout_s=_env_int("CONFIRM_TIMEOUT_S", 90),
         browser_cdp_url=(os.getenv("BROWSER_CDP_URL") or "").strip(),
     )
+    _check_google_settings(config)
+    return config
+
+
+def _check_google_settings(config: Config) -> None:
+    """Google sign-in is on once a client ID is set, and then it needs the rest of its settings.
+
+    An empty session secret would let anyone sign their own session cookie, so the server
+    refuses to start instead.
+    """
+    if not config.google_client_id:
+        return
+    missing = [name for name, value in (
+        ("GOOGLE_OAUTH_CLIENT_SECRET", config.google_client_secret),
+        ("GOOGLE_OAUTH_REDIRECT_URI", config.google_redirect_uri),
+        ("SESSION_SECRET", config.session_secret),
+    ) if not value]
+    if missing:
+        raise ValueError(f"GOOGLE_OAUTH_CLIENT_ID is set, so .env also needs {', '.join(missing)}")
 
 
 def get_config(request: Request) -> Config:

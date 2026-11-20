@@ -1,7 +1,8 @@
 """PUT /common-answers mirrors the answers into `onb-*` Answer-bank records."""
 import json
 
-from server.common_answers import answer_text, long_date
+from onboarding.onboarding_questions import load_questions
+from server.common_answers import COMMON_QUESTION_KEYS, answer_text, long_date
 from server.self_id import migrate_common_answers
 from server.store import Store
 
@@ -145,3 +146,13 @@ def test_saving_deletes_the_old_self_id_record(app, client):
                               origin="onboarding", source="Onboarding · common questions")
     client.put("/api/common-answers", json=_common())
     assert "onb-selfId" not in _onb(client)
+
+
+def test_onboarding_catalog_has_every_common_question():
+    """The onboarding catalog words and categorizes every common question, and keeps its own."""
+    questions = load_questions()
+    for key in COMMON_QUESTION_KEYS:
+        prompt, bank_key, category = questions[key]
+        assert prompt and bank_key == key
+        assert category in {"Eligibility", "Education", "Logistics", "Pay", "Experience", "Self-ID"}
+    assert questions["0"] == ["What is your full name?", "Name"]

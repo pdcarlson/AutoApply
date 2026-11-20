@@ -1,4 +1,4 @@
-"""The Answer bank stored through AnswerBankManager, and the /answers routes."""
+"""The Answer bank stored in an AnswerBankFile, and the /answers routes."""
 import json
 from datetime import timedelta
 
@@ -40,7 +40,7 @@ def test_crud_matches_the_answer_shape(client, app):
     assert patched["answer"] == "A friend" and patched["company"] == "Fake Company"
     assert patched["question"] == created["question"]
 
-    # AnswerBankManager's layout: userdata.local.<id> = record (origin, createdAt are server-only)
+    # AnswerBankFile's layout: userdata.local.<id> = record (origin, createdAt are server-only)
     raw = json.loads(_bank_file(app).read_text(encoding="utf-8"))
     record = raw["userdata"]["local"][created["id"]]
     assert record["origin"] == "manual" and record["createdAt"]

@@ -1,4 +1,4 @@
-"""The Answer bank: one user's saved answers, stored through the onboarding AnswerBankManager."""
+"""The Answer bank: one user's saved answers, stored in an onboarding AnswerBankFile."""
 from __future__ import annotations  # the `list` method would shadow list[...] annotations
 
 import logging
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from agent.applicant.profile import SavedAnswer, normalize
-from server import onboarding_modules
+from onboarding.answer_bank_file import AnswerBankFile
 from server.answer_record import (ANSWER_CATEGORIES, AnswerOrigin, AnswerRecord, clean_company,
                                   guess_category, same_company)
 from server.store import Store, new_id, parse_iso
@@ -17,6 +17,7 @@ __all__ = ["ANSWER_CATEGORIES", "AnswerBank", "guess_category", "same_company"]
 log = logging.getLogger(__name__)
 
 USER = "local"  # the one key each user's own bank file keeps its answers under
+BANK_FILE = "answer_bank.json"
 USED_ON_CAP = 20
 RECENT = timedelta(hours=24)
 
@@ -24,26 +25,25 @@ RECENT = timedelta(hours=24)
 class AnswerBank:
     """One user's answer records in `<data_dir>/answer_bank.json`.
 
-    The file keeps AnswerBankManager's layout, `{"userdata": {"local": {<answer id>: <record>}}}`.
+    The file keeps AnswerBankFile's layout, `{"userdata": {"local": {<answer id>: <record>}}}`.
     Keys are answer ids, not question text, so a global and a company-only answer to the same
     question can coexist. Every method holds the Store's lock across load and save.
     """
 
     def __init__(self, store: Store, path: Path | str | None = None):
         self.store = store
-        self.path = Path(path) if path is not None else onboarding_modules.bank_path(store.data_dir)
+        self.path = Path(path) if path is not None else Path(store.data_dir) / BANK_FILE
+        self.bank_file = AnswerBankFile(self.path)
 
     # ----- raw access -----
 
     def _load(self) -> dict[str, AnswerRecord]:
         """Return id -> record for every usable entry of the user."""
-        with onboarding_modules.bank_file(self.path) as manager:
-            try:
-                raw = manager.LoadUser(USER)
-            except (OSError, ValueError):
-                log.warning("The Answer bank file is unreadable; treating it as empty",
-                            exc_info=True)
-                return {}
+        try:
+            raw = self.bank_file.load_user(USER)
+        except (OSError, ValueError):
+            log.warning("The Answer bank file is unreadable; treating it as empty", exc_info=True)
+            return {}
         if not isinstance(raw, dict):
             return {}
         records = (AnswerRecord.from_json(str(key), value) for key, value in raw.items())
@@ -51,8 +51,7 @@ class AnswerBank:
 
     def _save(self, record: AnswerRecord) -> None:
         """Write one record to the bank file."""
-        with onboarding_modules.bank_file(self.path) as manager:
-            manager.SaveSingleResponse(USER, record.id, record.to_json())
+        self.bank_file.save_answer(USER, record.id, record.to_json())
 
     @staticmethod
     def _newest_first(records: Iterable[AnswerRecord]) -> list[AnswerRecord]:
@@ -177,8 +176,7 @@ class AnswerBank:
     def delete(self, answer_id: str) -> bool:
         """Delete a record; return True if there was one."""
         with self.store.lock:
-            with onboarding_modules.bank_file(self.path) as manager:
-                return manager.DeleteResponse(USER, answer_id)
+            return self.bank_file.delete_answer(USER, answer_id)
 
     def put(self, answer_id: str, *, question: str, answer: str,  # pylint: disable=too-many-arguments  # one keyword per record field
             category: str | None, origin: str, source: str, company: str | None = None) -> dict:

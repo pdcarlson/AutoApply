@@ -6,20 +6,9 @@ import { db, type MockJob } from '@/mocks/db';
 import { slugify } from '@/mocks/fixtures/helpers';
 import { makeJob } from '@/mocks/fixtures/jobs';
 import { toJob, toJobDetail } from '@/mocks/wire';
-import {
-  apiPath,
-  fail,
-  findJob,
-  latency,
-  notFound,
-  ok,
-  slowWork,
-  unauthenticated,
-} from './respond';
+import { apiPath, fail, findJob, notFound, ok, unauthenticated } from './respond';
 
-const ADD_LINK_MS = 900;
-
-/** Skipped jobs, kept so Undo can restore them. Not persisted. */
+/** Skipped jobs, kept so Undo can restore them. */
 const skipped = new Map<string, MockJob>();
 
 /** Which supported board a link's host belongs to, if any. */
@@ -81,19 +70,16 @@ function jobFromLink(link: URL, url: string, ats: Ats): MockJob {
 /** The Inbox job list and the actions on it. */
 export const jobHandlers = [
   http.get(apiPath('/jobs'), async () => {
-    await latency();
     if (!db.signedIn) return unauthenticated();
     advanceAgent();
     return ok(db.jobs.map(toJob));
   }),
   http.get(apiPath('/jobs/:id'), async ({ params }) => {
-    await latency();
     advanceAgent();
     const job = findJob(params.id);
     return job ? ok(toJobDetail(job)) : notFound('Job');
   }),
   http.post(apiPath('/jobs'), async ({ request }) => {
-    await slowWork(ADD_LINK_MS);
     const { url } = (await request.json()) as { url: string };
     let link: URL;
     try {
@@ -124,7 +110,6 @@ export const jobHandlers = [
     return ok(toJob(job), 201);
   }),
   http.post(apiPath('/jobs/apply'), async ({ request }) => {
-    await latency();
     if (!db.session.profileConfirmed) {
       return fail(409, 'profile_not_confirmed', 'Confirm your profile before applying.');
     }

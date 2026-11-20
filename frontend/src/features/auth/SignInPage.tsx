@@ -29,7 +29,7 @@ const NEXT_STEPS = [
 /** What other screens pass along when they send the user here. */
 interface SignInState {
   from?: string;
-  signInError?: 'cancelled' | 'failed';
+  signInError?: 'failed';
 }
 
 /** Starts sign-in, shows why the last attempt failed, and lists the setup steps. */
@@ -37,7 +37,7 @@ export function SignInPage() {
   const state = (useLocation().state ?? {}) as SignInState;
   const auth = useAuthActions();
   const start = useMutation({ mutationFn: () => auth.startSignIn(state.from ?? '/') });
-  // Stays "waiting" after success too, while the browser follows the returned URL.
+  // Stays "waiting" after success too, while the browser goes to Google.
   const isWaiting = start.isPending || start.isSuccess;
 
   return (
@@ -52,13 +52,6 @@ export function SignInPage() {
               waits for your approval before it submits.
             </p>
           </div>
-          {state.signInError === 'cancelled' && (
-            <ErrorBox>
-              <span>
-                <b>Sign-in was cancelled.</b> Nothing was saved. Try again when you’re ready.
-              </span>
-            </ErrorBox>
-          )}
           {(state.signInError === 'failed' || start.isError) && (
             <ErrorBox>
               <span>
@@ -73,7 +66,7 @@ export function SignInPage() {
             loadingLabel="Starting…"
             onClick={() => start.mutate()}
           >
-            {auth.google ? 'Continue with Google' : 'Begin Onboarding'}
+            Continue with Google
           </Button>
         </div>
       </main>

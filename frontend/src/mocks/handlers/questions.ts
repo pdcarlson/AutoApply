@@ -5,12 +5,11 @@ import { acceptAnswer } from '@/mocks/agent';
 import { db } from '@/mocks/db';
 import { interpretReply } from '@/mocks/replies';
 import { toJob } from '@/mocks/wire';
-import { apiPath, fail, findJob, latency, notFound, ok } from './respond';
+import { apiPath, fail, findJob, notFound, ok } from './respond';
 
 /** Replying to, answering, and accepting a paused question. */
 export const questionHandlers = [
   http.post(apiPath('/jobs/:id/question/messages'), async ({ params, request }) => {
-    await latency();
     const job = findJob(params.id);
     if (!job?.question) return notFound('Question');
     const { text } = (await request.json()) as { text: string };
@@ -31,7 +30,6 @@ export const questionHandlers = [
     return ok(job.question);
   }),
   http.post(apiPath('/jobs/:id/question/accept'), async ({ params, request }) => {
-    await latency();
     const job = findJob(params.id);
     if (!job?.question?.proposedAnswer) {
       return fail(409, 'no_answer', 'There’s no answer to use yet.');

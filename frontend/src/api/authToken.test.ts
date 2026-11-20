@@ -1,6 +1,6 @@
 /** Tests that API requests carry the session token when sign-in provides one. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authHeaders, authToken, setTokenSource, usesAuthTokens } from './authToken';
+import { authHeaders, authToken, setTokenSource } from './authToken';
 import { http } from './client';
 
 afterEach(() => {
@@ -12,8 +12,7 @@ const okJson = () =>
   new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
 
 describe('auth tokens', () => {
-  it('sends nothing when no sign-in is configured', async () => {
-    expect(usesAuthTokens()).toBe(false);
+  it('sends nothing when no token source is registered', async () => {
     expect(await authToken()).toBeNull();
     expect(await authHeaders()).toEqual({});
   });
@@ -27,7 +26,6 @@ describe('auth tokens', () => {
 
     const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer token-1');
-    expect(usesAuthTokens()).toBe(true);
   });
 
   it('asks for a fresh token on every request', async () => {

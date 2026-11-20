@@ -1,22 +1,20 @@
-/** Loads images the API serves, sending the session token when sign-in needs one. */
+/** Loads images the API serves, sending the session token. */
 import { useEffect, useState } from 'react';
-import { authHeaders, usesAuthTokens } from './authToken';
+import { authHeaders } from './authToken';
 import { apiUrl } from './client';
 
 /** An API path like `/api/screenshots/x.png`, on the API's origin (which may not be this page's). */
 const onApiOrigin = (url: string) => new URL(url, apiUrl('/')).toString();
 
 /**
- * A `src` for an image the API serves. An `<img>` can't send the session token, so with
- * token sign-in the picture is fetched with it and shown from memory; otherwise the URL is
- * used as is. Undefined while loading (or when it couldn't be loaded).
+ * A `src` for an image the API serves. An `<img>` can't send the session token, so the picture
+ * is fetched with it and shown from memory. Undefined while loading or when it failed.
  */
 export function useApiImage(url: string | null | undefined): string | undefined {
   const [fetched, setFetched] = useState<{ url: string; src: string }>();
-  const viaFetch = usesAuthTokens();
 
   useEffect(() => {
-    if (!url || !viaFetch) return;
+    if (!url) return;
     let stopped = false;
     let objectUrl: string | undefined;
     void (async () => {
@@ -34,9 +32,7 @@ export function useApiImage(url: string | null | undefined): string | undefined 
       stopped = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [url, viaFetch]);
+  }, [url]);
 
-  if (!url) return undefined;
-  if (!viaFetch) return onApiOrigin(url);
-  return fetched?.url === url ? fetched.src : undefined;
+  return fetched && fetched.url === url ? fetched.src : undefined;
 }

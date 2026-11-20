@@ -12,7 +12,6 @@ import type {
   ApplicationStatus,
   ApplyResult,
   CommonAnswers,
-  GoogleSignInStart,
   Job,
   JobBoard,
   JobDetail,
@@ -25,20 +24,10 @@ import type {
   Session,
 } from './types';
 
-/** Signing in and out. */
+/** The signed-in session. */
 export const authApi = {
   /** GET /session → 200 Session, or 401 `unauthenticated` when signed out. */
   getSession: () => http.get<Session>('/session'),
-  /**
-   * POST /auth/google { returnTo } → 200 { authorizationUrl }.
-   * The backend creates the OAuth state, the browser goes to Google, Google returns to the
-   * backend's callback, and the backend sets the session cookie and redirects to
-   * `/auth/callback` (or `/auth/callback?error=access_denied` when the user cancels).
-   */
-  startGoogleSignIn: (returnTo: string) =>
-    http.post<GoogleSignInStart>('/auth/google', { returnTo }),
-  /** POST /auth/logout → 204. */
-  signOut: () => http.post<void>('/auth/logout'),
 };
 
 /** The profile and finishing setup. */

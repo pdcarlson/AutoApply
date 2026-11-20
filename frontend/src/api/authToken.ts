@@ -5,18 +5,12 @@ type TokenSource = () => Promise<string | null>;
 
 let source: TokenSource | null = null;
 
-/**
- * Registers where tokens come from. With Clerk sign-in, `main.tsx` registers Clerk's
- * `getToken`; with the local backend or the mock API nothing is registered.
- */
+/** Registers where tokens come from: `main.tsx` registers Clerk's `getToken`. */
 export function setTokenSource(next: TokenSource | null) {
   source = next;
 }
 
-/** True when requests must carry a token (so plain `<img src>` and bare sockets won't do). */
-export const usesAuthTokens = () => source !== null;
-
-/** The current session token, or null when signed out or when no sign-in is configured. */
+/** The current session token, or null when signed out or nothing is registered (tests). */
 export async function authToken(): Promise<string | null> {
   return source ? source() : null;
 }

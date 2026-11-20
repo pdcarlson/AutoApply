@@ -1,4 +1,4 @@
-/** Sign-in through Clerk, wrapped around the app when Clerk is configured. */
+/** Sign-in through Clerk, wrapped around the app. */
 import { ClerkProvider, useAuth, useClerk } from '@clerk/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
@@ -11,7 +11,7 @@ interface ClerkAuthProps {
   children: ReactNode;
 }
 
-/** Sign-in through Clerk (Google). Loaded only when VITE_CLERK_PUBLISHABLE_KEY is set. */
+/** Sign-in through Clerk (Google). */
 export function ClerkAuth({ children }: ClerkAuthProps) {
   return (
     <ClerkProvider publishableKey={clerkKey} afterSignOutUrl={paths.signIn}>
@@ -20,10 +20,7 @@ export function ClerkAuth({ children }: ClerkAuthProps) {
   );
 }
 
-/**
- * Supplies Clerk's sign-in actions to the app. `/session` stays the app's own source of truth,
- * so the route guards work the same as with the local sign-in.
- */
+/** Supplies Clerk's sign-in actions to the app. `/session` stays the app's source of truth. */
 function ClerkBridge({ children }: ClerkAuthProps) {
   const clerk = useClerk();
   const { isLoaded, userId } = useAuth();
@@ -43,7 +40,6 @@ function ClerkBridge({ children }: ClerkAuthProps) {
 
   const actions = useMemo<AuthActions>(
     () => ({
-      google: true,
       startSignIn: async (returnTo) => {
         const done = `${paths.authCallback}?returnTo=${encodeURIComponent(returnTo)}`;
         if (clerk.session) {

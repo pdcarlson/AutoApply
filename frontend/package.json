@@ -5,8 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:api": "vite --mode backend",
-    "dev:cloud": "vite --mode cloud",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
@@ -43,10 +41,5 @@
     "typescript-eslint": "8.72.1",
     "vite": "7.3.7",
     "vitest": "4.1.12"
-  },
-  "msw": {
-    "workerDirectory": [
-      "public"
-    ]
   }
 }

@@ -1,33 +1,13 @@
 /** The root component and the providers every screen runs inside. */
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { lazy, Suspense, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { RouterProvider } from 'react-router';
 import { OverlayProvider } from '@/app/providers/overlays';
 import { ThemeProvider } from '@/app/providers/theme';
 import { ToastProvider } from '@/app/providers/toast';
-import { clerkEnabled } from '@/auth/config';
-import { Loading } from '@/components/ui/LoadStates';
+import { ClerkAuth } from '@/auth/ClerkAuth';
 import { createQueryClient } from './queryClient';
 import { router } from './router';
-
-// Clerk's code is only downloaded by builds that sign in with it.
-const ClerkAuth = lazy(() =>
-  import('@/auth/ClerkAuth').then((module) => ({ default: module.ClerkAuth })),
-);
-
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-/** Sign-in: Clerk when it is configured, otherwise the local backend's own (the default). */
-function AuthProvider({ children }: AuthProviderProps) {
-  if (!clerkEnabled) return children;
-  return (
-    <Suspense fallback={<Loading />}>
-      <ClerkAuth>{children}</ClerkAuth>
-    </Suspense>
-  );
-}
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -35,27 +15,27 @@ interface AppProvidersProps {
   queryClient?: QueryClient;
 }
 
-/** Everything the app needs around its routes. Tests render pages inside this too. */
+/** Everything around the routes except sign-in. Tests render pages inside this too. */
 export function AppProviders({ children, queryClient }: AppProvidersProps) {
   const [client] = useState(() => queryClient ?? createQueryClient());
   return (
     <QueryClientProvider client={client}>
       <ThemeProvider>
         <ToastProvider>
-          <AuthProvider>
-            <OverlayProvider>{children}</OverlayProvider>
-          </AuthProvider>
+          <OverlayProvider>{children}</OverlayProvider>
         </ToastProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
 }
 
-/** The whole app: providers around the router. */
+/** The whole app: providers and Clerk sign-in around the router. */
 export function App() {
   return (
     <AppProviders>
-      <RouterProvider router={router} />
+      <ClerkAuth>
+        <RouterProvider router={router} />
+      </ClerkAuth>
     </AppProviders>
   );
 }

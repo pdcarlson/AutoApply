@@ -3,21 +3,18 @@ import { http } from 'msw';
 import type { ApplicationStatus } from '@/api/types';
 import { db } from '@/mocks/db';
 import { toApplicationSummary } from '@/mocks/wire';
-import { apiPath, latency, notFound, ok } from './respond';
+import { apiPath, notFound, ok } from './respond';
 
 /** Listing sent applications and moving them between statuses. */
 export const applicationHandlers = [
   http.get(apiPath('/applications'), async () => {
-    await latency();
     return ok(db.applications.map(toApplicationSummary));
   }),
   http.get(apiPath('/applications/:id'), async ({ params }) => {
-    await latency();
     const application = db.applications.find((candidate) => candidate.id === params.id);
     return application ? ok(application) : notFound('Application');
   }),
   http.patch(apiPath('/applications/:id'), async ({ params, request }) => {
-    await latency();
     const application = db.applications.find((candidate) => candidate.id === params.id);
     if (!application) return notFound('Application');
     const { status: next } = (await request.json()) as { status: ApplicationStatus };

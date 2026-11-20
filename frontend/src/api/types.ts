@@ -30,11 +30,6 @@ export interface Session {
   profileConfirmed: boolean;
 }
 
-export interface GoogleSignInStart {
-  /** Google's authorization URL. The browser is sent there; Google redirects back to the backend. */
-  authorizationUrl: string;
-}
-
 // ===== Profile =====
 
 export interface ProfileLink {

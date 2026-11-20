@@ -4,16 +4,14 @@ import type { AgentSettings } from '@/api/types';
 import { advanceAgent } from '@/mocks/agent';
 import { db } from '@/mocks/db';
 import { agentStatus } from '@/mocks/wire';
-import { apiPath, latency, ok } from './respond';
+import { apiPath, ok } from './respond';
 
 /** The agent's settings and run state. */
 export const agentHandlers = [
   http.get(apiPath('/settings'), async () => {
-    await latency();
     return ok(db.settings);
   }),
   http.patch(apiPath('/settings'), async ({ request }) => {
-    await latency();
     const patch = (await request.json()) as Partial<AgentSettings>;
     db.settings = { ...db.settings, ...patch };
     // A higher limit lets jobs held for tomorrow go today.

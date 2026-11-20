@@ -30,15 +30,13 @@ export const apiUrl = (path: string) =>
 /** A JSON-serializable object or array, or FormData for file uploads. */
 type Body = object;
 
-/** Sends one request with the session cookie and token, and parses the JSON reply. */
+/** Sends one request with the session token, and parses the JSON reply. */
 async function request<T>(method: string, path: string, body?: Body): Promise<T> {
   const isForm = body instanceof FormData;
   const response = await fetch(apiUrl(path), {
     method,
-    credentials: 'include',
     headers: {
       Accept: 'application/json',
-      // With Clerk sign-in this is the session token; otherwise nothing.
       ...(await authHeaders()),
       ...(body && !isForm ? { 'Content-Type': 'application/json' } : {}),
     },
@@ -71,10 +69,7 @@ async function readError(response: Response): Promise<ApiErrorBody> {
 
 /** Downloads a binary response (e.g. the data export) and hands it to the browser as a file. */
 async function download(path: string, fallbackName: string): Promise<void> {
-  const response = await fetch(apiUrl(path), {
-    credentials: 'include',
-    headers: await authHeaders(),
-  });
+  const response = await fetch(apiUrl(path), { headers: await authHeaders() });
   if (!response.ok) throw new ApiError(response.status, await readError(response));
 
   const disposition = response.headers.get('Content-Disposition') ?? '';

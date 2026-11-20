@@ -1,6 +1,6 @@
 /** The app's routes: sign-in, setup, and the signed-in screens. */
 import { createBrowserRouter, Navigate } from 'react-router';
-import { clerkEnabled } from '@/auth/config';
+import { SsoCallbackPage } from '@/auth/SsoCallbackPage';
 import { AccountDeletedPage } from '@/features/auth/AccountDeletedPage';
 import { AuthCallbackPage } from '@/features/auth/AuthCallbackPage';
 import { SignInPage } from '@/features/auth/SignInPage';
@@ -18,23 +18,14 @@ import { SetupLayout } from '@/layouts/SetupLayout';
 import { RedirectIfSignedIn, RequireSession } from './guards';
 import { paths } from './paths';
 
-/** The browser router `App` renders. Clerk's return page exists only when Clerk is on. */
+/** The browser router `App` renders. */
 export const router = createBrowserRouter([
   {
     element: <RedirectIfSignedIn />,
     children: [{ path: paths.signIn, element: <SignInPage /> }],
   },
   { path: paths.authCallback, element: <AuthCallbackPage /> },
-  ...(clerkEnabled
-    ? [
-        {
-          path: paths.ssoCallback,
-          lazy: async () => ({
-            Component: (await import('@/auth/SsoCallbackPage')).SsoCallbackPage,
-          }),
-        },
-      ]
-    : []),
+  { path: paths.ssoCallback, element: <SsoCallbackPage /> },
   { path: paths.accountDeleted, element: <AccountDeletedPage /> },
   {
     element: <RequireSession />,

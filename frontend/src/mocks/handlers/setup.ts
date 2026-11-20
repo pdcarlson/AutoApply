@@ -5,7 +5,7 @@ import { RESUME_MAX_BYTES } from '@/lib/resumeFile';
 import { db } from '@/mocks/db';
 import { emptyProfile, PARSE_SECTIONS, parsedProfile } from '@/mocks/fixtures/profile';
 import { currentSession } from '@/mocks/wire';
-import { apiPath, fail, isFile, latency, notFound, ok, unauthenticated } from './respond';
+import { apiPath, fail, isFile, notFound, ok, unauthenticated } from './respond';
 
 const RESUME_TYPES = /\.(pdf|docx)$/i;
 /** How many more parse progress lines show up on each poll. */
@@ -21,17 +21,14 @@ const describeFile = (file: File): ResumeFile => ({
 
 const profileHandlers = [
   http.get(apiPath('/profile'), async () => {
-    await latency();
     return db.signedIn ? ok(db.profile) : unauthenticated();
   }),
   http.put(apiPath('/profile'), async ({ request }) => {
-    await latency();
     const update = (await request.json()) as ProfileUpdate;
     db.profile = { ...db.profile, ...update };
     return ok(db.profile);
   }),
   http.post(apiPath('/profile/unplaced/:id'), async ({ params, request }) => {
-    await latency();
     const { action } = (await request.json()) as { action: 'accept' | 'dismiss' };
     const section = db.profile.unplaced.find((unplaced) => unplaced.id === params.id);
     if (!section) return notFound('Section');
@@ -42,7 +39,6 @@ const profileHandlers = [
     return ok(db.profile);
   }),
   http.post(apiPath('/profile/confirm'), async () => {
-    await latency();
     db.session.profileConfirmed = true;
     return ok(currentSession());
   }),
@@ -50,7 +46,6 @@ const profileHandlers = [
 
 const resumeHandlers = [
   http.post(apiPath('/resume'), async ({ request }) => {
-    await latency();
     const file = (await request.formData()).get('file');
     if (!isFile(file)) return fail(422, 'invalid_type', 'Upload your resume as a PDF or DOCX.');
     if (!RESUME_TYPES.test(file.name)) {
@@ -69,7 +64,6 @@ const resumeHandlers = [
     return ok(db.resumeParse, 202);
   }),
   http.get(apiPath('/resume/parse'), async () => {
-    await latency();
     const parse = db.resumeParse;
     if (!parse) return notFound('Resume');
     if (parse.status === 'parsing') {
@@ -82,7 +76,6 @@ const resumeHandlers = [
     return ok(parse);
   }),
   http.put(apiPath('/resume/file'), async ({ request }) => {
-    await latency();
     const file = (await request.formData()).get('file');
     if (!isFile(file) || !RESUME_TYPES.test(file.name)) {
       return fail(422, 'invalid_type', 'Upload your resume as a PDF or DOCX.');
@@ -94,16 +87,13 @@ const resumeHandlers = [
 
 const answerHandlers = [
   http.get(apiPath('/common-answers'), async () => {
-    await latency();
     return ok(db.commonAnswers);
   }),
   http.put(apiPath('/common-answers'), async ({ request }) => {
-    await latency();
     db.commonAnswers = (await request.json()) as CommonAnswers;
     return ok(db.commonAnswers);
   }),
   http.get(apiPath('/preferences'), async () => {
-    await latency();
     return ok(db.preferences);
   }),
   http.put(apiPath('/preferences'), async ({ request }) => {

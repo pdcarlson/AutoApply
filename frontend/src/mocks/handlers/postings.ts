@@ -3,12 +3,11 @@ import { http } from 'msw';
 import { db } from '@/mocks/db';
 import { makeJob } from '@/mocks/fixtures/jobs';
 import { toJob, toPosting } from '@/mocks/wire';
-import { apiPath, fail, latency, notFound, ok, unauthenticated } from './respond';
+import { apiPath, fail, notFound, ok, unauthenticated } from './respond';
 
 /** The job board and applying from it. */
 export const postingHandlers = [
   http.get(apiPath('/postings'), async () => {
-    await latency();
     if (!db.signedIn) return unauthenticated();
     return ok({
       postings: db.postings.map(toPosting),
@@ -17,7 +16,6 @@ export const postingHandlers = [
     });
   }),
   http.post(apiPath('/postings/:id/apply'), async ({ params }) => {
-    await latency();
     const posting = db.postings.find((candidate) => candidate.id === params.id);
     if (!posting) return notFound('Posting');
     if (!db.session.profileConfirmed) {

@@ -1,17 +1,13 @@
 /** Mock handlers for submitting a reviewed job and finishing one handed to the user. */
 import { http } from 'msw';
 import { submitJob } from '@/mocks/submit';
-import { apiPath, fail, findJob, latency, ok, slowWork } from './respond';
-
-const SUBMIT_MS = 1200;
-const ENTER_CODE_MS = 1500;
+import { apiPath, fail, findJob, ok } from './respond';
 
 const notHandoff = () => fail(409, 'not_handoff', 'This job isn’t waiting for you to finish it.');
 
 /** Submitting, entering an emailed code, and marking a handoff done. */
 export const submissionHandlers = [
   http.post(apiPath('/jobs/:id/submit'), async ({ params }) => {
-    await slowWork(SUBMIT_MS);
     const job = findJob(params.id);
     if (!job || job.state !== 'ready') {
       return fail(409, 'not_ready', 'This job isn’t waiting for review.');
@@ -24,7 +20,6 @@ export const submissionHandlers = [
     return ok(submitJob(job, 'agent'));
   }),
   http.post(apiPath('/jobs/:id/verification-code'), async ({ params, request }) => {
-    await slowWork(ENTER_CODE_MS);
     const job = findJob(params.id);
     if (!job || job.state !== 'handoff') return notHandoff();
     if (!job.asksForCode) {
@@ -44,7 +39,6 @@ export const submissionHandlers = [
     return ok(submitJob(job, 'agent'));
   }),
   http.post(apiPath('/jobs/:id/mark-submitted'), async ({ params }) => {
-    await latency();
     const job = findJob(params.id);
     if (!job || job.state !== 'handoff') return notHandoff();
     return ok(submitJob(job, 'you'));

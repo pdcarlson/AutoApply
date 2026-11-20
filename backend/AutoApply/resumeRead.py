@@ -1,12 +1,15 @@
 import os
 
+import docx
 from pypdf import PdfReader
+from docx import *
 
+MAX_FILE_SIZE = 3*2**8  # look into a good max file size
 MAX_HEADER_WORDS = 3
 KNOWN_HEADERS = ["Education", "Experience", "Service", "Hobbies", "Projects",
                  "Skills", "Awards", "Honors", "Relevant", "Coursework",
                  "Certifications", "Activities", "Leadership", "Summary",
-                 "Objective", "Publications", "Volunteer",]
+                 "Objective", "Publications", "Volunteer"]
 
 
 def isHeader(text):
@@ -35,11 +38,10 @@ def readResumePDF(pdf_path):
     # creating a pdf reader object
     reader = PdfReader(pdf_path)
 
-    # printing number of pages in pdf file
-    print(len(reader.pages))
-
-    # creating a page object
-    text = []
+    # check if the file is too short or too long - someone may be messing with us
+    if len(reader.pages) == 0 or len(reader.pages) > 15:
+        print("File not valid")
+        return None
 
     # create a dictionary: headers as keys, else as value for most recent key
     sections = {"Other": []}
@@ -59,7 +61,29 @@ def readResumePDF(pdf_path):
     return sections
 
 
-def shouldAcceptFile():
-    # stop from using files over a certain page len or file size
+def readResumeDOCX(docx_path):
+    doc = docx.Document(docx_path)
 
+    text = []
+    for paragraph in doc.paragraphs:
+        text.append(paragraph.text)
+
+    # create a dictionary: headers as keys, else as value for most recent key
+    sections = {"Other": []}
+    curKey = "Other"
+
+    for paragraph in doc.paragraphs:
+        line = paragraph.text
+        line.strip()
+        if not line:
+            continue
+        if isHeader(line) or paragraph.style.name.startswith("Heading") or paragraph.style.name == "Title":
+            curKey = line
+            sections.setdefault(curKey, [])
+        else:
+            sections[curKey].append(line)
+    return sections
+
+
+def file_size_check():
     pass

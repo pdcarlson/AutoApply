@@ -1,14 +1,4 @@
-"""Clerk sign-in for AUTH_MODE=clerk: checking session tokens and looking users up.
-
-The web app signs the person in with Clerk (Google) and sends Clerk's short-lived session token
-with every request (`Authorization: Bearer <token>`). `TokenVerifier.verify` checks its
-signature against Clerk's public keys, its issuer, its expiry and the page it was made for, and
-returns the claims; `claims["sub"]` is the Clerk user id.
-
-`ClerkUsers` talks to Clerk's Backend API with CLERK_SECRET_KEY: the person's name and email for
-a new account, and deleting the Clerk user on DELETE /account. Without a secret key it does
-nothing.
-"""
+"""Clerk sign-in for AUTH_MODE=clerk: checking session tokens and looking users up."""
 import base64
 import binascii
 import logging
@@ -28,13 +18,14 @@ TIMEOUT_SECONDS = 10.0
 
 
 def unauthenticated(message: str = "Sign in to continue.") -> ApiError:
+    """Return the 401 error for a request that isn't signed in."""
     return ApiError(401, "unauthenticated", message)
 
 
 def issuer_from_publishable_key(key: str) -> str:
-    """`pk_test_<base64 of "your-app.clerk.accounts.dev$">` -> `https://your-app.clerk.accounts.dev`.
+    """Return the Clerk issuer URL a publishable key encodes, or "" if it isn't one.
 
-    Returns "" when `key` isn't a Clerk publishable key.
+    `pk_test_<base64 of "your-app.clerk.accounts.dev$">` -> `https://your-app.clerk.accounts.dev`.
     """
     parts = key.strip().split("_", 2)
     if len(parts) != 3 or parts[0] != "pk":
@@ -47,9 +38,12 @@ def issuer_from_publishable_key(key: str) -> str:
     return f"https://{host}" if host and "/" not in host else ""
 
 
-class TokenVerifier:
-    """Checks Clerk session tokens. `key_for(token)` returns the public key that signed it;
-    by default it comes from the issuer's JWKS (fetched once and cached)."""
+class TokenVerifier:  # pylint: disable=too-few-public-methods  # one job: verify()
+    """Checks the Clerk session token each request sends as `Authorization: Bearer <token>`.
+
+    `key_for(token)` returns the public key that signed it; by default it comes from the
+    issuer's JWKS (fetched once and cached). Tests pass their own.
+    """
 
     def __init__(self, issuer: str, allowed_origins: tuple[str, ...] = (),
                  key_for: Callable[[str], object] | None = None):
@@ -60,11 +54,13 @@ class TokenVerifier:
         if key_for is None:
             jwks = jwt.PyJWKClient(f"{self.issuer}/.well-known/jwks.json", cache_keys=True,
                                    timeout=TIMEOUT_SECONDS)
-            key_for = lambda token: jwks.get_signing_key_from_jwt(token).key  # noqa: E731
+            def key_for(token: str) -> object:
+                """Return the issuer's public key that signed the token."""
+                return jwks.get_signing_key_from_jwt(token).key
         self._key_for = key_for
 
     def verify(self, token: str | None) -> dict:
-        """The token's claims. Raises ApiError 401 for a missing, expired or forged token."""
+        """Return the token's claims; raise ApiError 401 for a missing, expired or forged one."""
         if not token:
             raise unauthenticated()
         try:
@@ -86,18 +82,22 @@ class TokenVerifier:
 
 
 def bearer_token(header: str | None) -> str | None:
-    """The token of an `Authorization: Bearer <token>` header."""
+    """Return the token of an `Authorization: Bearer <token>` header, or None."""
     scheme, _, token = (header or "").partition(" ")
     return token.strip() or None if scheme.lower() == "bearer" else None
 
 
 @dataclass
 class ClerkUsers:
-    """Clerk's Backend API for one instance. Every call is best effort."""
+    """Clerk's Backend API for one instance, used with CLERK_SECRET_KEY; every call is best effort.
+
+    Without a secret key every call does nothing.
+    """
 
     secret_key: str = ""
 
     def _request(self, method: str, user_id: str) -> dict | None:
+        """Send one request about a user; return Clerk's JSON, or None if it failed."""
         if not self.secret_key:
             return None
         try:
@@ -111,15 +111,16 @@ class ClerkUsers:
             return None
 
     def identity(self, user_id: str) -> dict:
-        """{"firstName", "lastName", "email"} for a user; empty strings for what isn't known."""
+        """Return {"firstName", "lastName", "email"} for a user, "" for what isn't known."""
         user = self._request("GET", user_id) or {}
         emails = user.get("email_addresses") or []
-        primary = next((e for e in emails if e.get("id") == user.get("primary_email_address_id")),
+        primary = next((email for email in emails
+                        if email.get("id") == user.get("primary_email_address_id")),
                        emails[0] if emails else {})
         return {"firstName": (user.get("first_name") or "").strip(),
                 "lastName": (user.get("last_name") or "").strip(),
                 "email": (primary.get("email_address") or "").strip()}
 
     def delete(self, user_id: str) -> bool:
-        """Deletes the Clerk user (their sign-in). True when Clerk confirmed it."""
+        """Delete the Clerk user (their sign-in); return True when Clerk confirmed it."""
         return self._request("DELETE", user_id) is not None

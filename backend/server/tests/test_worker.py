@@ -1,36 +1,28 @@
-"""The AgentWorker against the fake Greenhouse form, with real headless Chromium.
-
-Most tests call `app.state.worker.run_next()` directly (start_worker=False). One test runs the
-real background thread, which is where Playwright's sync API runs in the server.
-"""
-# pylint: disable=redefined-outer-name,unused-argument
+"""The AgentWorker against the fake Greenhouse and Ashby forms, in real headless Chromium."""
 import threading
-import urllib.request
 
 import pytest
 from fastapi.testclient import TestClient
 
 from agent.forms.form_field import FieldAnswer, FormField
+from agent.runner.apply_run import RunResult
 from server import jobs
 from server.questions import make_question
-from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, SPONSORSHIP, WHY_HERE, add_job, apply,
-                                      job_detail, seed_fake_form_answers, set_up_profile,
-                                      wait_for_state)
+from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, SPONSORSHIP, WHY_HERE, add_job,
+                                      apply, job_detail, refuse_network,
+                                      seed_fake_form_answers, set_up_profile, wait_for_state)
 
 SOURCE_KINDS = {"resume", "profile", "common_questions", "answer_bank", "you", "draft", "other"}
 
 
-@pytest.fixture(autouse=True)
-def offline(monkeypatch):
-    def refuse(*_args, **_kwargs):
-        raise AssertionError("tried to reach the network")
-    monkeypatch.setattr(urllib.request, "urlopen", refuse)
-    monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", refuse)
-    monkeypatch.setattr("agent.forms.ashby_form.urlopen", refuse)
+@pytest.fixture(name="offline", autouse=True)
+def fixture_offline(monkeypatch):
+    """Fail any test that tries to reach the network: the fake forms are local files."""
+    refuse_network(monkeypatch, "agent.forms.ashby_form")
 
 
-@pytest.fixture
-def applied(client):
+@pytest.fixture(name="applied")
+def fixture_applied(client):
     """A confirmed profile with a resume, and the fake job applied (queued)."""
     set_up_profile(client)
     job = add_job(client)
@@ -39,10 +31,12 @@ def applied(client):
 
 
 def fields_by_label(detail):
+    """Return the job's filled fields by label."""
     return {f["label"]: f for f in detail["fields"]}
 
 
 def test_unanswered_sponsorship_becomes_a_question(client, app, applied):
+    """A required question nothing answers parks the job on a yes/no question."""
     assert app.state.worker.run_next() == applied
     detail = job_detail(client, applied)
     assert detail["state"] == "needs_input" and detail["phase"] is None
@@ -73,6 +67,7 @@ def test_unanswered_sponsorship_becomes_a_question(client, app, applied):
 
 
 def test_essay_question_after_sponsorship_is_answered(client, app, applied):
+    """With sponsorship answered, the essay question is asked next, scoped to the company."""
     app.state.answer_bank.upsert_by_question(SPONSORSHIP, "No", origin="reply", source="Test")
     app.state.worker.run_next()
     question = job_detail(client, applied)["question"]
@@ -87,6 +82,7 @@ def test_essay_question_after_sponsorship_is_answered(client, app, applied):
 
 
 def test_claude_guess_is_quoted_and_cached(client, app, applied, monkeypatch):
+    """A low-confidence Claude guess is quoted in the question and cached for the next run."""
     app.state.answer_bank.upsert_by_question(SPONSORSHIP, "No", origin="manual")
     calls = []
 
@@ -133,6 +129,7 @@ def test_claude_off_is_never_asked(client, app, applied, monkeypatch):
 
 
 def test_fills_to_ready_with_bank_answers(client, app, applied):
+    """With every answer in the bank the job is filled to `ready` and each answer's use counted."""
     ids = seed_fake_form_answers(app)
     assert app.state.worker.run_next() == applied
     detail = job_detail(client, applied)
@@ -190,7 +187,8 @@ def test_fills_an_ashby_form_to_ready(client, app):
     assert app.state.store.path("screenshots", f"{job['id']}-filled.png").is_file()
 
 
-def test_unfillable_site_goes_to_handoff(client, app, unfillable):  # pylint: disable=unused-argument
+@pytest.mark.usefixtures("unfillable")
+def test_unfillable_site_goes_to_handoff(client, app):
     """A site the agent can't fill is handed to the person to finish."""
     set_up_profile(client)
     job = add_job(client, ASHBY_URL)
@@ -203,6 +201,7 @@ def test_unfillable_site_goes_to_handoff(client, app, unfillable):  # pylint: di
 
 
 def test_missing_resume_sends_the_job_back_to_open(client, app):
+    """A form needing a resume the profile lacks sends the job back to `open`, with a bad check."""
     set_up_profile(client, resume=False)
     seed_fake_form_answers(app)
     job = add_job(client)
@@ -218,10 +217,10 @@ def test_missing_resume_sends_the_job_back_to_open(client, app):
 
 
 def test_failed_run_goes_back_to_open(client, app, applied, monkeypatch):
+    """A failed run goes back to `open`, and failing again doesn't stack bad checks."""
     seed_fake_form_answers(app)
 
-    def boom(self, form, answered, shot_name):  # pylint: disable=unused-argument
-        from agent.runner.apply_run import RunResult  # pylint: disable=import-outside-toplevel
+    def boom(*_args, **_kwargs):
         return RunResult("failed", "Something went wrong on the page: boom")
     monkeypatch.setattr("agent.runner.apply_run.ApplyRun.fill_and_send", boom)
     app.state.worker.run_next()
@@ -236,6 +235,7 @@ def test_failed_run_goes_back_to_open(client, app, applied, monkeypatch):
 
 
 def test_paused_worker_runs_nothing(client, app, applied):
+    """A paused worker leaves the queue alone until it is resumed."""
     client.post("/api/agent/pause")
     assert app.state.worker.run_next() is None
     assert job_detail(client, applied)["state"] == "queued"
@@ -243,7 +243,9 @@ def test_paused_worker_runs_nothing(client, app, applied):
     assert app.state.worker.run_next() == applied
 
 
-def test_run_next_promotes_waiting_jobs(client, app, unfillable):  # pylint: disable=unused-argument
+@pytest.mark.usefixtures("unfillable")
+def test_run_next_promotes_waiting_jobs(client, app):
+    """run_next queues a waiting job when the daily limit has room, then runs it."""
     set_up_profile(client)
     job = add_job(client, ASHBY_URL)
     with app.state.store.tx() as db:
@@ -257,14 +259,14 @@ def test_cancel_mid_run_stops_between_fields(client, app, applied, monkeypatch):
     """Cancelling while the browser is filling stops the run; the job stays open and empty."""
     seed_fake_form_answers(app)
     worker = app.state.worker
-    original = worker._on_event  # pylint: disable=protected-access
+    original = worker.on_event
 
     def cancel_after_first_fill(ctx, submit, kind, data):
         original(ctx, submit, kind, data)
         if kind == "filled":
             response = client.post("/api/jobs/cancel", json={"jobIds": [applied]})
             assert response.status_code == 204
-    monkeypatch.setattr(worker, "_on_event", cancel_after_first_fill)
+    monkeypatch.setattr(worker, "on_event", cancel_after_first_fill)
     worker.run_next()
     detail = job_detail(client, applied)
     assert detail["state"] == "open"
@@ -297,32 +299,35 @@ def test_worker_thread_fills_in_the_background(make_app):
 
 
 def test_worker_stop_mid_run_puts_the_job_back_in_line(client, app, applied, monkeypatch):
+    """Stopping the worker mid-run puts the job back at the front of the queue, empty."""
     seed_fake_form_answers(app)
     worker = app.state.worker
-    original = worker._on_event  # pylint: disable=protected-access
+    original = worker.on_event
 
     def stop_after_first_fill(ctx, submit, kind, data):
         original(ctx, submit, kind, data)
         if kind == "filled":
-            worker._stopping.set()  # pylint: disable=protected-access
-    monkeypatch.setattr(worker, "_on_event", stop_after_first_fill)
+            worker.stopping.set()
+    monkeypatch.setattr(worker, "on_event", stop_after_first_fill)
     worker.run_next()
     detail = job_detail(client, applied)
     assert detail["state"] == "queued" and detail["fields"] == []
     assert client.get("/api/agent/status").json()["queue"] == [applied]
-    worker._stopping.clear()  # pylint: disable=protected-access
+    worker.stopping.clear()
 
 
-def test_delete_account_mid_run(client, app, applied, monkeypatch):
+@pytest.mark.usefixtures("applied")
+def test_delete_account_mid_run(client, app, monkeypatch):
+    """Deleting the account mid-run wipes the job, and the run's result is dropped."""
     seed_fake_form_answers(app)
     worker = app.state.worker
-    original = worker._on_event  # pylint: disable=protected-access
+    original = worker.on_event
 
     def wipe_after_first_fill(ctx, submit, kind, data):
         original(ctx, submit, kind, data)
         if kind == "filled":
             assert client.delete("/api/account").status_code == 204
-    monkeypatch.setattr(worker, "_on_event", wipe_after_first_fill)
+    monkeypatch.setattr(worker, "on_event", wipe_after_first_fill)
     worker.run_next()
     assert app.state.store.read("jobs") == []
 
@@ -341,6 +346,7 @@ def test_delete_account_mid_run(client, app, applied, monkeypatch):
       "enter?")),
 ])
 def test_make_question_variants(form_field, guess, expected):
+    """Select, long select and text fields become the right kind of question."""
     question, internal = make_question("job-9", 3, form_field, guess)
     assert question["id"] == "q-job-9-3"
     assert (question["type"], question["pickOptions"], question["messages"][0]["text"]) == expected

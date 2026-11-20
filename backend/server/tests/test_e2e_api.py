@@ -1,13 +1,4 @@
-"""End to end through the API with the real worker thread, against the fake Greenhouse form.
-
-Sign in, upload the example resume, set up the profile, add the fake link, apply, answer the
-agent's two questions, wait for `ready`, check what was filled, then submit. Runs in both
-SUBMIT_REAL_FORM modes. FAKE_GREENHOUSE (set by conftest) maps the link to
-backend/agent/tests/fake_forms, so Chromium only opens a file:// page and nothing goes online.
-
-Run just these with `python -m pytest server/tests -m e2e`.
-"""
-# pylint: disable=redefined-outer-name,unused-argument
+"""End to end through the API and the real worker thread, against the fake Greenhouse form."""
 import time
 import urllib.request
 
@@ -28,8 +19,8 @@ FAKE_FORM_URI = (FAKE_FORMS / "greenhouse_form.html").resolve().as_uri()
 OPTIONAL_UNANSWERED = ("How did you hear about this job?", "Anything else we should know?")
 
 
-@pytest.fixture
-def network_calls(monkeypatch):
+@pytest.fixture(name="network_calls")
+def fixture_network_calls(monkeypatch):
     """Every urlopen raises, and is recorded. The fake flow must never call it."""
     calls = []
 
@@ -41,8 +32,8 @@ def network_calls(monkeypatch):
     return calls
 
 
-@pytest.fixture
-def opened_urls(monkeypatch):
+@pytest.fixture(name="opened_urls")
+def fixture_opened_urls(monkeypatch):
     """Records every URL Chromium is sent to (Page.goto), from any thread."""
     urls = []
     original = Page.goto
@@ -54,8 +45,8 @@ def opened_urls(monkeypatch):
     return urls
 
 
-@pytest.fixture
-def live(make_app, network_calls):
+@pytest.fixture(name="live")
+def fixture_live(make_app, network_calls):  # pylint: disable=unused-argument  # it cuts the network
     """An app whose AgentWorker thread is running, and a client for it."""
     app = make_app(start_worker=True)
     with TestClient(app) as client:
@@ -78,6 +69,7 @@ def wait_for_question(client, job_id, field, timeout=60.0) -> dict:
 
 
 def ok(response, status=200):
+    """Check the response's status and return its JSON body (None when empty)."""
     assert response.status_code == status, response.text
     return response.json() if response.content else None
 
@@ -207,5 +199,5 @@ def test_e2e_never_reaches_the_network(live, network_calls, opened_urls):
     Chromium is only ever sent to the local fake form."""
     app, client = live
     run_flow(app, client, submit_real_form=True)
-    assert network_calls == []
+    assert not network_calls
     assert opened_urls and set(opened_urls) == {FAKE_FORM_URI}

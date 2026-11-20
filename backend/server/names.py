@@ -1,8 +1,4 @@
-"""A person's name as the profile stores it: firstName, middleName (optional), lastName.
-
-`split_name("Mary Ann Smith")` -> ("Mary", "Ann", "Smith"). Used by the resume import (which
-finds one name line) and by the migration of profiles saved with a single `name`.
-"""
+"""A person's name as the profile stores it: firstName, middleName (optional), lastName."""
 
 NAME_KEYS = ("firstName", "middleName", "lastName")
 
@@ -14,8 +10,11 @@ _PARTICLES = {"van", "von", "de", "del", "della", "der", "di", "da", "du", "la",
 
 
 def split_name(full: str) -> tuple[str, str, str]:
-    """(first, middle, last). One word is a first name; middle is "" for two-word names and
-    holds every word between the first and the last name for longer ones."""
+    """Split "Mary Ann Smith" into ("Mary", "Ann", "Smith").
+
+    One word is a first name; middle is "" for two-word names and holds every word between the
+    first and the last name for longer ones.
+    """
     words = (full or "").split()
     if not words:
         return "", "", ""
@@ -31,13 +30,13 @@ def split_name(full: str) -> tuple[str, str, str]:
 
 
 def full_name(profile: dict) -> str:
-    """"First Middle Last", skipping empty parts."""
+    """Return "First Middle Last" from a profile, skipping empty parts."""
     return " ".join(" ".join(str(profile.get(key) or "").split())
                     for key in NAME_KEYS if str(profile.get(key) or "").strip())
 
 
 def migrate_profile(profile: dict) -> dict:
-    """A profile saved before the name was split: its `name` becomes the three name fields.
+    """Upgrade a profile saved before the name was split: `name` becomes the three name fields.
 
     A stored name field, even an empty one, wins over the legacy `name`, which is dropped.
     """

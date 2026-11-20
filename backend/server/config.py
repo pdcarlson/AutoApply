@@ -1,14 +1,12 @@
-"""Server configuration, read from the environment and backend/agent/.env.
-
-`agent.settings` is imported first so it loads agent/.env; variables already set in the process
-environment win over the file, which is how tests and scripts force values.
-"""
+"""Server configuration, read once from the environment and backend/agent/.env."""
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import Request
 
+# Imported first so it loads agent/.env; variables already set in the process environment win
+# over the file, which is how tests and scripts force values.
 import agent.settings as agent_settings
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -18,6 +16,7 @@ AUTH_MODES = ("local", "clerk")
 
 
 def _env_bool(name: str, default: bool) -> bool:
+    """Return an on/off environment variable, or `default` when it is unset or blank."""
     raw = os.getenv(name)
     if raw is None or raw.strip() == "":
         return default
@@ -25,6 +24,7 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 def _env_int(name: str, default: int) -> int:
+    """Return a whole-number environment variable, or `default` when it is unset or blank."""
     raw = os.getenv(name)
     if raw is None or raw.strip() == "":
         return default
@@ -70,12 +70,14 @@ class Config:  # pylint: disable=too-many-instance-attributes
 
 
 def _env_list(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """Return a comma-separated environment variable as a tuple, or `default` when empty."""
     items = tuple(part.strip().rstrip("/") for part in (os.getenv(name) or "").split(",")
                   if part.strip())
     return items or default
 
 
 def _auth_mode() -> str:
+    """Return AUTH_MODE ("local" or "clerk"); raise ValueError for anything else."""
     mode = (os.getenv("AUTH_MODE") or "local").strip().lower()
     if mode not in AUTH_MODES:
         raise ValueError(f"AUTH_MODE must be one of {AUTH_MODES}, got {mode!r}")
@@ -83,7 +85,7 @@ def _auth_mode() -> str:
 
 
 def load_config(data_dir: Path | str | None = None) -> Config:
-    """Builds a Config from the current environment. `data_dir` overrides AUTOAPPLY_DATA_DIR."""
+    """Return a Config from the current environment; `data_dir` overrides AUTOAPPLY_DATA_DIR."""
     if data_dir is None:
         data_dir = os.getenv("AUTOAPPLY_DATA_DIR") or DEFAULT_DATA_DIR
     return Config(
@@ -115,5 +117,5 @@ def load_config(data_dir: Path | str | None = None) -> Config:
 
 
 def get_config(request: Request) -> Config:
-    """FastAPI dependency: the app's Config."""
+    """Return the app's Config (a FastAPI dependency)."""
     return request.app.state.config

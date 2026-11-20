@@ -1,3 +1,4 @@
+"""The JSON store: atomic writes, transactions, defaults and upgrades."""
 import json
 
 import pytest
@@ -6,11 +7,13 @@ from fastapi.testclient import TestClient
 from server.store import Store
 
 
-def test_data_dir_gets_gitignore(app, data_dir):  # pylint: disable=unused-argument
+def test_data_dir_gets_gitignore(app, data_dir):  # pylint: disable=unused-argument  # builds the folder
+    """A new data folder gets a .gitignore."""
     assert (data_dir / ".gitignore").read_text(encoding="utf-8").strip().endswith("*")
 
 
 def test_writes_are_atomic_and_survive_restart(client, make_app, data_dir):
+    """Writes are atomic and survive restart."""
     client.patch("/api/settings", json={"dailyLimit": 7})
     client.post("/api/agent/pause")
     client.put("/api/preferences",
@@ -26,6 +29,7 @@ def test_writes_are_atomic_and_survive_restart(client, make_app, data_dir):
 
 
 def test_read_only_tx_writes_nothing(tmp_path):
+    """A transaction that only reads writes no file."""
     store = Store(tmp_path)
     with store.tx() as db:
         assert db.settings["dailyLimit"] == 25
@@ -33,6 +37,7 @@ def test_read_only_tx_writes_nothing(tmp_path):
 
 
 def test_failed_tx_rolls_back_and_writes_nothing(tmp_path):
+    """Failed tx rolls back and writes nothing."""
     store = Store(tmp_path)
     with store.tx() as db:
         db.settings["dailyLimit"] = 5
@@ -45,6 +50,7 @@ def test_failed_tx_rolls_back_and_writes_nothing(tmp_path):
 
 
 def test_unserializable_change_is_rejected_without_tmp(tmp_path):
+    """Unserializable change is rejected without tmp."""
     store = Store(tmp_path)
     with store.tx() as db:
         db.settings["dailyLimit"] = 5
@@ -56,6 +62,7 @@ def test_unserializable_change_is_rejected_without_tmp(tmp_path):
 
 
 def test_nested_tx_saves_once_at_outer_exit(tmp_path):
+    """Nested tx saves once at outer exit."""
     store = Store(tmp_path)
     with store.tx() as outer:
         with store.tx() as inner:
@@ -66,6 +73,7 @@ def test_nested_tx_saves_once_at_outer_exit(tmp_path):
 
 
 def test_missing_keys_get_defaults_and_corrupt_files_are_moved_aside(tmp_path):
+    """Missing keys get defaults and corrupt files are moved aside."""
     (tmp_path / "state.json").write_text('{"signedIn": true}', encoding="utf-8")
     (tmp_path / "settings.json").write_text("{not json", encoding="utf-8")
     store = Store(tmp_path)
@@ -89,6 +97,7 @@ def test_older_applications_show_their_thank_you_page_screenshot(tmp_path):
 
 
 def test_delete_account_empties_dir_but_keeps_gitignore(signed_in, app, data_dir):
+    """DELETE /account empties the data folder but keeps its .gitignore."""
     signed_in.patch("/api/settings", json={"dailyLimit": 3})
     (app.state.store.dir("screenshots") / "x-filled.png").write_bytes(b"png")
     (app.state.store.dir("resume") / "cv.pdf").write_bytes(b"%PDF")
@@ -101,6 +110,7 @@ def test_delete_account_empties_dir_but_keeps_gitignore(signed_in, app, data_dir
 
 
 def test_export_is_an_attachment(signed_in, app):
+    """The account export downloads as a JSON attachment."""
     with app.state.store.tx() as db:
         db.profile["_resumePath"] = "resume/cv.pdf"
         db.applications = [{"id": "app-j1", "submittedBy": "agent",

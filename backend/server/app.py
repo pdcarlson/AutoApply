@@ -1,27 +1,4 @@
-"""The FastAPI app factory.
-
-Extension points for later packages:
-
-- Routes: add a module with `router = APIRouter()` to `server/routes/` and list it in
-  `server.routes.ROUTE_MODULES`. Every router is mounted under `/api`. Path functions are plain
-  `def` so they run in the threadpool (sync Playwright must not run on the event loop).
-- Services: `_install_services()` puts shared objects on `app.state`:
-    app.state.config       Config (server.config)
-    app.state.accounts     Accounts (server.accounts): each user's Store, AnswerBank and
-                         AgentWorker. Routes reach them with the dependencies `get_store`,
-                         `get_bank` and `get_worker`, never through app.state.
-  With AUTH_MODE=local there is one account, also reachable (for tests and scripts) as
-    app.state.store        Store  (server.store)
-    app.state.answer_bank  AnswerBank (server.answer_bank) over <data_dir>/answer_bank.json
-    app.state.job_feed     JobFeed (agent.jobs.job_feed): the postings the job board ranks
-    app.state.worker       AgentWorker (server.worker); routes call `.wake()`, DELETE /account
-                         calls `.cancel_current()`, mark-submitted calls `.held_form(job_id)`,
-                         tests call `.run_next()` directly, and the live view socket
-                         (server.routes.live) reads `.live`, the open browsers by job id
-  With AUTH_MODE=clerk those three are None: there is one of each per signed-in user.
-  The lifespan starts every worker when `start_worker` is true and stops them on shutdown
-  (which leaves the filled form windows alone: they end with the process).
-"""
+"""Builds the FastAPI app: its services, error handlers, CORS and every router under /api."""
 import logging
 import threading
 from contextlib import asynccontextmanager
@@ -31,49 +8,30 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.jobs.job_feed import JobFeed
-from server import konefal
+from server import autoapply_modules
 from server.accounts import Accounts
 from server.agent_bridge import fake_boards
 from server.clerk import ClerkUsers, TokenVerifier, issuer_from_publishable_key
 from server.config import Config, load_config
 from server.errors import install_error_handlers
 from server.routes import ROUTE_MODULES
-from server.worker import AgentWorker
+from server.runs.agent_worker import AgentWorker
 
 log = logging.getLogger(__name__)
 
 API_PREFIX = "/api"
 
 
-class NullWorker:
-    """A worker that does nothing: same interface as server.worker.AgentWorker."""
-
-    def start(self) -> None:
-        pass
-
-    def stop(self) -> None:
-        pass
-
-    def wake(self) -> None:
-        pass
-
-    def cancel_current(self) -> None:
-        """Asks the run in progress (if any) to stop at the next field. Used by DELETE /account."""
-
-    def held_form(self, job_id: str) -> None:  # pylint: disable=unused-argument
-        """The session holding `job_id`'s filled window: there never is one."""
-        return None
-
-    def run_next(self) -> None:
-        return None
-
-    live = None  # no browsers, so no live views
-
-
 def _install_services(app: FastAPI, verifier: TokenVerifier | None = None) -> None:
-    """Builds the shared services on app.state. Later packages add theirs here, in order."""
+    """Put the shared services on app.state.
+
+    Routes reach each user's Store, AnswerBank and worker through the `get_store`, `get_bank`
+    and `get_worker` dependencies, never through app.state. With AUTH_MODE=local the one
+    account's are also on app.state (store, answer_bank, worker) for tests and scripts; with
+    AUTH_MODE=clerk those are None.
+    """
     config: Config = app.state.config
-    konefal.configure(config.data_dir)
+    autoapply_modules.configure(config.data_dir)
     run_slots = threading.BoundedSemaphore(config.max_concurrent_runs)
     clerk_users = None
     if config.auth_mode == "clerk":
@@ -101,6 +59,10 @@ def _install_services(app: FastAPI, verifier: TokenVerifier | None = None) -> No
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    """Start every worker (when asked to) and stop them on shutdown.
+
+    Stopping leaves the filled form windows alone: they end with the process.
+    """
     accounts: Accounts = app.state.accounts
     if app.state.start_worker:
         accounts.start()
@@ -112,8 +74,12 @@ async def _lifespan(app: FastAPI):
 
 def create_app(data_dir: Path | str | None = None, start_worker: bool = True,
                config: Config | None = None, verifier: TokenVerifier | None = None) -> FastAPI:
-    """Builds the app. `data_dir` overrides AUTOAPPLY_DATA_DIR; `config` replaces the env;
-    `verifier` replaces the Clerk token check (tests sign their own tokens)."""
+    """Return a new app.
+
+    `data_dir` overrides AUTOAPPLY_DATA_DIR, `config` replaces the environment and `verifier`
+    replaces the Clerk token check (tests sign their own tokens). Path functions are plain `def`
+    so they run in the threadpool: sync Playwright must not run on the event loop.
+    """
     if config is None:
         config = load_config(data_dir)
     elif data_dir is not None:

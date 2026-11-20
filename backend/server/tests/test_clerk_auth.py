@@ -1,8 +1,6 @@
-"""AUTH_MODE=clerk: every request needs a Clerk session token, and each user has their own data.
-
-The tests sign their own tokens with a throwaway RSA key (the app is given a verifier that
-trusts it), and Clerk's Backend API is replaced by `FakeClerkUsers`. Nothing goes online.
-"""
+"""AUTH_MODE=clerk: every request needs a Clerk session token, and each user has their own data."""
+# The tests sign their own tokens with a throwaway RSA key (the app is given a verifier that
+# trusts it), and Clerk's Backend API is replaced by `FakeClerkUsers`. Nothing goes online.
 import time
 
 import jwt
@@ -14,7 +12,7 @@ from starlette.websockets import WebSocketDisconnect
 from server.app import create_app
 from server.clerk import TokenVerifier, bearer_token, issuer_from_publishable_key
 from server.config import load_config
-from server.live_view import CLOSE_NO_BROWSER
+from server.routes.live import CLOSE_NO_BROWSER
 from server.routes.live import CLOSE_UNAUTHENTICATED, LIVE_PROTOCOL
 from server.tests.job_helpers import add_job, apply, upload_resume
 
@@ -28,6 +26,7 @@ OTHER_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 def token(user_id: str = ALICE, *, key=KEY, issuer: str = ISSUER, azp: str | None = ORIGIN,
           expires_in: int = 60) -> str:
+    """Return a Clerk-style session token signed with the test key."""
     now = int(time.time())
     claims = {"sub": user_id, "iss": issuer, "iat": now, "nbf": now - 5, "exp": now + expires_in,
               "sid": "sess_1"}
@@ -37,6 +36,7 @@ def token(user_id: str = ALICE, *, key=KEY, issuer: str = ISSUER, azp: str | Non
 
 
 def as_user(user_id: str = ALICE) -> dict:
+    """Return the Authorization header for a user."""
     return {"Authorization": f"Bearer {token(user_id)}"}
 
 
@@ -47,19 +47,23 @@ class FakeClerkUsers:
         self.deleted = []
 
     def identity(self, user_id: str) -> dict:
+        """Return the name and email Clerk would have for the user."""
         first = user_id.split("_")[1].rstrip("0123456789").title()
         return {"firstName": first, "lastName": "Tester", "email": f"{first.lower()}@example.com"}
 
     def delete(self, user_id: str) -> bool:
+        """Record the deleted user and say Clerk confirmed it."""
         self.deleted.append(user_id)
         return True
 
 
-@pytest.fixture
-def make_clerk_app(data_dir, server_env):  # pylint: disable=unused-argument
+@pytest.fixture(name="make_clerk_app")
+def fixture_make_clerk_app(data_dir, server_env):  # pylint: disable=unused-argument  # sets the env
+    """Builds apps with Clerk sign-in, a test signing key and a fake Clerk API."""
     built_apps = []
 
     def build(**overrides):
+        """Build one app."""
         config = load_config(data_dir)
         config.auth_mode = "clerk"
         config.allowed_origins = (ORIGIN,)
@@ -77,13 +81,15 @@ def make_clerk_app(data_dir, server_env):  # pylint: disable=unused-argument
             account.worker.close_forms_for_tests()
 
 
-@pytest.fixture
-def clerk_app(make_clerk_app):  # pylint: disable=redefined-outer-name
+@pytest.fixture(name="clerk_app")
+def fixture_clerk_app(make_clerk_app):
+    """An app with Clerk sign-in."""
     return make_clerk_app()
 
 
-@pytest.fixture
-def api(clerk_app):  # pylint: disable=redefined-outer-name
+@pytest.fixture(name="api")
+def fixture_api(clerk_app):
+    """A TestClient for the Clerk app; each request says who it is for."""
     with TestClient(clerk_app) as test_client:
         yield test_client
 
@@ -92,6 +98,7 @@ def api(clerk_app):  # pylint: disable=redefined-outer-name
 
 def test_publishable_key_names_the_issuer():
     # base64("example-app.clerk.accounts.dev$")
+    """Publishable key names the issuer."""
     key = "pk_test_ZXhhbXBsZS1hcHAuY2xlcmsuYWNjb3VudHMuZGV2JA"
     assert issuer_from_publishable_key(key) == ISSUER
     assert issuer_from_publishable_key("not-a-key") == ""
@@ -99,6 +106,7 @@ def test_publishable_key_names_the_issuer():
 
 
 def test_bearer_token():
+    """Only an `Authorization: Bearer` header gives a token."""
     assert bearer_token("Bearer abc") == "abc"
     assert bearer_token("bearer  abc ") == "abc"
     assert bearer_token("Basic abc") is None
@@ -109,12 +117,14 @@ def test_bearer_token():
                                   "/api/applications", "/api/settings", "/api/agent/status",
                                   "/api/account/export", "/api/screenshots/x.png"])
 def test_every_route_needs_a_token(api, path):
+    """Every route needs a token."""
     response = api.get(path)
     assert response.status_code == 401, path
     assert response.json()["code"] == "unauthenticated"
 
 
 def test_health_needs_no_token(api):
+    """Health needs no token."""
     body = api.get("/api/health").json()
     assert body["ok"] is True and body["authMode"] == "clerk"
 
@@ -128,11 +138,13 @@ def test_health_needs_no_token(api):
     lambda: "garbage",
 ])
 def test_bad_tokens_are_refused(api, bad):
+    """Bad tokens are refused."""
     response = api.get("/api/session", headers={"Authorization": f"Bearer {bad()}"})
     assert response.status_code == 401
 
 
 def test_unsigned_tokens_are_refused(api):
+    """Unsigned tokens are refused."""
     unsigned = jwt.encode({"sub": ALICE, "iss": ISSUER, "exp": int(time.time()) + 60}, None,
                           algorithm="none")
     assert api.get("/api/session",
@@ -148,6 +160,7 @@ def test_a_token_without_a_page_is_fine(api):
 # ----- accounts -----
 
 def test_first_request_creates_the_account_with_the_persons_identity(api, data_dir):
+    """A user's first request creates their account with their Clerk name and email."""
     body = api.get("/api/session", headers=as_user(ALICE)).json()
     assert body == {"user": {"id": ALICE, "name": "Alice Tester", "email": "alice@example.com"},
                     "profileConfirmed": False}
@@ -158,6 +171,7 @@ def test_first_request_creates_the_account_with_the_persons_identity(api, data_d
 
 
 def test_users_only_see_their_own_data(api, data_dir):
+    """Users only see their own data."""
     upload_resume(_As(api, ALICE))
     saved = api.post("/api/answers", headers=as_user(ALICE), json={
         "category": "Logistics", "question": "Favourite colour?", "answer": "Green"})
@@ -177,6 +191,7 @@ def test_users_only_see_their_own_data(api, data_dir):
 
 
 def test_accounts_come_back_after_a_restart(api, make_clerk_app):
+    """Accounts come back after a restart."""
     api.get("/api/session", headers=as_user(ALICE))
     assert api.post("/api/profile/confirm", headers=as_user(ALICE)).status_code == 200
     again = make_clerk_app()
@@ -186,12 +201,14 @@ def test_accounts_come_back_after_a_restart(api, make_clerk_app):
 
 
 def test_local_sign_in_is_off(api):
+    """With Clerk, the local /auth/google sign-in is refused."""
     response = api.post("/api/auth/google", json={"returnTo": "/"})
     assert response.status_code == 400 and response.json()["code"] == "use_clerk"
     assert api.post("/api/auth/logout").status_code == 204
 
 
 def test_delete_account_removes_only_that_user(api, clerk_app, data_dir):
+    """Delete account removes only that user."""
     api.get("/api/session", headers=as_user(ALICE))
     api.get("/api/session", headers=as_user(BOB))
     assert api.delete("/api/account", headers=as_user(ALICE)).status_code == 204
@@ -204,6 +221,7 @@ def test_delete_account_removes_only_that_user(api, clerk_app, data_dir):
 # ----- the live view socket -----
 
 def test_the_socket_needs_a_token(api):
+    """The socket needs a token."""
     with api.websocket_connect("/api/jobs/j-1/live", subprotocols=[LIVE_PROTOCOL]) as socket:
         with pytest.raises(WebSocketDisconnect) as closed:
             socket.receive_bytes()
@@ -215,6 +233,7 @@ def test_the_socket_needs_a_token(api):
 
 
 def test_the_socket_takes_the_token_as_a_subprotocol(api):
+    """The socket takes the token as a subprotocol."""
     with api.websocket_connect("/api/jobs/j-1/live",
                                subprotocols=[LIVE_PROTOCOL, token(ALICE)]) as socket:
         assert socket.accepted_subprotocol == LIVE_PROTOCOL
@@ -234,10 +253,10 @@ def test_a_full_machine_leaves_the_job_queued(api, clerk_app):
     apply(_As(api, ALICE), job["id"])
     alice = clerk_app.state.accounts.get(ALICE)
     bob = clerk_app.state.accounts.get(BOB)
-    assert alice.worker._run_slots is bob.worker._run_slots  # pylint: disable=protected-access
-    slots = alice.worker._run_slots  # pylint: disable=protected-access
+    assert alice.worker._run_slots is bob.worker._run_slots  # pylint: disable=protected-access  # checks the shared slots
+    slots = alice.worker._run_slots  # pylint: disable=protected-access  # checks the shared slots
     taken = 0
-    while slots.acquire(blocking=False):  # pylint: disable=consider-using-with
+    while slots.acquire(blocking=False):  # pylint: disable=consider-using-with  # drains the slots on purpose
         taken += 1
     try:
         assert taken == clerk_app.state.config.max_concurrent_runs
@@ -256,16 +275,18 @@ class _As:
         self._client, self._user_id = client, user_id
 
     def _call(self, method: str, url: str, **kwargs):
+        """Send one request as the user."""
         headers = {**as_user(self._user_id), **kwargs.pop("headers", {})}
         return self._client.request(method, url, headers=headers, **kwargs)
 
     def get(self, url, **kwargs):
+        """Send a GET as the user."""
         return self._call("GET", url, **kwargs)
 
     def post(self, url, **kwargs):
+        """Send a POST as the user."""
         return self._call("POST", url, **kwargs)
 
     def put(self, url, **kwargs):
+        """Send a PUT as the user."""
         return self._call("PUT", url, **kwargs)
-
-

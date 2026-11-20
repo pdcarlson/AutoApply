@@ -1,4 +1,4 @@
-"""Resume upload and parse, profile and confirm routes (spec 2.12)."""
+"""Resume upload and parse, profile and confirm routes."""
 import io
 import time
 from pathlib import Path
@@ -9,10 +9,12 @@ DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def _upload(client, name, content, mime=PDF, path="/api/resume", method="post"):
+    """Upload a file to a resume route and return the response."""
     return getattr(client, method)(path, files={"file": (name, content, mime)})
 
 
 def _wait_for_parse(client, timeout=20.0):
+    """Poll GET /resume/parse until it finishes; return the last body."""
     deadline = time.monotonic() + timeout
     while True:
         parse = client.get("/api/resume/parse").json()
@@ -22,17 +24,20 @@ def _wait_for_parse(client, timeout=20.0):
 
 
 def _upload_example(client):
+    """Upload the example resume and wait for its parse."""
     response = _upload(client, "example_resume.pdf", EXAMPLE_PDF.read_bytes())
     assert response.status_code == 202, response.text
     return response.json(), _wait_for_parse(client)
 
 
 def test_parse_is_404_before_any_upload(client):
+    """GET /resume/parse answers 404 before any upload."""
     response = client.get("/api/resume/parse")
     assert response.status_code == 404 and response.json()["code"] == "not_found"
 
 
 def test_upload_parses_into_the_profile(client, app):
+    """Upload parses into the profile."""
     started, parse = _upload_example(client)
     assert started["status"] == "parsing" and started["sections"] == []
     assert started["error"] is None
@@ -61,6 +66,7 @@ def test_upload_parses_into_the_profile(client, app):
 
 
 def test_experience_without_a_kind_reads_as_work(client, app):
+    """Experience without a kind reads as work."""
     with app.state.store.tx() as db:
         db.profile.update(experience=[{"id": "x-1", "title": "Intern", "org": "Acme"},
                                       {"id": "x-2", "kind": "leadership", "title": "President"}])
@@ -69,6 +75,7 @@ def test_experience_without_a_kind_reads_as_work(client, app):
 
 
 def test_rejects_wrong_type_and_large_files(client):
+    """Uploads that aren't PDF or DOCX, or are too big, are refused."""
     response = _upload(client, "resume.txt", b"hello", mime="text/plain")
     assert response.status_code == 422 and response.json()["code"] == "invalid_type"
     assert "resume.txt" in response.json()["message"]
@@ -80,6 +87,7 @@ def test_rejects_wrong_type_and_large_files(client):
 
 
 def test_unreadable_pdf_fails_with_unreadable(client):
+    """A PDF with no text ends the parse as unreadable."""
     response = _upload(client, "broken.PDF", b"%PDF-1.4 not really a pdf")
     assert response.status_code == 202
     parse = _wait_for_parse(client)
@@ -89,6 +97,7 @@ def test_unreadable_pdf_fails_with_unreadable(client):
 
 
 def test_replace_resume_file_keeps_the_profile(client, app):
+    """Replace resume file keeps the profile."""
     _upload_example(client)
     before = client.get("/api/profile").json()
     response = _upload(client, "new resume.pdf", EXAMPLE_PDF.read_bytes(), path="/api/resume/file",
@@ -109,6 +118,7 @@ def test_replace_resume_file_keeps_the_profile(client, app):
 
 
 def test_put_profile_replaces_editable_fields_only(client):
+    """Put profile replaces editable fields only."""
     _upload_example(client)
     profile = client.get("/api/profile").json()
     update = {k: v for k, v in profile.items() if k not in ("resume", "unplaced")}
@@ -126,6 +136,7 @@ def test_put_profile_replaces_editable_fields_only(client):
 
 
 def test_unplaced_accept_and_dismiss(client, app):
+    """An unplaced section can be accepted into the profile or dismissed."""
     with app.state.store.tx() as db:
         db.profile["education"] = [{"id": "ed-1", "school": "Example State University",
                                     "degreeType": "", "major": "", "gpa": "", "location": "",
@@ -151,6 +162,7 @@ def test_unplaced_accept_and_dismiss(client, app):
 
 
 def test_coursework_without_education_becomes_a_custom_field(client, app):
+    """Coursework without education becomes a custom field."""
     with app.state.store.tx() as db:
         db.profile["unplaced"] = [{"id": "un-1", "text": "Relevant Coursework: Compilers",
                                    "suggestion": "Add to Education"}]
@@ -160,13 +172,15 @@ def test_coursework_without_education_becomes_a_custom_field(client, app):
 
 
 def test_confirm_profile(signed_in):
+    """Confirming the profile shows in the session."""
     response = signed_in.post("/api/profile/confirm")
     assert response.status_code == 200 and response.json()["profileConfirmed"] is True
     assert signed_in.get("/api/session").json()["profileConfirmed"] is True
 
 
 def test_docx_resume_parses(client):
-    import docx  # pylint: disable=import-outside-toplevel
+    """A DOCX resume parses into the profile."""
+    import docx  # pylint: disable=import-outside-toplevel  # only this test needs it
     document = docx.Document()
     document.add_paragraph("Casey Nguyen")
     document.add_paragraph("casey@example.com | (555) 222-3333 | Austin, TX")
@@ -185,7 +199,8 @@ def test_docx_resume_parses(client):
     parse = _wait_for_parse(client)
     assert parse["status"] == "done", parse
     profile = client.get("/api/profile").json()
-    assert (profile["firstName"], profile["lastName"]) == ("Casey", "Nguyen") and profile["state"] == "TX"
+    assert (profile["firstName"], profile["lastName"]) == ("Casey", "Nguyen")
+    assert profile["state"] == "TX"
     school = profile["education"][0]
     assert (school["school"], school["degreeType"], school["major"]) == (
         "Example University", "B.A.", "Mathematics")
@@ -194,6 +209,7 @@ def test_docx_resume_parses(client):
 
 
 def test_delete_account_removes_the_resume(signed_in, app):
+    """Delete account removes the resume."""
     _upload_example(signed_in)
     assert signed_in.delete("/api/account").status_code == 204
     assert not app.state.store.path("resume").exists()

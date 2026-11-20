@@ -15,7 +15,7 @@ EXPORT_FILENAME = "auto-apply-export.json"
 
 
 def _public(record):
-    """Drops server-only keys: anything starting with "_" and the jobs' `internal` blob."""
+    """Return the record without server-only keys: "_"-prefixed ones and jobs' `internal`."""
     if not isinstance(record, dict):
         return record
     return {k: v for k, v in record.items() if not k.startswith("_") and k != "internal"}
@@ -23,6 +23,7 @@ def _public(record):
 
 @router.get("/account/export")
 def export_account(request: Request, store: Store = Depends(get_store)):
+    """Return everything the person has saved, as a JSON file to download."""
     bank = get_bank(request)
     with store.tx() as db:
         data = {
@@ -48,7 +49,7 @@ def export_account(request: Request, store: Store = Depends(get_store)):
 
 @router.delete("/account", status_code=204)
 def delete_account(request: Request, store: Store = Depends(get_store)):
-    """Deletes everything in the data dir but .gitignore and signs the user out.
+    """Delete everything in the data folder but .gitignore and sign the user out.
 
     The current run, if any, is told to stop; its job is gone once the wipe is done. Filled
     form windows are left open (the software never closes one before it is submitted); they

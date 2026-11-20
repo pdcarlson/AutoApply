@@ -1,72 +1,44 @@
-"""POST /jobs/:id/submit in both SUBMIT_REAL_FORM modes, and /jobs/:id/mark-submitted.
-
-`submit_real_form=True` only ever runs against the local fake Greenhouse form (FAKE_GREENHOUSE).
-A fill that reaches `ready` keeps its browser open; Submit presses Submit on that page. The app
-only closes a window after a confirmed submit's screenshot; conftest closes the rest.
-"""
-# pylint: disable=redefined-outer-name,unused-argument
+"""POST /jobs/:id/submit in both SUBMIT_REAL_FORM modes, against the local fake form only."""
 import threading
 import time
-import urllib.request
 
 import pytest
-
-from playwright.sync_api import BrowserType
+from fastapi.testclient import TestClient
 
 from agent.runner.apply_run import NOT_CONFIRMED, RunResult
 from server import jobs
-from server.applications import REFILLED, WATCHING
-from fastapi.testclient import TestClient
-
-from server.tests.job_helpers import (ASHBY_URL, FAKE_URL, SPONSORSHIP, add_job, apply,
-                                      job_detail, seed_fake_form_answers, set_up_profile,
+from server.applications.reasons import WATCHING
+from server.applications.submitter import REFILLED
+from server.tests.job_helpers import (ASHBY_URL, FAKE_URL, SECOND_URL, SPONSORSHIP, add_job,
+                                      apply, job_detail, make_ready, record_launches,
+                                      refuse_network, seed_fake_form_answers, set_up_profile,
                                       use_fake_form_variant)
 
-SECOND_URL = "https://job-boards.greenhouse.io/fakecompany/jobs/1002"  # also the fake form
+
+@pytest.fixture(name="offline", autouse=True)
+def fixture_offline(monkeypatch):
+    """Fail any test that tries to reach the network: the fake form is local files."""
+    refuse_network(monkeypatch)
 
 
-@pytest.fixture(autouse=True)
-def offline(monkeypatch):
-    def refuse(*_args, **_kwargs):
-        raise AssertionError("tried to reach the network")
-    monkeypatch.setattr(urllib.request, "urlopen", refuse)
-    monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", refuse)
-
-
-def make_ready(client, app, url=FAKE_URL) -> str:
-    job = add_job(client, url)
-    apply(client, job["id"])
-    assert app.state.worker.run_next() == job["id"]
-    assert job_detail(client, job["id"])["state"] == "ready"
-    return job["id"]
-
-
-@pytest.fixture
-def ready(client, app):
+@pytest.fixture(name="ready")
+def fixture_ready(client, app):
+    """A job filled to `ready`, its window held open for review; returns its id."""
     set_up_profile(client)
     seed_fake_form_answers(app)
     return make_ready(client, app)
 
 
-def submit(client, job_id):
+def post_submit(client, job_id):
+    """Press Submit on the job through the API."""
     return client.post(f"/api/jobs/{job_id}/submit")
 
 
-def launches(monkeypatch) -> list:
-    """Records every Chromium launch from now on."""
-    seen, original = [], BrowserType.launch
-
-    def spy(self, *args, **kwargs):
-        seen.append(kwargs)
-        return original(self, *args, **kwargs)
-    monkeypatch.setattr(BrowserType, "launch", spy)
-    return seen
-
-
 def test_dry_run_submit(client, app, ready):
+    """With real submits off, the application is a dry run and the held window stays open."""
     session = app.state.worker.forms.get(ready)
     assert session is not None and session.alive  # held open for the review
-    response = submit(client, ready)
+    response = post_submit(client, ready)
     assert session.alive and app.state.worker.forms.get(ready) is session  # nothing was sent
     assert response.status_code == 200, response.text
     summary = response.json()
@@ -95,7 +67,7 @@ def test_dry_run_submit(client, app, ready):
     assert again.status_code == 409 and again.json()["code"] == "already_applied"
     assert again.json()["details"]["sentAt"] == summary["submittedAt"]
     # A second submit of the same job is refused.
-    assert submit(client, ready).status_code == 409
+    assert post_submit(client, ready).status_code == 409
 
 
 def test_real_submit_against_the_fake_form(client, app, ready, monkeypatch):
@@ -103,25 +75,25 @@ def test_real_submit_against_the_fake_form(client, app, ready, monkeypatch):
     app.state.config.submit_real_form = True
     session = app.state.worker.forms.get(ready)
     assert session is not None and session.alive
-    launched = launches(monkeypatch)
+    launched = record_launches(monkeypatch)
     phases = []
     worker = app.state.worker
-    original = worker._on_event  # pylint: disable=protected-access
+    original = worker.on_event
 
     def spy(ctx, is_submit, kind, data):
         original(ctx, is_submit, kind, data)
         if kind == "phase":
             phases.append(app.state.store.read("jobs")[0]["phase"])
-    worker._on_event = spy  # pylint: disable=protected-access
+    worker.on_event = spy
 
-    response = submit(client, ready)
+    response = post_submit(client, ready)
     assert response.status_code == 200, response.text
     summary = response.json()
     assert summary["confirmation"]["reference"].startswith("GH-1001-")
     assert summary["confirmation"]["confirmedAt"] == summary["submittedAt"]
     assert phases == ["submitting", "confirming"]
     # Closed only because it was confirmed and the screenshot saved.
-    assert launched == [] and not session.alive and len(app.state.worker.forms) == 0
+    assert not launched and not session.alive and len(app.state.worker.forms) == 0
     shots = app.state.store.dir("screenshots")
     assert (shots / f"{ready}-filled.png").is_file() and (shots / f"{ready}-result.png").is_file()
 
@@ -140,8 +112,8 @@ def test_submit_fills_again_when_the_window_was_closed(client, app, ready, monke
     app.state.config.submit_real_form = True
     session = app.state.worker.forms.get(ready)
     session.call(lambda held: held.page.close())
-    launched = launches(monkeypatch)
-    response = submit(client, ready)
+    launched = record_launches(monkeypatch)
+    response = post_submit(client, ready)
     assert response.status_code == 200, response.text
     assert len(launched) == 1 and not session.alive
     detail = client.get(f"/api/applications/app-{ready}").json()
@@ -150,13 +122,13 @@ def test_submit_fills_again_when_the_window_was_closed(client, app, ready, monke
     assert detail["confirmation"] is not None
 
 
-def test_submit_after_a_restart_fills_again(client, app, ready, make_app):
+def test_submit_after_a_restart_fills_again(ready, make_app):
     """A restarted server has no held window: it fills the form again, then submits."""
     restarted = make_app()
     restarted.state.config.submit_real_form = True
     with TestClient(restarted) as other:
         assert other.post("/api/auth/google", json={"returnTo": "/"}).status_code == 200
-        response = submit(other, ready)
+        response = post_submit(other, ready)
         assert response.status_code == 200, response.text
         detail = other.get(f"/api/applications/app-{ready}").json()
     assert REFILLED in [e["text"] for e in detail["timeline"]]
@@ -170,7 +142,7 @@ def test_submit_waits_for_a_late_confirmation(client, app, monkeypatch):
     job_id = make_ready(client, app)
     app.state.config.submit_real_form = True
     started = time.monotonic()
-    response = submit(client, job_id)
+    response = post_submit(client, job_id)
     assert response.status_code == 200, response.text
     assert 2.4 < time.monotonic() - started < 30
     assert response.json()["confirmation"] is not None
@@ -188,7 +160,7 @@ def test_verification_code_asked_for(client, app, monkeypatch):
     app.state.config.confirm_timeout_s = 60
     session = app.state.worker.forms.get(job_id)
     started = time.monotonic()
-    response = submit(client, job_id)
+    response = post_submit(client, job_id)
     assert time.monotonic() - started < 30
     assert response.status_code == 502 and response.json()["code"] == "submit_unconfirmed"
     message = response.json()["message"]
@@ -203,15 +175,18 @@ def test_verification_code_asked_for(client, app, monkeypatch):
     assert app.state.store.path("screenshots", f"{job_id}-result.png").is_file()
 
 
-def test_submit_on_a_job_that_isnt_ready(client, app):
+def test_submit_on_a_job_that_isnt_ready(client):
+    """Only a `ready` job can be submitted."""
     set_up_profile(client)
     job = add_job(client)
-    response = submit(client, job["id"])
+    response = post_submit(client, job["id"])
     assert response.status_code == 409 and response.json()["code"] == "not_ready"
-    assert submit(client, "job-nope").status_code == 409
+    assert post_submit(client, "job-nope").status_code == 409
 
 
-def test_mark_submitted_on_a_handoff_job(client, app, unfillable):  # pylint: disable=unused-argument
+@pytest.mark.usefixtures("unfillable")
+def test_mark_submitted_on_a_handoff_job(client, app):
+    """A handoff job the person finished is recorded as theirs, outside the daily count."""
     set_up_profile(client)
     job = add_job(client, ASHBY_URL)
     early = client.post(f"/api/jobs/{job['id']}/mark-submitted")
@@ -240,7 +215,7 @@ def test_answer_deleted_before_submit_sends_what_was_reviewed(client, app):
     job_id = make_ready(client, app)
     app.state.config.submit_real_form = True
     assert client.delete(f"/api/answers/{ids[SPONSORSHIP]}").status_code == 204
-    response = submit(client, job_id)
+    response = post_submit(client, job_id)
     assert response.status_code == 200, response.text
 
 
@@ -252,7 +227,7 @@ def test_answer_deleted_before_a_refill_asks_again(client, app):
     app.state.worker.held_form(job_id).close()  # like a restart
     app.state.config.submit_real_form = True
     assert client.delete(f"/api/answers/{ids[SPONSORSHIP]}").status_code == 204
-    response = submit(client, job_id)
+    response = post_submit(client, job_id)
     assert response.status_code == 409 and response.json()["code"] == "answers_changed"
     detail = job_detail(client, job_id)
     assert detail["state"] == "needs_input" and detail["question"]["field"] == SPONSORSHIP
@@ -260,19 +235,22 @@ def test_answer_deleted_before_a_refill_asks_again(client, app):
     assert REFILLED in [e["text"] for e in app.state.store.read("jobs")[0]["timeline"]]
 
 
-@pytest.mark.parametrize("pressed,code,state", [
-    (False, "submit_failed", "ready"), (True, "submit_unconfirmed", "handoff")])
-def test_failed_submit(client, app, ready, monkeypatch, pressed, code, state):
+@pytest.mark.parametrize("pressed,expected", [
+    (False, ("submit_failed", "ready")), (True, ("submit_unconfirmed", "handoff"))])
+def test_failed_submit(client, app, ready, monkeypatch, pressed, expected):
+    """A submit that fails keeps the window: `ready` if unpressed, `handoff` if pressed."""
     app.state.config.submit_real_form = True
     session = app.state.worker.held_form(ready)
 
-    def fake_submit(self, on_event=None, **_kwargs):  # pylint: disable=unused-argument
+    code, state = expected
+
+    def fake_submit(_self, on_event=None, **_kwargs):
         if pressed:
             on_event("phase", name="submitting")
             return RunResult("failed", NOT_CONFIRMED, pressed=True)
         return RunResult("failed", "Something went wrong on the page: boom")
     monkeypatch.setattr("agent.runner.apply_run.HeldForm.submit", fake_submit)
-    response = submit(client, ready)
+    response = post_submit(client, ready)
     assert response.status_code == 502 and response.json()["code"] == code
     detail = job_detail(client, ready)
     assert detail["state"] == state and detail["phase"] is None
@@ -284,7 +262,7 @@ def test_failed_submit(client, app, ready, monkeypatch, pressed, code, state):
     assert client.get("/api/applications").json() == []
 
 
-def test_submit_waits_for_a_fill_in_progress(client, app, ready):
+def test_submit_waits_for_a_fill_in_progress(client, app, ready):  # pylint: disable=too-many-locals  # two threads and their signals
     """A submit's browser run never overlaps a worker fill: it starts after the fill ends."""
     app.state.config.submit_real_form = True
     worker = app.state.worker
@@ -293,7 +271,7 @@ def test_submit_waits_for_a_fill_in_progress(client, app, ready):
 
     log, lock = [], threading.Lock()
     fill_started, release = threading.Event(), threading.Event()
-    original_execute, original_event = worker.execute, worker._on_event  # pylint: disable=protected-access
+    original_execute, original_event = worker.execute, worker.on_event
 
     def execute(ctx, submit=False):
         with lock:
@@ -313,13 +291,13 @@ def test_submit_waits_for_a_fill_in_progress(client, app, ready):
             fill_started.set()
             assert release.wait(30)
     worker.execute = execute
-    worker._on_event = on_event  # pylint: disable=protected-access
+    worker.on_event = on_event
 
     filler = threading.Thread(target=worker.run_next)
     filler.start()
     assert fill_started.wait(30)
     responses = []
-    submitter = threading.Thread(target=lambda: responses.append(submit(client, ready)))
+    submitter = threading.Thread(target=lambda: responses.append(post_submit(client, ready)))
     submitter.start()
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:  # the submit claims the job, then waits for the lock
@@ -345,17 +323,17 @@ def test_worker_holds_back_while_a_submit_runs(client, app, ready):
     second = add_job(client, SECOND_URL)
     apply(client, second["id"])
     in_submit, release = threading.Event(), threading.Event()
-    original_event = worker._on_event  # pylint: disable=protected-access
+    original_event = worker.on_event
 
     def on_event(ctx, is_submit, kind, data):
         original_event(ctx, is_submit, kind, data)
         if is_submit and kind == "phase" and not in_submit.is_set():
             in_submit.set()
             assert release.wait(30)
-    worker._on_event = on_event  # pylint: disable=protected-access
+    worker.on_event = on_event
 
     responses = []
-    submitter = threading.Thread(target=lambda: responses.append(submit(client, ready)))
+    submitter = threading.Thread(target=lambda: responses.append(post_submit(client, ready)))
     submitter.start()
     assert in_submit.wait(30)
     assert worker.run_next() is None

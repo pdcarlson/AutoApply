@@ -21,11 +21,13 @@ class ApiError(Exception):
 
 
 def not_found(what: str = "Resource") -> ApiError:
+    """Return the 404 error for something that doesn't exist."""
     return ApiError(404, "not_found", f"{what} not found.")
 
 
 def error_response(status: int, code: str, message: str, details: dict | None = None,
                    headers: dict | None = None) -> JSONResponse:
+    """Return a response with the error envelope as its body."""
     body = {"code": code, "message": message}
     if details is not None:
         body["details"] = details
@@ -42,10 +44,12 @@ _HTTP_CODES = {
 
 
 def _api_error(_request: Request, exc: ApiError) -> JSONResponse:
+    """Answer an ApiError with its own status and code."""
     return error_response(exc.status, exc.code, exc.message, exc.details)
 
 
 def _http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Answer the framework's HTTP errors (404, 405...) with the envelope."""
     code, message = _HTTP_CODES.get(exc.status_code, (f"http_{exc.status_code}", "Request failed."))
     if isinstance(exc.detail, str) and exc.detail and exc.status_code not in _HTTP_CODES:
         message = exc.detail
@@ -53,6 +57,7 @@ def _http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
 
 
 def _validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Answer a request body that doesn't match its model with 422 invalid_request."""
     errors = [
         {"loc": list(err.get("loc", ())), "msg": str(err.get("msg", "")),
          "type": str(err.get("type", ""))}
@@ -62,11 +67,13 @@ def _validation_error(_request: Request, exc: RequestValidationError) -> JSONRes
 
 
 def _unexpected_error(_request: Request, exc: Exception) -> JSONResponse:
+    """Log an unexpected error and answer 500 without the stack trace."""
     log.exception("Unhandled error", exc_info=exc)
     return error_response(500, "internal_error", "Something went wrong on the server.")
 
 
 def install_error_handlers(app: FastAPI) -> None:
+    """Make every error the app raises answer with the envelope."""
     app.add_exception_handler(ApiError, _api_error)
     app.add_exception_handler(StarletteHTTPException, _http_error)
     app.add_exception_handler(RequestValidationError, _validation_error)

@@ -1,16 +1,9 @@
-"""Setup's common answers -> `onb-<key>` Answer-bank records (spec 2.5).
-
-`PUT /common-answers` stores common_answers.json and calls `sync_bank`. The wording and category
-of each record come from Konefal's OnboardingQuestions.json catalog. The sync is one-way: editing
-an `onb-*` answer in the Answer bank doesn't change the common answers, and saving setup again
-overwrites the `onb-*` records.
-
-Self-identification is five questions (server/self_id.py), each its own `onb-*` record.
-"""
+"""Mirrors setup's common answers into the Answer bank as `onb-<key>` records."""
 from datetime import date
 
-from server import konefal, self_id
+from server import autoapply_modules, self_id
 from server.answer_bank import AnswerBank, guess_category
+from server.answer_record import AnswerOrigin
 
 COMMON_QUESTION_KEYS = [
     "workAuthorized", "needsSponsorship", "graduation", "earliestStart", "relocate",
@@ -19,15 +12,19 @@ COMMON_QUESTION_KEYS = [
 # Records older setups wrote, deleted on the next save
 RETIRED_KEYS = [self_id.LEGACY_KEY]
 SOURCE = "Onboarding · common questions"
-ORIGIN = "onboarding"
+ORIGIN = AnswerOrigin.ONBOARDING.value
+_CHOICE_KEYS = ("workAuthorized", "needsSponsorship", "relocate")
+_CHOICES = ("Yes", "No", "Depends")
+_FREE_TEXT_KEYS = ("graduation", "expectedPay")
 
 
 def record_id(key: str) -> str:
+    """Return the Answer-bank id of a common question's record."""
     return f"onb-{key}"
 
 
 def long_date(value: str | None) -> str:
-    """"2027-06-01" -> "June 1, 2027". Anything that isn't YYYY-MM-DD comes back unchanged."""
+    """Return "2027-06-01" as "June 1, 2027"; anything that isn't YYYY-MM-DD comes back as is."""
     if not value:
         return ""
     try:
@@ -37,33 +34,52 @@ def long_date(value: str | None) -> str:
     return f"{day:%B} {day.day}, {day.year}"
 
 
+def _listed(values: list | None) -> list[str]:
+    """Return the non-blank items of a list, trimmed."""
+    return [str(value).strip() for value in values or [] if str(value).strip()]
+
+
+def _choice_text(value) -> str | None:
+    """Return a Yes / No / Depends answer, or None."""
+    return value if value in _CHOICES else None
+
+
+def _free_text(value) -> str | None:
+    """Return the trimmed text, or None when blank."""
+    return (value or "").strip() or None
+
+
+def _family_text(value) -> str:
+    """Return the family-employers answer: "No", or the employers to check."""
+    names = _listed(value)
+    return f"Possibly: {', '.join(names)}" if names else "No"
+
+
+# key -> how its stored value reads as a bank answer
+_FORMATTERS = {
+    **{key: _choice_text for key in _CHOICE_KEYS},
+    **{key: _free_text for key in _FREE_TEXT_KEYS},
+    "earliestStart": lambda value: long_date(value) or None,
+    "locations": lambda value: "; ".join(_listed(value)) or None,
+    "familyEmployers": _family_text,
+}
+
+
 def answer_text(key: str, common: dict) -> str | None:
-    """The bank answer for one common question, or None when there is nothing to save."""
+    """Return the bank answer for one common question, or None when there is nothing to save."""
     value = common.get(key)
-    if key in ("workAuthorized", "needsSponsorship", "relocate"):
-        return value if value in ("Yes", "No", "Depends") else None
-    if key == "graduation":
-        return (value or "").strip() or None
-    if key == "earliestStart":
-        return long_date(value) or None
-    if key == "locations":
-        places = [str(p).strip() for p in value or [] if str(p).strip()]
-        return "; ".join(places) or None
-    if key == "expectedPay":
-        return (value or "").strip() or None
-    if key == "familyEmployers":
-        names = [str(n).strip() for n in value or [] if str(n).strip()]
-        return f"Possibly: {', '.join(names)}" if names else "No"
     if key == "race":
         return self_id.answer_wording(key, self_id.effective_race(common))
+    if key in _FORMATTERS:
+        return _FORMATTERS[key](value)
     if key in self_id.VALUES:
         return self_id.answer_wording(key, value)
     return None
 
 
 def catalog() -> dict[str, tuple[str, str]]:
-    """key -> (question wording, category) from OnboardingQuestions.json."""
-    questions = konefal.onboarding_questions()
+    """Return key -> (question wording, category) from OnboardingQuestions.json."""
+    questions = autoapply_modules.onboarding_questions()
     out = {}
     for key in COMMON_QUESTION_KEYS:
         entry = questions.get(key) or [key, key]
@@ -74,7 +90,11 @@ def catalog() -> dict[str, tuple[str, str]]:
 
 
 def sync_bank(bank: AnswerBank, common: dict) -> None:
-    """Upserts `onb-<key>` for each answered, non-skipped key; deletes the rest."""
+    """Upsert `onb-<key>` for each answered, non-skipped key and delete the rest.
+
+    The sync is one way: editing an `onb-*` answer in the bank doesn't change the common
+    answers, and saving setup again overwrites the `onb-*` records.
+    """
     skipped = set(common.get("skipped") or [])
     wording = catalog()
     with bank.store.lock:

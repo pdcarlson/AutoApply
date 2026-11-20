@@ -1,10 +1,6 @@
-"""The voluntary self-identification answers from setup: gender, Hispanic/Latino, race, veteran
-and disability status.
-
-Each is stored in common_answers.json as one of its values below, "decline" ("I don't wish to
-answer") or null (not answered yet, so the agent asks the first time a form has it). Race is a
-follow-up: setup only asks it when the applicant isn't Hispanic or Latino, like Greenhouse forms.
-"""
+"""Setup's voluntary self-identification answers: gender, ethnicity, race, veteran, disability."""
+# Each is stored in common_answers.json as one of its values below, "decline" ("I don't wish to
+# answer") or null (not answered yet, so the agent asks the first time a form has it).
 DECLINE = "decline"
 
 GENDERS = ["Male", "Female", "Non-binary"]
@@ -36,8 +32,11 @@ WORDING = {
 
 
 def effective_race(common: dict) -> str | None:
-    """The race answer that applies: declining Hispanic/Latino declines race too, and race is
-    only asked of applicants who aren't Hispanic or Latino."""
+    """Return the race answer that applies, or None.
+
+    Like Greenhouse forms, race is a follow-up asked only of applicants who aren't Hispanic or
+    Latino, and declining that question declines race too.
+    """
     hispanic = common.get("hispanicLatino")
     if hispanic == DECLINE:
         return DECLINE
@@ -45,6 +44,7 @@ def effective_race(common: dict) -> str | None:
 
 
 def answer_wording(key: str, value: str | None) -> str | None:
+    """Return how the Answer bank words a self-ID answer, or None when it isn't answered."""
     if value is None:
         return None
     if value == DECLINE:
@@ -53,7 +53,7 @@ def answer_wording(key: str, value: str | None) -> str | None:
 
 
 def migrate_common_answers(doc: dict) -> dict:
-    """common_answers.json saved before setup asked each self-ID question.
+    """Upgrade common_answers.json saved before setup asked each self-ID question.
 
     `selfId: "decline"` becomes "decline" for every question not already answered, `"ask"`
     leaves them unanswered, and skipping selfId skips them all.

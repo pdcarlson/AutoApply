@@ -1,30 +1,24 @@
-"""Protected steps (US8): a form with a CAPTCHA, sign-in, password or SSN field is filled
-everywhere else, handed to the person in its open window, and recorded once they finish it.
-"""
-# pylint: disable=redefined-outer-name,unused-argument
+"""Forms with a step only the person may do: filled elsewhere, then handed over in the window."""
 import time
-import urllib.request
 
 import pytest
 
 from agent.forms.protected import CAPTCHA, CaptchaCheck, Handoff, PasswordCheck, SsnCheck
 from agent.runner.apply_run import RunResult
-from server import applications
-from server.tests.job_helpers import (add_job, apply, job_detail, seed_fake_form_answers,
-                                      set_up_profile, use_fake_form_variant)
+from server.applications import reasons
+from server.tests.job_helpers import (add_job, apply, job_detail, refuse_network,
+                                      seed_fake_form_answers, set_up_profile,
+                                      use_fake_form_variant)
 
 
-@pytest.fixture(autouse=True)
-def offline(monkeypatch):
-    """Fails any test that tries to reach the network."""
-    def refuse(*_args, **_kwargs):
-        raise AssertionError("tried to reach the network")
-    monkeypatch.setattr(urllib.request, "urlopen", refuse)
-    monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", refuse)
+@pytest.fixture(name="offline", autouse=True)
+def fixture_offline(monkeypatch):
+    """Fail any test that tries to reach the network."""
+    refuse_network(monkeypatch)
 
 
-@pytest.fixture
-def profile(client, app):
+@pytest.fixture(name="profile")
+def fixture_profile(client, app):
     """A profile and saved answers that fill the whole fake form."""
     set_up_profile(client)
     seed_fake_form_answers(app)
@@ -39,12 +33,13 @@ def make_protected(client, app, monkeypatch, kind: str) -> str:
     return job["id"]
 
 
-def test_ssn_field_hands_the_filled_form_to_the_person(client, app, profile, monkeypatch):
+@pytest.mark.usefixtures("profile")
+def test_ssn_field_hands_the_filled_form_to_the_person(client, app, monkeypatch):
     """The SSN box is left empty, the rest is filled, and the job waits in `handoff`."""
     job_id = make_protected(client, app, monkeypatch, "ssn")
     detail = job_detail(client, job_id)
     assert detail["state"] == "handoff" and detail["question"] is None
-    assert detail["reason"] == SsnCheck.message + applications.PROTECTED_HIDDEN
+    assert detail["reason"] == SsnCheck.message + reasons.PROTECTED_HIDDEN
     labels = [f["label"] for f in detail["fields"]]
     assert "First Name" in labels and "Social Security Number" not in labels
     assert detail["progress"] == {"filled": len(labels), "total": len(labels) + 1}
@@ -58,16 +53,18 @@ def test_ssn_field_hands_the_filled_form_to_the_person(client, app, profile, mon
     assert all("Social Security" not in a["question"] for a in app.state.answer_bank.list())
 
 
-def test_reason_points_at_the_window_when_it_is_shown(client, app, profile, monkeypatch):
+@pytest.mark.usefixtures("profile")
+def test_reason_points_at_the_window_when_it_is_shown(client, app, monkeypatch):
     """With the browser shown, the reason sends the person to the open window."""
     job_id = make_protected(client, app, monkeypatch, "password")
     app.state.config.show_browser = True  # only the wording changes; the window is the same
     session = app.state.worker.forms.get(job_id)
-    assert applications.protected_reason(app.state.config, session.result) \
-        == PasswordCheck.message + applications.PROTECTED_WINDOW
+    assert reasons.protected_reason(app.state.config, session.result) \
+        == PasswordCheck.message + reasons.PROTECTED_WINDOW
 
 
-def test_finishing_it_in_the_window_records_the_application(client, app, profile, monkeypatch):
+@pytest.mark.usefixtures("profile")
+def test_finishing_it_in_the_window_records_the_application(client, app, monkeypatch):
     """The person does the step and presses Submit in the window; the agent records it."""
     job_id = make_protected(client, app, monkeypatch, "password")
     session = app.state.worker.forms.get(job_id)
@@ -84,7 +81,8 @@ def test_finishing_it_in_the_window_records_the_application(client, app, profile
     assert client.get("/api/agent/status").json()["sentToday"] == 1
 
 
-def test_mark_submitted_finishes_a_protected_handoff(client, app, profile, monkeypatch):
+@pytest.mark.usefixtures("profile")
+def test_mark_submitted_finishes_a_protected_handoff(client, app, monkeypatch):
     """The person can also finish it elsewhere and mark it submitted."""
     job_id = make_protected(client, app, monkeypatch, "ssn")
     response = client.post(f"/api/jobs/{job_id}/mark-submitted")
@@ -94,7 +92,8 @@ def test_mark_submitted_finishes_a_protected_handoff(client, app, profile, monke
     assert detail["screenshotUrl"] == f"/api/screenshots/{job_id}-result.png"
 
 
-def test_applying_again_keeps_the_protected_window(client, app, profile, monkeypatch):
+@pytest.mark.usefixtures("profile")
+def test_applying_again_keeps_the_protected_window(client, app, monkeypatch):
     """Skipping and applying again reuses the open window and goes back to `handoff`."""
     job_id = make_protected(client, app, monkeypatch, "ssn")
     session = app.state.worker.forms.get(job_id)
@@ -108,8 +107,8 @@ def test_applying_again_keeps_the_protected_window(client, app, profile, monkeyp
     assert app.state.worker.forms.get(job_id) is session and session.alive
 
 
-def test_a_refill_before_submit_that_finds_a_protected_step_hands_it_over(client, app, profile,
-                                                                          monkeypatch):
+@pytest.mark.usefixtures("profile")
+def test_a_refill_before_submit_that_finds_a_protected_step_hands_it_over(client, app, monkeypatch):
     """Submit without a window fills again first; a protected step there means no Submit."""
     job = add_job(client)
     apply(client, job["id"])
@@ -132,5 +131,5 @@ def test_a_captcha_after_submit_gets_its_own_wording(app):
     result = RunResult("failed", pressed=True,
                        protected=[Handoff(CAPTCHA, "CAPTCHA", CaptchaCheck.message)])
     app.state.config.show_browser = True
-    assert applications.watching_reason({"ats": "Greenhouse"}, app.state.config, result) \
-        == applications.WATCHING_CAPTCHA.format(site="Greenhouse")
+    assert reasons.watching_reason({"ats": "Greenhouse"}, app.state.config, result) \
+        == reasons.WATCHING_CAPTCHA.format(site="Greenhouse")

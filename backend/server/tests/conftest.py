@@ -1,11 +1,4 @@
-"""Shared fixtures: an app over a fresh data dir, offline and with the worker stopped.
-
-- `make_app(**kw)` builds another app on the same data dir (restart tests).
-- `client` is a TestClient (lifespan runs); the user starts signed out.
-- `signed_in` signs that client in through /auth/google.
-- `unfillable` makes real links act like a site the agent can't fill (handed to the person).
-- Every session checks that backend/AutoApply/Bank.json (a tracked fixture) is never written.
-"""
+"""Shared fixtures: an app over a fresh data folder, offline and with the worker stopped."""
 import hashlib
 from pathlib import Path
 
@@ -15,35 +8,39 @@ from fastapi.testclient import TestClient
 from agent.jobs.job_link import UnsupportedLink
 from server.app import create_app
 
-KONEFAL_BANK = Path(__file__).resolve().parents[2] / "AutoApply" / "Bank.json"
+# A tracked file in backend/AutoApply/ that the server must never write to
+AUTOAPPLY_BANK = Path(__file__).resolve().parents[2] / "AutoApply" / "Bank.json"
 
 
 def pytest_configure(config):
+    """Register the e2e marker."""
     config.addinivalue_line(
         "markers", "e2e: whole flows through the real worker thread and headless Chromium "
                    "(select with -m e2e, skip with -m 'not e2e')")
 
 
-def _digest(path: Path) -> str:
+def file_digest(path: Path) -> str:
+    """Return the file's SHA-256, or "missing"."""
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else "missing"
 
 
-@pytest.fixture(scope="session", autouse=True)
-def konefal_bank_untouched():
+@pytest.fixture(name="autoapply_bank_untouched", scope="session", autouse=True)
+def fixture_autoapply_bank_untouched():
     """Bank.json must stay byte-for-byte the same across the whole test session."""
-    before = _digest(KONEFAL_BANK)
+    before = file_digest(AUTOAPPLY_BANK)
     yield before
-    assert _digest(KONEFAL_BANK) == before, "backend/AutoApply/Bank.json was modified"
+    assert file_digest(AUTOAPPLY_BANK) == before, "backend/AutoApply/Bank.json was modified"
 
 
-@pytest.fixture
-def data_dir(tmp_path):
+@pytest.fixture(name="data_dir")
+def fixture_data_dir(tmp_path):
+    """A data folder that doesn't exist yet."""
     return tmp_path / "data"
 
 
-@pytest.fixture
-def server_env(monkeypatch):
-    """Offline, deterministic environment. Set before create_app reads it."""
+@pytest.fixture(name="server_env")
+def fixture_server_env(monkeypatch):
+    """An offline, deterministic environment, set before create_app reads it."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "")
     monkeypatch.setenv("FAKE_GREENHOUSE", "true")
     monkeypatch.setenv("RESUME_PARSE_STEP_MS", "0")
@@ -53,17 +50,17 @@ def server_env(monkeypatch):
     monkeypatch.setenv("CONFIRM_TIMEOUT_S", "90")
 
 
-@pytest.fixture
-def unfillable(monkeypatch):
+@pytest.fixture(name="unfillable")
+def fixture_unfillable(monkeypatch):
     """Every real (non-fake) link acts like a site the agent can't fill, without going online."""
     def refuse(link):
         raise UnsupportedLink(f"AutoApply can't fill {link.site.title()} forms yet.")
     monkeypatch.setattr("server.agent_bridge.form_for", refuse)
 
 
-@pytest.fixture
-def make_app(data_dir, server_env):  # pylint: disable=redefined-outer-name,unused-argument
-    """Builds apps; afterwards, closes every form window they still hold (the app never does)."""
+@pytest.fixture(name="make_app")
+def fixture_make_app(data_dir, server_env):  # pylint: disable=unused-argument  # sets the env
+    """Builds apps on the same data folder; afterwards, closes the form windows they hold."""
     built_apps = []
 
     def build(**kwargs):
@@ -79,19 +76,22 @@ def make_app(data_dir, server_env):  # pylint: disable=redefined-outer-name,unus
             closer()
 
 
-@pytest.fixture
-def app(make_app):  # pylint: disable=redefined-outer-name
+@pytest.fixture(name="app")
+def fixture_app(make_app):
+    """An app over a fresh data folder."""
     return make_app()
 
 
-@pytest.fixture
-def client(app):  # pylint: disable=redefined-outer-name
+@pytest.fixture(name="client")
+def fixture_client(app):
+    """A TestClient with the lifespan running; the user starts signed out."""
     with TestClient(app) as test_client:
         yield test_client
 
 
-@pytest.fixture
-def signed_in(client):  # pylint: disable=redefined-outer-name
+@pytest.fixture(name="signed_in")
+def fixture_signed_in(client):
+    """The client, signed in through /auth/google."""
     response = client.post("/api/auth/google", json={"returnTo": "/"})
     assert response.status_code == 200
     return client

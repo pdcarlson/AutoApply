@@ -1,7 +1,10 @@
-"""resume_text: headers, PDF text clean-up and column untangling, on layout lines."""
+"""Resume reading: headers, PDF text clean-up and column untangling, on layout lines."""
 import pytest
 
-from server.resume_text import clean_line, header_name, page_chunks, sections_from_chunks
+from server.resume.columns import page_chunks
+from server.resume.pdf_lines import clean_line
+from server.resume.resume_reader import sections_from_chunks
+from server.resume.section_headers import header_name
 
 
 @pytest.mark.parametrize("line, header", [

@@ -1,19 +1,4 @@
-"""Whose data a request works on: one Account (store, answer bank, agent worker) per user.
-
-- AUTH_MODE=local: there is one account, "local", and its files sit directly in the data dir,
-  exactly where they always were. Nothing checks who is asking.
-- AUTH_MODE=clerk: every request carries a Clerk session token (server.clerk). The token's user
-  id picks the account; its files live in `<data_dir>/users/<user id>/`. Accounts are created
-  the first time a user shows up, and every account already on disk is loaded at startup so
-  its queue keeps going after a restart.
-
-Routes get what they need through the FastAPI dependencies here and `server.store.get_store`:
-
-    def route(store: Store = Depends(get_store), worker = Depends(get_worker)): ...
-
-All workers share `run_slots`, so at most MAX_CONCURRENT_RUNS browsers fill or submit at once
-however many users there are.
-"""
+"""Whose data a request works on: one Account (store, answer bank, agent worker) per user."""
 import logging
 import re
 import shutil
@@ -28,7 +13,8 @@ from server import jobs
 from server.answer_bank import AnswerBank
 from server.clerk import ClerkUsers, TokenVerifier, bearer_token, unauthenticated
 from server.config import Config
-from server.store import DEMO_USER, Store, default_profile
+from server.store import Store
+from server.store_docs import DEMO_USER, default_profile
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +35,13 @@ class Account:
 
 
 class Accounts:
-    """The accounts by user id. Thread-safe."""
+    """The accounts by user id. Thread-safe.
+
+    With AUTH_MODE=local there is one account, "local", whose files sit directly in the data
+    folder and nothing checks who is asking. With AUTH_MODE=clerk the Clerk session token's user
+    id picks the account, whose files live in `<data_dir>/users/<user id>/`; every account on
+    disk is loaded at startup so its queue keeps going after a restart.
+    """
 
     def __init__(self, config: Config, make_worker: Callable[[Store, AnswerBank], object],
                  verifier: TokenVerifier | None = None, clerk_users: ClerkUsers | None = None):
@@ -69,34 +61,38 @@ class Accounts:
 
     @property
     def multi_user(self) -> bool:
+        """Return True with real sign-in, where each user has an account of their own."""
         return self.config.auth_mode == "clerk"
 
     @property
     def local(self) -> Account | None:
-        """The one account of AUTH_MODE=local (None with real sign-in)."""
+        """Return the one account of AUTH_MODE=local, or None with real sign-in."""
         return self._accounts.get(LOCAL_USER_ID) if not self.multi_user else None
 
     def all(self) -> list[Account]:
+        """Return every open account."""
         with self._lock:
             return list(self._accounts.values())
 
     # ----- folders -----
 
     def _users_dir(self) -> Path:
+        """Return the folder that holds one folder per user."""
         return Path(self.config.data_dir) / USERS_DIR
 
     def _folder(self, user_id: str) -> Path:
+        """Return the data folder of one user."""
         return self._users_dir() / user_id if self.multi_user else Path(self.config.data_dir)
 
     # ----- opening and closing -----
 
     def _open(self, user_id: str) -> Account:
-        """Loads (or creates) the account's files and builds its worker."""
+        """Load (or create) the account's files and build its worker."""
         store = Store(self._folder(user_id))
         bank = AnswerBank(store)
         if self.config.seed_bank_from_profile and not self.multi_user:
             bank.seed_from_profile(self.config.profile_path)  # once per data dir
-        with store.tx() as db:  # jobs a previous process left mid-run (spec 2.3)
+        with store.tx() as db:  # jobs a previous process left mid-run
             jobs.recover_after_restart(db, store.now())
         account = Account(user_id, store, bank, self._make_worker(store, bank))
         self._accounts[user_id] = account
@@ -105,7 +101,7 @@ class Accounts:
         return account
 
     def get(self, user_id: str) -> Account:
-        """The account for `user_id`, created (with the name and email Clerk has) if new."""
+        """Return the account for `user_id`, created (with Clerk's name and email) if new."""
         if not USER_ID.match(user_id or ""):
             raise unauthenticated()
         with self._lock:
@@ -119,7 +115,7 @@ class Accounts:
         return account
 
     def _greet(self, account: Account) -> None:
-        """A new account starts with the person's own name and email, not the demo user's."""
+        """Start a new account with the person's own name and email, not the demo user's."""
         who = self.clerk_users.identity(account.user_id)
         with account.store.tx() as db:
             db.state["user"] = {"name": " ".join(filter(None, (who["firstName"], who["lastName"]))),
@@ -130,8 +126,11 @@ class Accounts:
         log.info("New account %s", account.user_id)
 
     def forget(self, user_id: str) -> None:
-        """DELETE /account with real sign-in: stops the worker, closes its browsers (nobody
-        else can reach them), removes the folder and the Clerk user."""
+        """Remove an account for DELETE /account with real sign-in.
+
+        Stops the worker, closes its browsers (nobody else can reach them), and removes the
+        folder and the Clerk user.
+        """
         with self._lock:
             account = self._accounts.pop(user_id, None)
         if account is None:
@@ -143,12 +142,14 @@ class Accounts:
         self.clerk_users.delete(user_id)
 
     def start(self) -> None:
+        """Start every account's worker, and each new account's from now on."""
         with self._lock:
             self._running = True
             for account in self._accounts.values():
                 account.worker.start()
 
     def stop(self) -> None:
+        """Stop every account's worker."""
         with self._lock:
             self._running = False
             accounts = list(self._accounts.values())
@@ -158,8 +159,10 @@ class Accounts:
     # ----- who is asking -----
 
     def of(self, connection: HTTPConnection, token: str | None = None) -> Account:
-        """The account a request (or WebSocket) is for. Raises ApiError 401 when it isn't
-        signed in. `token` is for sockets, which can't send an Authorization header."""
+        """Return the account a request (or WebSocket) is for; raise ApiError 401 if signed out.
+
+        `token` is for sockets, which can't send an Authorization header.
+        """
         if not self.multi_user:
             return self._accounts[LOCAL_USER_ID]
         cached = getattr(connection.state, "account", None)
@@ -173,15 +176,15 @@ class Accounts:
 
 
 def get_account(request: HTTPConnection) -> Account:
-    """FastAPI dependency: the signed-in user's Account."""
+    """Return the signed-in user's Account (a FastAPI dependency)."""
     return request.app.state.accounts.of(request)
 
 
 def get_worker(request: HTTPConnection):
-    """FastAPI dependency: the signed-in user's AgentWorker."""
+    """Return the signed-in user's AgentWorker (a FastAPI dependency)."""
     return get_account(request).worker
 
 
 def get_bank(request: HTTPConnection) -> AnswerBank:
-    """FastAPI dependency: the signed-in user's AnswerBank."""
+    """Return the signed-in user's AnswerBank (a FastAPI dependency)."""
     return get_account(request).bank

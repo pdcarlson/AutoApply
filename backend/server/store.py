@@ -1,15 +1,4 @@
-"""JSON-document storage for one user (one data folder; see server.accounts).
-
-Every document in DOC_DEFAULTS lives in memory and in `<data_dir>/<name>.json`. One RLock guards
-all of them; use `with store.tx() as db:` for any read-modify-write. On a clean exit the docs the
-block changed are written atomically (tmp file + os.replace). If the block raises, the in-memory
-docs it touched are rolled back and nothing is written.
-
-`answer_bank.json` is not a Store doc: AnswerBankManager owns that file (WP2), but callers still
-hold `store.lock` around it.
-
-One process per data dir. There is no cross-process file lock.
-"""
+"""JSON-document storage for one user's data folder, guarded by one lock."""
 import copy
 import json
 import logging
@@ -25,108 +14,33 @@ from typing import Any, Callable, Iterator
 
 from fastapi import Request
 
-from server.names import migrate_profile, split_name
-from server.self_id import migrate_common_answers
+from server.json_file import atomic_write_text, dump_json
+from server.store_docs import DOC_DEFAULTS, DOC_MIGRATIONS
+
+__all__ = ["Db", "Store", "get_store", "iso", "new_id", "parse_iso", "utc_now"]
 
 log = logging.getLogger(__name__)
-
-SCHEMA = 1
-DEMO_USER = {"id": "local", "name": "Demo User", "email": "demo@example.com"}
-
-
-def default_state() -> dict:
-    return {"schema": SCHEMA, "signedIn": False, "profileConfirmed": False, "paused": False,
-            "queue": []}
-
-
-def default_profile() -> dict:
-    """`emptyProfile()` from frontend/src/mocks/db.ts, with the demo user's name and email."""
-    first, middle, last = split_name(DEMO_USER["name"])
-    return {
-        "firstName": first, "middleName": middle, "lastName": last,
-        "email": DEMO_USER["email"],
-        "phone": "", "street": "", "street2": "", "city": "", "state": "", "zip": "",
-        "country": "United States",
-        "links": [
-            {"id": "web", "label": "Website / portfolio", "url": "", "fixed": True},
-            {"id": "linkedin", "label": "LinkedIn", "url": "", "fixed": True},
-            {"id": "github", "label": "GitHub", "url": "", "fixed": True},
-        ],
-        "education": [], "experience": [], "projects": [], "skills": [], "custom": [],
-        "resume": None,
-        "unplaced": [],
-    }
-
-
-def default_common_answers() -> dict:
-    return {
-        "workAuthorized": None, "needsSponsorship": None, "graduation": None, "earliestStart": None,
-        "relocate": None, "locations": ["Remote (US)"], "expectedPay": "", "familyEmployers": [],
-        "gender": None, "hispanicLatino": None, "race": None, "veteran": None, "disability": None,
-        "skipped": [],
-    }
-
-
-def default_preferences() -> dict:
-    return {"roleTypes": [], "fullTime": True, "internship": False}
-
-
-def default_settings() -> dict:
-    return {"confidenceThreshold": 90, "dailyLimit": 25}
-
-
-# Doc name -> factory for its default value. The file is `<name>.json`. Add docs here.
-DOC_DEFAULTS: dict[str, Callable[[], Any]] = {
-    "state": default_state,
-    "profile": default_profile,
-    "resume_parse": lambda: None,
-    "common_answers": default_common_answers,
-    "preferences": default_preferences,
-    "settings": default_settings,
-    "jobs": list,
-    "applications": list,
-}
-
-# Doc name -> function that upgrades a doc saved by an older version, applied on load before
-# missing keys get their defaults. The upgraded doc is written back on its next change.
-def migrate_applications(records: list) -> list:
-    """applications.json saved while `screenshotUrl` was the filled form and the thank-you page
-    was the server-only `_resultScreenshot`: show the thank-you page instead."""
-    migrated = []
-    for record in records:
-        if isinstance(record, dict) and "_resultScreenshot" in record:
-            record = dict(record)
-            name = record.pop("_resultScreenshot")
-            if name:
-                record["screenshotUrl"] = f"/api/screenshots/{name}"
-        migrated.append(record)
-    return migrated
-
-
-DOC_MIGRATIONS: dict[str, Callable[[Any], Any]] = {
-    "profile": migrate_profile,
-    "common_answers": migrate_common_answers,
-    "applications": migrate_applications,
-}
 
 GITIGNORE = ".gitignore"
 
 
 def new_id(prefix: str) -> str:
-    """`<prefix>-<8 hex>`, e.g. new_id("a") -> "a-1f2e3d4c"."""
+    """Return a new random id, `<prefix>-<8 hex>`: new_id("a") -> "a-1f2e3d4c"."""
     return f"{prefix}-{secrets.token_hex(4)}"
 
 
 def utc_now() -> datetime:
+    """Return the current time in UTC."""
     return datetime.now(timezone.utc)
 
 
 def iso(moment: datetime) -> str:
-    """ISO 8601 in UTC with a Z suffix and whole seconds: 2026-10-20T13:41:00Z."""
+    """Return the moment as ISO 8601 in UTC with whole seconds: 2026-10-20T13:41:00Z."""
     return moment.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def parse_iso(text: str | None) -> datetime | None:
+    """Return the moment an ISO 8601 string names (UTC if it has no zone), or None."""
     if not text:
         return None
     try:
@@ -134,32 +48,6 @@ def parse_iso(text: str | None) -> datetime | None:
     except ValueError:
         return None
     return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
-
-
-def _dump(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, indent=2)
-
-
-def atomic_write_text(path: Path, text: str) -> None:
-    """Writes `path` through `path.tmp` and os.replace, so readers never see half a file."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        with open(tmp, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        for attempt in range(5):
-            try:
-                os.replace(tmp, path)
-                break
-            except PermissionError:  # Windows: the target is briefly open elsewhere (AV, indexer)
-                if attempt == 4:
-                    raise
-                time.sleep(0.05)
-    finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
 
 
 class Db:
@@ -174,39 +62,48 @@ class Db:
         object.__setattr__(self, "_snapshots", {})
 
     def _touch(self, name: str) -> None:
+        """Snapshot a doc the first time the block uses it."""
         if name not in DOC_DEFAULTS:
             raise AttributeError(f"Unknown store doc {name!r}")
         if name not in self._snapshots:
-            self._snapshots[name] = _dump(self._store._docs[name])  # pylint: disable=protected-access
+            self._snapshots[name] = dump_json(self._store._docs[name])  # pylint: disable=protected-access
 
     def __getattr__(self, name: str) -> Any:
+        """Return the live doc called `name`."""
         if name.startswith("_"):
             raise AttributeError(name)
         self._touch(name)
         return self._store._docs[name]  # pylint: disable=protected-access
 
     def __setattr__(self, name: str, value: Any) -> None:
+        """Replace the doc called `name`."""
         self._touch(name)
         self._store._docs[name] = value  # pylint: disable=protected-access
 
     def _changed(self) -> list[tuple[str, str]]:
-        """(name, new JSON) for each touched doc that changed. Raises if a doc isn't JSON."""
+        """Return (name, new JSON) for each touched doc that changed; raise if one isn't JSON."""
         docs = self._store._docs  # pylint: disable=protected-access
         out = []
         for name, before in self._snapshots.items():
-            after = _dump(docs[name])
+            after = dump_json(docs[name])
             if after != before:
                 out.append((name, after))
         return out
 
     def _rollback(self) -> None:
+        """Put every touched doc back the way it was before the block."""
         docs = self._store._docs  # pylint: disable=protected-access
         for name, before in self._snapshots.items():
             docs[name] = json.loads(before)
 
 
 class Store:
-    """All JSON docs of one data dir, guarded by one RLock."""
+    """All JSON docs of one data folder, guarded by one RLock.
+
+    Every doc in DOC_DEFAULTS lives in memory and in `<data_dir>/<name>.json`; changed docs are
+    written atomically when a `tx()` block exits cleanly. One process per data folder: there is
+    no lock across processes. The answer bank file isn't a doc, but callers hold `lock` for it.
+    """
 
     def __init__(self, data_dir: Path | str, clock: Callable[[], datetime] = utc_now):
         self.data_dir = Path(data_dir)
@@ -221,32 +118,34 @@ class Store:
     # ----- clock -----
 
     def now(self) -> datetime:
-        """Current time (UTC, timezone-aware). Tests can pass a fake `clock`."""
+        """Return the current time (UTC, timezone-aware); tests can pass a fake `clock`."""
         return self.clock()
 
     def now_iso(self) -> str:
+        """Return the current time as an ISO 8601 string."""
         return iso(self.now())
 
     # ----- paths -----
 
     def path(self, *parts: str) -> Path:
-        """A path inside the data dir (not created)."""
+        """Return a path inside the data folder (not created)."""
         return self.data_dir.joinpath(*parts)
 
     def dir(self, *parts: str) -> Path:
-        """A sub-directory of the data dir, created if needed (e.g. store.dir("screenshots"))."""
+        """Return a folder inside the data folder, created if needed: store.dir("screenshots")."""
         target = self.path(*parts)
         target.mkdir(parents=True, exist_ok=True)
         return target
 
     def doc_path(self, name: str) -> Path:
+        """Return the file a doc is saved in."""
         return self.path(f"{name}.json")
 
     # ----- transactions -----
 
     @contextmanager
     def tx(self) -> Iterator[Db]:
-        """`with store.tx() as db:` holds the lock; saves changed docs on a clean exit.
+        """Hold the lock for `with store.tx() as db:` and save changed docs on a clean exit.
 
         Nested tx() calls in the same thread join the outer one; it saves at the outermost exit.
         """
@@ -272,14 +171,14 @@ class Store:
                 self._tx_db, self._tx_depth = None, 0
 
     def read(self, name: str) -> Any:
-        """A deep copy of one doc, safe to use outside the lock."""
+        """Return a deep copy of one doc, safe to use outside the lock."""
         with self.lock:
             return copy.deepcopy(self._docs[name])
 
     # ----- reset (DELETE /account) -----
 
     def wipe(self) -> None:
-        """Deletes everything in the data dir except .gitignore; resets every doc to its default."""
+        """Delete everything in the data folder but .gitignore and reset every doc."""
         with self.lock:
             for entry in self.data_dir.iterdir():
                 if entry.name == GITIGNORE:
@@ -297,12 +196,14 @@ class Store:
     # ----- loading -----
 
     def _ensure_gitignore(self) -> None:
+        """Keep the data folder out of git."""
         marker = self.path(GITIGNORE)
         if not marker.exists():
             marker.write_text("# Created by the AutoApply server: keep local data out of git.\n*\n",
                               encoding="utf-8")
 
     def _load(self, name: str) -> Any:
+        """Return a doc from its file, upgraded, or its default if missing or unreadable."""
         default = DOC_DEFAULTS[name]()
         path = self.doc_path(name)
         if not path.exists():
@@ -328,5 +229,5 @@ class Store:
 
 
 def get_store(request: Request) -> Store:
-    """FastAPI dependency: the signed-in user's Store (see server.accounts)."""
+    """Return the signed-in user's Store (a FastAPI dependency)."""
     return request.app.state.accounts.of(request).store

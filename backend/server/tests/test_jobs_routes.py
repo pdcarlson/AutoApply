@@ -1,30 +1,28 @@
 """Jobs routes: add, duplicates, apply, the daily limit, cancel, skip/restore, restart recovery."""
 import json
 import urllib.error
-import urllib.request
 
 import pytest
 from fastapi.testclient import TestClient
 
 from server import jobs
-from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, FAKE_URL, add_job, apply, job_detail,
-                                      set_up_profile)
+from server.job_queue import JobQueue
+from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, FAKE_URL, add_job, apply,
+                                      job_detail, refuse_network, set_up_profile)
 
 JOB_KEYS = {"id", "company", "role", "location", "ats", "url", "source", "postedAt", "addedAt",
             "closesOn", "reason", "checks", "skipSuggested", "state", "phase", "progress",
             "formSummary", "question", "readyAt", "asksForCode", "liveView"}
 
 
-@pytest.fixture(autouse=True)
-def offline(monkeypatch):
+@pytest.fixture(name="offline", autouse=True)
+def fixture_offline(monkeypatch):
     """Nothing in these tests may fetch a posting: the fake form is local files."""
-    def refuse(*_args, **_kwargs):
-        raise AssertionError("tried to reach the network")
-    monkeypatch.setattr(urllib.request, "urlopen", refuse)
-    monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", refuse)
+    refuse_network(monkeypatch)
 
 
 def test_add_fake_greenhouse_job(signed_in, app):
+    """Adding the fake link reads its form, counts what's uncovered, and stores the link."""
     job = add_job(signed_in)
     assert set(job) == JOB_KEYS
     assert job["company"] == "Fake Company"
@@ -54,6 +52,7 @@ def test_add_fake_greenhouse_job(signed_in, app):
 
 
 def test_form_summary_counts_profile_and_bank(client, app):
+    """Fields the profile or bank already answer aren't counted as questions to ask."""
     set_up_profile(client)  # resume uploaded
     app.state.answer_bank.upsert_by_question(
         "Will you now or in the future require visa sponsorship to work in the United States?",
@@ -66,6 +65,7 @@ def test_form_summary_counts_profile_and_bank(client, app):
 
 
 def test_duplicate_link_is_already_in_inbox(signed_in):
+    """Another link to a posting already in the Inbox is a 409 that names the job."""
     job = add_job(signed_in)
     again = signed_in.post("/api/jobs", json={
         "url": "https://boards.greenhouse.io/fakecompany/jobs/1001"})
@@ -77,6 +77,7 @@ def test_duplicate_link_is_already_in_inbox(signed_in):
 
 
 def test_already_applied(signed_in, app):
+    """A posting already applied to is a 409 that says when it was sent."""
     with app.state.store.tx() as db:
         db.applications.append({"id": "app-x", "url": FAKE_URL, "company": "Fake Company",
                                 "role": "Software Engineering Intern", "submittedBy": "agent",
@@ -97,6 +98,7 @@ def test_already_applied(signed_in, app):
     ("https://app.ashbyhq.com/x", "invalid_url"),
 ])
 def test_rejected_links(signed_in, url, code):
+    """Links that aren't a supported job posting are refused with the right code."""
     response = signed_in.post("/api/jobs", json={"url": url})
     assert response.status_code == 422
     assert response.json()["code"] == code
@@ -104,6 +106,7 @@ def test_rejected_links(signed_in, url, code):
 
 
 def test_unsupported_site_message_names_the_host(signed_in):
+    """The unsupported-site message names the host."""
     body = signed_in.post("/api/jobs", json={"url": "https://www.linkedin.com/jobs/view/1"}).json()
     assert body["message"] == ("Auto Apply adds jobs from Greenhouse and Ashby links. "
                                "This one is from www.linkedin.com.")
@@ -135,7 +138,9 @@ def test_add_ashby_job(signed_in):
     assert job["checks"][0] == {"status": "ok", "text": "Ashby form · 12 questions"}
 
 
-def test_add_job_on_a_site_the_agent_cant_fill(signed_in, unfillable):  # pylint: disable=unused-argument
+@pytest.mark.usefixtures("unfillable")
+def test_add_job_on_a_site_the_agent_cant_fill(signed_in):
+    """A site the agent can't fill is added with a warning, to finish on the site."""
     job = add_job(signed_in, ASHBY_URL)
     assert job["ats"] == "Ashby" and job["company"] == "Acme" and job["role"] == "Ashby posting"
     assert job["formSummary"] is None and job["location"] == ""
@@ -144,6 +149,7 @@ def test_add_job_on_a_site_the_agent_cant_fill(signed_in, unfillable):  # pylint
 
 
 def test_apply_needs_a_confirmed_profile(signed_in):
+    """Apply is refused until the profile is confirmed."""
     job = add_job(signed_in)
     response = signed_in.post("/api/jobs/apply", json={"jobIds": [job["id"]]})
     assert response.status_code == 409 and response.json()["code"] == "profile_not_confirmed"
@@ -151,6 +157,7 @@ def test_apply_needs_a_confirmed_profile(signed_in):
 
 
 def test_apply_queues_the_job(client):
+    """Apply queues an open job; applying again or to unknown ids changes nothing."""
     set_up_profile(client)
     job = add_job(client)
     assert apply(client, job["id"]) == {"queued": [job["id"]], "deferred": []}
@@ -161,6 +168,7 @@ def test_apply_queues_the_job(client):
 
 
 def test_daily_limit_defers_the_rest(client):
+    """Past the daily limit jobs wait, and raising the limit queues them."""
     set_up_profile(client)
     first = add_job(client)
     second = add_job(client, FAKE_ASHBY_URL)
@@ -177,6 +185,7 @@ def test_daily_limit_defers_the_rest(client):
 
 
 def test_sent_today_counts_against_the_limit(client, app):
+    """Applications sent today count against the daily limit."""
     set_up_profile(client)
     job = add_job(client)
     store = app.state.store
@@ -186,10 +195,11 @@ def test_sent_today_counts_against_the_limit(client, app):
         db.settings["dailyLimit"] = 1
     assert apply(client, job["id"]) == {"queued": [], "deferred": [job["id"]]}
     with store.tx() as db:
-        assert not jobs.promote_waiting(db, store.now())
+        assert not JobQueue(db, store.now()).promote_waiting()
 
 
 def test_cancel_queued_and_waiting(client):
+    """Cancel sends queued and waiting jobs back to `open`."""
     set_up_profile(client)
     first = add_job(client)
     second = add_job(client, FAKE_ASHBY_URL)
@@ -204,6 +214,7 @@ def test_cancel_queued_and_waiting(client):
 
 
 def test_cancel_running_job_detaches_the_run(client, app):
+    """Cancelling a running job detaches its run and clears its Claude cache."""
     set_up_profile(client)
     job = add_job(client)
     with app.state.store.tx() as db:
@@ -222,6 +233,7 @@ def test_cancel_running_job_detaches_the_run(client, app):
 
 
 def test_skip_and_restore(client):
+    """A skipped job is hidden and out of the queue until it is restored."""
     set_up_profile(client)
     job = add_job(client)
     apply(client, job["id"])
@@ -239,6 +251,7 @@ def test_skip_and_restore(client):
 
 
 def test_adding_a_skipped_link_restores_it(signed_in):
+    """Adding a skipped job's link again restores it."""
     job = add_job(signed_in)
     signed_in.post(f"/api/jobs/{job['id']}/skip")
     again = signed_in.post("/api/jobs", json={"url": FAKE_URL})
@@ -247,6 +260,7 @@ def test_adding_a_skipped_link_restores_it(signed_in):
 
 
 def test_unknown_job_ids_are_404(signed_in):
+    """Unknown job ids are 404 not_found."""
     for method, path in [("get", "/api/jobs/job-nope"), ("post", "/api/jobs/job-nope/skip"),
                          ("post", "/api/jobs/job-nope/restore")]:
         response = getattr(signed_in, method)(path)
@@ -254,6 +268,7 @@ def test_unknown_job_ids_are_404(signed_in):
 
 
 def _running_job(job_id: str, phase: str) -> dict:
+    """Return a stored job record that a previous process left running."""
     return {"id": job_id, "company": "Fake Company", "role": "Intern", "location": "",
             "ats": "Greenhouse", "url": FAKE_URL, "source": "added", "postedAt": None,
             "addedAt": "2026-11-01T10:00:00Z", "closesOn": None, "reason": "Added from a link",
@@ -267,6 +282,7 @@ def _running_job(job_id: str, phase: str) -> dict:
 
 
 def test_restart_recovery(data_dir, make_app):
+    """A restart queues interrupted fills first and hands off interrupted submits."""
     data_dir.mkdir(parents=True)
     other = {**_running_job("job-other", "filling"), "state": "queued", "phase": None}
     (data_dir / "jobs.json").write_text(json.dumps([

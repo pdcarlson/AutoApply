@@ -1,7 +1,4 @@
-"""API routers, one module per api.md section. Each module exposes `router`.
-
-Add new modules to ROUTE_MODULES; `server.app.create_app` mounts each under /api.
-"""
+"""The API routers; `server.app.create_app` mounts each module's `router` under /api."""
 from server.routes import (account, agent, answers, applications, auth, files, jobs, live,
                            postings, questions, setup)
 

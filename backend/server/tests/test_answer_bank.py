@@ -1,4 +1,4 @@
-"""The Answer bank over AnswerBankManager, and the /answers routes (spec 2.5)."""
+"""The Answer bank stored through AnswerBankManager, and the /answers routes."""
 import json
 from datetime import timedelta
 
@@ -9,10 +9,12 @@ ANSWER_KEYS = {"id", "category", "question", "answer", "source", "company", "tim
 
 
 def _bank_file(app):
+    """Return the app's answer bank file."""
     return app.state.store.path("answer_bank.json")
 
 
 def _add(client, **overrides):
+    """Add an answer through the API and return the response."""
     body = {"category": "Logistics", "question": "How did you hear about this job?",
             "answer": "LinkedIn", "company": None, **overrides}
     response = client.post("/api/answers", json=body)
@@ -21,6 +23,7 @@ def _add(client, **overrides):
 
 
 def test_crud_matches_the_answer_shape(client, app):
+    """Create, list, update and delete return the API Answer shape."""
     created = _add(client)
     assert set(created) == ANSWER_KEYS
     assert created["id"].startswith("a-")
@@ -37,7 +40,7 @@ def test_crud_matches_the_answer_shape(client, app):
     assert patched["answer"] == "A friend" and patched["company"] == "Fake Company"
     assert patched["question"] == created["question"]
 
-    # Konefal's layout: userdata.local.<id> = record (origin, createdAt are server-only)
+    # AnswerBankManager's layout: userdata.local.<id> = record (origin, createdAt are server-only)
     raw = json.loads(_bank_file(app).read_text(encoding="utf-8"))
     record = raw["userdata"]["local"][created["id"]]
     assert record["origin"] == "manual" and record["createdAt"]
@@ -50,6 +53,7 @@ def test_crud_matches_the_answer_shape(client, app):
 
 
 def test_invalid_answers_are_rejected(client):
+    """Invalid answers are rejected."""
     for body in ({"category": "Hobbies", "question": "q", "answer": "a", "company": None},
                  {"category": "Pay", "question": "  ", "answer": "a", "company": None},
                  {"category": "Pay", "question": "q", "answer": "", "company": None}):
@@ -62,6 +66,7 @@ def test_invalid_answers_are_rejected(client):
 
 
 def test_company_and_global_answers_to_the_same_question_coexist(client, app):
+    """Company and global answers to the same question coexist."""
     bank = app.state.answer_bank
     question = "Why do you want to work here?"
     shared = bank.upsert_by_question(question, "Generic", None, origin="reply", source="s")
@@ -77,6 +82,7 @@ def test_company_and_global_answers_to_the_same_question_coexist(client, app):
 
 
 def test_applicable_puts_company_answers_first(app):
+    """Applicable puts company answers first."""
     bank = app.state.answer_bank
     bank.create({"question": "Q1", "answer": "global", "category": "Pay", "company": None},
                 origin="manual", source="s")
@@ -94,6 +100,7 @@ def test_applicable_puts_company_answers_first(app):
 
 
 def test_legacy_string_values_are_listed_as_records(make_app):
+    """Legacy string values are listed as records."""
     app = make_app()
     path = _bank_file(app)
     path.write_text(json.dumps({"userdata": {"local": {"Name": "Jo", "Junk": [1, 2]},
@@ -112,6 +119,7 @@ def test_legacy_string_values_are_listed_as_records(make_app):
 
 
 def test_record_use_tracks_usage(app):
+    """Recording a use counts it, dates it and remembers new wordings."""
     bank = app.state.answer_bank
     created = bank.create({"question": "Q", "answer": "A", "category": "Pay"}, origin="manual",
                           source="s")
@@ -124,6 +132,7 @@ def test_record_use_tracks_usage(app):
 
 
 def test_saved_recently_expires_after_a_day(app):
+    """Saved recently expires after a day."""
     store = app.state.store
     bank = app.state.answer_bank
     created = bank.upsert_by_question("Q", "A", origin="reply", source="s")
@@ -134,6 +143,7 @@ def test_saved_recently_expires_after_a_day(app):
 
 
 def test_seed_import_from_profile_reads_but_never_writes_it(make_app, tmp_path, monkeypatch):
+    """Seed import from profile reads but never writes it."""
     profile = tmp_path / "profile.json"
     text = json.dumps({"first_name": "A", "answers": [
         {"question": "How did you hear about this job?", "answer": "LinkedIn"},
@@ -141,7 +151,7 @@ def test_seed_import_from_profile_reads_but_never_writes_it(make_app, tmp_path, 
     profile.write_text(text, encoding="utf-8")
     monkeypatch.setenv("SEED_BANK_FROM_PROFILE", "true")
 
-    from server.config import load_config  # pylint: disable=import-outside-toplevel
+    from server.config import load_config  # pylint: disable=import-outside-toplevel  # only this test needs it
     config = load_config(tmp_path / "data")
     config.profile_path = profile
     app = make_app(config=config)
@@ -157,6 +167,7 @@ def test_seed_import_from_profile_reads_but_never_writes_it(make_app, tmp_path, 
 
 
 def test_guess_category():
+    """Questions get the category their keywords suggest."""
     assert guess_category("Will you require visa sponsorship?") == "Eligibility"
     assert guess_category("What is your GPA?") == "Education"
     assert guess_category("Desired salary") == "Pay"
@@ -166,6 +177,7 @@ def test_guess_category():
 
 
 def test_export_includes_answers(signed_in):
+    """Export includes answers."""
     _add(signed_in)
     exported = signed_in.get("/api/account/export").json()
     assert len(exported["answers"]) == 1 and set(exported["answers"][0]) == ANSWER_KEYS
@@ -174,7 +186,7 @@ def test_export_includes_answers(signed_in):
 def test_bank_starts_empty_by_default(make_app, tmp_path, monkeypatch):
     """The example profile's answers are test data; they must never appear in a user's bank."""
     monkeypatch.delenv("SEED_BANK_FROM_PROFILE", raising=False)
-    from server.config import load_config  # pylint: disable=import-outside-toplevel
+    from server.config import load_config  # pylint: disable=import-outside-toplevel  # only this test needs it
     config = load_config(tmp_path / "data")
     assert config.seed_bank_from_profile is False
     app = make_app(config=config)

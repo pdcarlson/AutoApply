@@ -1,6 +1,4 @@
-"""agent_bridge: the agent Profile projection, make_form, Claude cache, FilledField mapping."""
-import urllib.request
-
+"""The agent bridge: make_form, the Profile projection, the Claude cache and answer sources."""
 import pytest
 
 from agent.forms.ashby_form import AshbyForm
@@ -8,27 +6,28 @@ from agent.forms.form_field import FieldAnswer, FormField
 from agent.forms.greenhouse_form import GreenhouseForm
 from agent.jobs.job_link import JobLink, UnsupportedLink
 from server import agent_bridge
-from server.agent_bridge import (SourceMap, build_agent_profile, cached_claude, link_to_dict,
-                                 make_form, month_year)
-from server.tests.job_helpers import FAKE_ASHBY_URL, FAKE_URL, SPONSORSHIP
+from server.agent_bridge import cached_claude, link_to_dict, make_form
+from server.agent_profile import build_agent_profile, month_year
+from server.answer_sources import SourceMap
+from server.tests.job_helpers import FAKE_ASHBY_URL, FAKE_URL, SPONSORSHIP, refuse_network
 
 
 def _job(url, job_data=None):
+    """Return a minimal job record for `url`."""
     return {"id": "job-1", "company": "Fake Company",
             "internal": {"link": link_to_dict(JobLink.parse(url)), "jobData": job_data,
                          "claudeCache": {}}}
 
 
 def _set_profile(app, **changes):
+    """Change fields of the stored profile."""
     with app.state.store.tx() as db:
         db.profile.update(changes)
 
 
 def test_fake_greenhouse_form_is_local(app, monkeypatch):
-    def refuse(*_args, **_kwargs):
-        raise AssertionError("tried to reach the network")
-    monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", refuse)
-    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    """The fake Greenhouse link gets the local fake form, read without the network."""
+    refuse_network(monkeypatch)
     form = make_form(_job(FAKE_URL), app.state.config)
     assert isinstance(form, GreenhouseForm)
     assert form.form_url().startswith("file:///")
@@ -37,6 +36,7 @@ def test_fake_greenhouse_form_is_local(app, monkeypatch):
 
 
 def test_fake_routing_needs_the_flag(app):
+    """Without FAKE_GREENHOUSE the fake link is a real posting, using its cached data."""
     app.state.config.fake_greenhouse = False
     form = make_form(_job(FAKE_URL, job_data={"title": "Cached", "questions": []}),
                      app.state.config)
@@ -49,17 +49,20 @@ def test_fake_routing_needs_the_flag(app):
     "https://job-boards.greenhouse.io/cloudflare/jobs/1001",       # real company, fake id
 ])
 def test_only_the_exact_test_postings_are_faked(app, url):
+    """Only the exact test postings go to the fake form."""
     assert app.state.config.fake_greenhouse
     form = make_form(_job(url, job_data={"title": "Cached", "questions": []}), app.state.config)
     assert form.url is None  # the real Greenhouse page, not the local fake form
 
 
 def test_other_sites_are_unsupported(app):
+    """A site the agent can't fill raises UnsupportedLink."""
     with pytest.raises(UnsupportedLink):
         make_form(_job("https://jobs.lever.co/acme/123"), app.state.config)
 
 
 def test_ashby_links_get_an_ashby_form(app):
+    """An Ashby link gets an Ashby form with the posting read when it was added."""
     form = make_form(_job("https://jobs.ashbyhq.com/acme/123", job_data={"title": "Cached"}),
                      app.state.config)
     assert isinstance(form, AshbyForm) and form.url is None
@@ -67,15 +70,15 @@ def test_ashby_links_get_an_ashby_form(app):
 
 
 def test_fake_ashby_form_is_local(app, monkeypatch):
-    def refuse(*_args, **_kwargs):
-        raise AssertionError("tried to reach the network")
-    monkeypatch.setattr("agent.forms.ashby_form.urlopen", refuse)
+    """The fake Ashby link gets the local fake Ashby form."""
+    refuse_network(monkeypatch, "agent.forms.ashby_form")
     form = make_form(_job(FAKE_ASHBY_URL), app.state.config)
     assert form.url.endswith("ashby_form.html")
     assert len(form.read_fields()) == 12
 
 
 def test_profile_projection(app):
+    """The stored profile and common answers become the agent Profile and its facts."""
     store = app.state.store
     store.dir("resume")
     store.path("resume", "cv.pdf").write_bytes(b"%PDF-1.4")
@@ -136,6 +139,7 @@ def test_profile_projection(app):
 
 
 def test_profile_defaults_and_missing_resume(app):
+    """Missing values get defaults, and a resume that isn't on disk is left out."""
     with app.state.store.tx() as db:
         db.common_answers.update(workAuthorized="No", needsSponsorship="Yes", relocate="Yes",
                                  graduation="Dec 2026")
@@ -152,6 +156,7 @@ def test_profile_defaults_and_missing_resume(app):
 
 
 def test_bank_projection_is_per_company(app):
+    """A company's own saved answer wins over the global one."""
     bank = app.state.answer_bank
     bank.upsert_by_question("Why us?", "Global", origin="manual")
     bank.upsert_by_question("Why us?", "For Fake", company="Fake Company", origin="reply")
@@ -164,6 +169,7 @@ def test_bank_projection_is_per_company(app):
 
 
 def test_source_map(app):
+    """Each filled answer gets the source text and kind of where it came from."""
     bank = app.state.answer_bank
     bank.put("onb-relocate", question="Are you willing to relocate?", answer="Yes",
              category="Logistics", origin="onboarding", source="Onboarding")
@@ -188,6 +194,7 @@ def test_source_map(app):
 
 
 def test_cached_claude(app, monkeypatch):
+    """Claude's guesses are cached per job, but a couldn't-help answer isn't."""
     with app.state.store.tx() as db:
         db.jobs.append(_job(FAKE_URL))
     calls = []
@@ -210,6 +217,7 @@ def test_cached_claude(app, monkeypatch):
 
 
 def test_month_year():
+    """month_year turns YYYY-MM into a month and year, and leaves anything else."""
     assert month_year("2027-05") == "May 2027"
     assert month_year("May 2027") == "May 2027"
     assert month_year("") == ""

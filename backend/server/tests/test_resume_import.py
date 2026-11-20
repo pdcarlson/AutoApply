@@ -1,15 +1,16 @@
-"""resumeRead sections -> profile (spec 2.12), on dicts and on real PDFs."""
-# pylint: disable=redefined-outer-name,unused-argument  # pytest fixtures
+"""Resume sections -> profile fields, on dicts and on real PDFs."""
 from pathlib import Path
 
 import pytest
 
-from server import konefal
-from server.resume_import import _dates, sections_to_profile, split_line
+from server import autoapply_modules
+from server.resume.dates import read_dates
+from server.resume.layout import split_line
+from server.resume.mapper import sections_to_profile
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-# What resumeRead returns for backend/agent/applicant/example_resume.pdf (spec 1.3).
+# What resumeRead returns for backend/agent/applicant/example_resume.pdf.
 EXAMPLE_OTHER = [
     "Jordan Rivera",
     "jordan.rivera@example.com | (555) 010-4477 | Poughkeepsie, NY",
@@ -21,10 +22,10 @@ EXAMPLE_OTHER = [
 ]
 
 
-@pytest.fixture(scope="module")
-def header_resume_pdf(tmp_path_factory):
+@pytest.fixture(name="header_resume_pdf", scope="module")
+def fixture_header_resume_pdf(tmp_path_factory):
     """sample_resume_headers.html rendered to PDF with Playwright's Chromium."""
-    from playwright.sync_api import sync_playwright  # pylint: disable=import-outside-toplevel
+    from playwright.sync_api import sync_playwright  # pylint: disable=import-outside-toplevel  # only this test needs it
     out = tmp_path_factory.mktemp("resume") / "sample_resume_headers.pdf"
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
@@ -38,6 +39,7 @@ def header_resume_pdf(tmp_path_factory):
 
 
 def test_example_resume_other_section():
+    """The example resume's opening lines fill the whole profile."""
     patch, unplaced, labels = sections_to_profile({"Other": EXAMPLE_OTHER})
     assert (patch["firstName"], patch["middleName"], patch["lastName"]) == (
         "Jordan", "", "Rivera")
@@ -80,6 +82,7 @@ def test_example_resume_other_section():
 
 
 def test_header_sections_on_dicts():
+    """Headed sections fill education, experience, projects and skills."""
     sections = {
         "Other": ["SAM LEE", "sam@example.com   linkedin.com/in/samlee   Boston, MA"],
         "Experience": [
@@ -110,6 +113,7 @@ def test_header_sections_on_dicts():
 
 
 def test_leadership_and_volunteer_sections_become_tagged_experience():
+    """Leadership and volunteer sections become tagged experience."""
     sections = {
         "WORK EXPERIENCE": ["Acme Corp                                  June 2024 - Aug 2024",
                             "Intern                                     Boston, MA",
@@ -135,9 +139,11 @@ def test_leadership_and_volunteer_sections_become_tagged_experience():
 
 
 def test_two_degrees_under_one_school_are_two_entries():
+    """Two degrees under one school are two entries."""
     sections = {"EDUCATION": [
         "Example Polytechnic Institute                                        Troy, NY",
-        "Master of Science in Computer Science, GPA 4.0          January 2026 - Expected December 2026",
+        "Master of Science in Computer Science, GPA 4.0          "
+        "January 2026 - Expected December 2026",
         "Bachelor of Science in Computer Science, GPA 3.62          August 2022 - December 2025",
     ]}
     patch, unplaced, _ = sections_to_profile(sections)
@@ -247,8 +253,8 @@ def test_a_new_entry_after_a_bullet_is_not_joined_to_it(lines, count):
 ])
 def test_date_forms(text, dates):
     """Year-only, numeric, season and dash-less dates."""
-    found = _dates(text)
-    assert (found["start"], found["end"], found["current"]) == dates
+    found = read_dates(text)
+    assert (found.start, found.end, found.current) == dates
 
 
 def test_roles_without_bullet_characters():
@@ -340,19 +346,22 @@ def test_contact_quirks():
 
 
 def test_split_line_takes_a_right_hand_date_column():
+    """A right-hand date column and place column are split off."""
     assert split_line("Acme - Intern      Boston, MA      June 2024 - Aug 2024") == (
         "Acme - Intern", "June 2024 - Aug 2024", "Boston, MA")
 
 
 def test_example_resume_pdf_parses():
+    """The example resume PDF reads into the expected lines."""
     pdf = Path(__file__).resolve().parents[2] / "agent" / "applicant" / "example_resume.pdf"
-    sections = konefal.read_resume(pdf)
+    sections = autoapply_modules.read_resume(pdf)
     assert sections["Other"] == EXAMPLE_OTHER
-    assert konefal.page_count(pdf) == 1
+    assert autoapply_modules.page_count(pdf) == 1
 
 
 def test_header_fixture_pdf_parses_with_case_insensitive_headers(header_resume_pdf):
-    sections = konefal.read_resume(header_resume_pdf)
+    """A rendered PDF with upper-case headers parses into the profile."""
+    sections = autoapply_modules.read_resume(header_resume_pdf)
     assert {"EDUCATION", "RELEVANT COURSEWORK", "EXPERIENCE", "SKILLS"} <= set(sections)
 
     patch, unplaced, labels = sections_to_profile(sections)
@@ -375,10 +384,11 @@ def test_header_fixture_pdf_parses_with_case_insensitive_headers(header_resume_p
 
 
 def test_empty_text_gives_none(tmp_path):
-    from pypdf import PdfWriter  # pylint: disable=import-outside-toplevel
+    """A PDF with no text reads as None."""
+    from pypdf import PdfWriter  # pylint: disable=import-outside-toplevel  # only this test needs it
     blank = tmp_path / "scan.pdf"
     writer = PdfWriter()
     writer.add_blank_page(width=612, height=792)
     with open(blank, "wb") as handle:
         writer.write(handle)
-    assert konefal.read_resume(blank) is None
+    assert autoapply_modules.read_resume(blank) is None

@@ -1,5 +1,4 @@
-"""GET /applications, GET /applications/:id and PATCH /applications/:id (spec 2.11)."""
-# pylint: disable=redefined-outer-name,unused-argument
+"""GET /applications, GET /applications/:id and PATCH /applications/:id."""
 from datetime import timedelta
 
 import pytest
@@ -8,6 +7,7 @@ from server.store import iso
 
 
 def _record(app_id, submitted_at, **extra):
+    """Return a stored application record."""
     return {"id": app_id, "jobId": app_id[4:], "company": "Acme", "role": "Intern",
             "location": "Remote", "ats": "Greenhouse", "url": f"https://x/{app_id}",
             "status": "submitted", "submittedAt": submitted_at, "submittedBy": "agent",
@@ -20,8 +20,9 @@ def _record(app_id, submitted_at, **extra):
             "screenshotUrl": None, **extra}
 
 
-@pytest.fixture
-def seeded(signed_in, app):
+@pytest.fixture(name="seeded")
+def fixture_seeded(signed_in, app):
+    """A signed-in client with one old and one new application stored."""
     store = app.state.store
     now = store.now()
     with store.tx() as db:
@@ -31,6 +32,7 @@ def seeded(signed_in, app):
 
 
 def test_list_is_newest_first_without_detail_keys(seeded):
+    """The list is newest first, marks new ones, and leaves out the detail keys."""
     listed = seeded.get("/api/applications").json()
     assert [a["id"] for a in listed] == ["app-new", "app-old"]
     assert [a["isNew"] for a in listed] == [True, False]
@@ -39,6 +41,7 @@ def test_list_is_newest_first_without_detail_keys(seeded):
 
 
 def test_detail_and_not_found(seeded):
+    """The detail has fields and timeline; an unknown id is 404."""
     detail = seeded.get("/api/applications/app-old").json()
     assert detail["fields"][0]["label"] == "Email" and detail["screenshotUrl"] is None
     assert len(detail["timeline"]) == 2
@@ -47,6 +50,7 @@ def test_detail_and_not_found(seeded):
 
 
 def test_patch_status(seeded):
+    """Changing the status logs it and drops (or brings back) the waiting event."""
     response = seeded.patch("/api/applications/app-new", json={"status": "interviewing"})
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "interviewing" and "timeline" not in response.json()
@@ -68,11 +72,13 @@ def test_patch_status(seeded):
 
 @pytest.mark.parametrize("body", [{"status": "bogus"}, {}, None])
 def test_patch_rejects_unknown_status(seeded, body):
+    """A status that isn't one of the four is 422 and changes nothing."""
     response = seeded.patch("/api/applications/app-new", json=body)
     assert response.status_code == 422 and response.json()["code"] == "invalid_status"
     assert seeded.get("/api/applications/app-new").json()["status"] == "submitted"
 
 
 def test_patch_unknown_application(seeded):
+    """Changing an unknown application is 404."""
     response = seeded.patch("/api/applications/app-nope", json={"status": "offer"})
     assert response.status_code == 404

@@ -1,10 +1,4 @@
-"""Agent question routes (spec 2.8): POST /jobs/:id/question/messages, PUT and DELETE
-/jobs/:id/question/answer, POST /jobs/:id/question/accept.
-
-Each answers 404 `not_found` when the job has no question. Accepting saves the answer to the
-Answer bank under the form's exact label (so the re-run's lookup finds it), puts the job first
-in the queue and wakes the worker; the re-run asks the next unanswered field, if any.
-"""
+"""Routes for the question a job is paused on: reply, pick, revise and accept."""
 from copy import deepcopy
 from typing import Any
 
@@ -22,6 +16,7 @@ INVALID_OPTION = "Pick one of the options the form offers."
 
 
 def _text(body: Any, key: str) -> str:
+    """Return the string under `key` in the body; raise 422 if it isn't one."""
     value = body.get(key) if isinstance(body, dict) else None
     if not isinstance(value, str):
         raise ApiError(422, "invalid_request", f"Send {{\"{key}\": \"…\"}}.")
@@ -29,7 +24,7 @@ def _text(body: Any, key: str) -> str:
 
 
 def _asking(db: Db, job_id: str) -> dict:
-    """The job if it is waiting on a question, otherwise 404."""
+    """Return the job if it is waiting on a question; raise 404 otherwise."""
     job = jobs.find(db, job_id)
     if job is None or not jobs.visible(job) or not job.get("question"):
         raise not_found("Question")
@@ -38,6 +33,7 @@ def _asking(db: Db, job_id: str) -> dict:
 
 @router.post("/jobs/{job_id}/question/messages")
 def reply(job_id: str, body: Any = Body(None), store: Store = Depends(get_store)):
+    """Read the person's reply into a proposed answer."""
     text = _text(body, "text").strip()
     if not text:
         raise ApiError(422, "invalid_request", "The reply can't be empty.")
@@ -49,6 +45,7 @@ def reply(job_id: str, body: Any = Body(None), store: Store = Depends(get_store)
 
 @router.put("/jobs/{job_id}/question/answer")
 def pick(job_id: str, body: Any = Body(None), store: Store = Depends(get_store)):
+    """Propose one of the field's options as the answer."""
     value = _text(body, "value")
     with store.tx() as db:
         job = _asking(db, job_id)
@@ -59,6 +56,7 @@ def pick(job_id: str, body: Any = Body(None), store: Store = Depends(get_store))
 
 @router.delete("/jobs/{job_id}/question/answer")
 def revise(job_id: str, store: Store = Depends(get_store)):
+    """Clear the proposed answer."""
     with store.tx() as db:
         return deepcopy(questions.revise(_asking(db, job_id)["question"]))
 
@@ -66,6 +64,11 @@ def revise(job_id: str, store: Store = Depends(get_store)):
 @router.post("/jobs/{job_id}/question/accept")
 def accept(job_id: str, request: Request, body: Any = Body(None),
            store: Store = Depends(get_store)):
+    """Save the proposed answer to the Answer bank and put the job first in the queue.
+
+    The answer is saved under the form's exact label, so the re-run's lookup finds it; the
+    re-run asks the next unanswered field, if any.
+    """
     scope = body.get("scope") if isinstance(body, dict) else None
     if scope not in ("all", "company"):
         raise ApiError(422, "invalid_request", 'scope must be "all" or "company".')

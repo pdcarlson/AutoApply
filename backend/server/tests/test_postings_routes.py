@@ -1,34 +1,30 @@
-"""Job board routes: the ranked postings and applying to one (US14, US15)."""
-import urllib.request
-
+"""Job board routes: the ranked postings, and applying to one."""
 import pytest
 
 from agent.jobs.job_board import GreenhouseBoard
 from server.tests.job_helpers import (FAKE_ASHBY_URL, FAKE_URL, add_job, job_detail,
-                                      seed_fake_form_answers, set_up_profile)
+                                      refuse_network, seed_fake_form_answers, set_up_profile)
 
 POSTING_KEYS = {"id", "company", "role", "location", "ats", "url", "postedAt", "internship",
                 "fit", "status", "jobId"}
 FAKE_POSTING = "greenhouse-fakecompany-1001"
 
 
-@pytest.fixture(autouse=True)
-def offline(monkeypatch):
+@pytest.fixture(name="offline", autouse=True)
+def fixture_offline(monkeypatch):
     """Nothing in these tests may go online: the fake boards are local files."""
-    def refuse(*_args, **_kwargs):
-        raise AssertionError("tried to reach the network")
-    monkeypatch.setattr(urllib.request, "urlopen", refuse)
-    monkeypatch.setattr("agent.jobs.job_board.urlopen", refuse)
-    monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", refuse)
+    refuse_network(monkeypatch, "agent.jobs.job_board")
 
 
 def postings(client) -> list[dict]:
+    """Return the postings GET /postings lists."""
     response = client.get("/api/postings")
     assert response.status_code == 200, response.text
     return response.json()["postings"]
 
 
 def test_lists_postings_from_both_sites(signed_in, app):
+    """The fake Greenhouse and Ashby boards are both listed, in the API shape."""
     app.state.job_feed.refresh()
     body = signed_in.get("/api/postings").json()
     assert body["fetchedAt"] and body["refreshing"] is False
@@ -71,6 +67,7 @@ def test_postings_are_ranked_by_the_profile(client, app):
 
 
 def test_apply_adds_the_job_and_queues_it(client, app):
+    """Applying to a posting adds it to the Inbox, queues it, and marks it in_inbox."""
     set_up_profile(client)
     app.state.job_feed.refresh()
     response = client.post(f"/api/postings/{FAKE_POSTING}/apply")
@@ -91,6 +88,7 @@ def test_apply_adds_the_job_and_queues_it(client, app):
 
 
 def test_apply_waits_for_tomorrow_at_the_daily_limit(client, app):
+    """At the daily limit a posting applied to waits."""
     set_up_profile(client)
     app.state.job_feed.refresh()
     assert client.patch("/api/settings", json={"dailyLimit": 1}).status_code == 200
@@ -101,6 +99,7 @@ def test_apply_waits_for_tomorrow_at_the_daily_limit(client, app):
 
 
 def test_apply_needs_a_confirmed_profile_and_a_known_posting(signed_in, app):
+    """Applying needs a confirmed profile and a posting the feed knows."""
     app.state.job_feed.refresh()
     response = signed_in.post(f"/api/postings/{FAKE_POSTING}/apply")
     assert response.status_code == 409 and response.json()["code"] == "profile_not_confirmed"
@@ -109,6 +108,7 @@ def test_apply_needs_a_confirmed_profile_and_a_known_posting(signed_in, app):
 
 
 def test_applying_to_postings_one_after_another_queues_them_in_order(client, app):
+    """Postings applied to one after another queue in that order."""
     set_up_profile(client)
     app.state.job_feed.refresh()
     first = client.post(f"/api/postings/{FAKE_POSTING}/apply").json()["job"]

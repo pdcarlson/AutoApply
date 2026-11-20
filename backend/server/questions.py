@@ -1,12 +1,7 @@
-"""Agent questions: the `AgentQuestion` a job pauses on (spec 2.8).
-
-WP4 builds questions (`make_question`). WP5 adds reading replies (`interpret`), `pick` and
-`revise`; accepting lives in server/routes/questions.py (it writes the bank and the queue).
-
-A job in `needs_input` carries the API question in `job.question` and, next to it, the field it
-asks about in `job.internal.question` = {fieldKey, label, kind, options}. `options` are exactly
-as on the form, so a proposed answer can be checked with the agent's `fits()`.
-"""
+"""The question a job pauses on when the agent can't answer a form field, and reading replies."""
+# A job in `needs_input` carries the API question in `job.question` and, next to it, the field it
+# asks about in `job.internal.question` = {fieldKey, label, kind, options}. `options` are exactly
+# as on the form, so a proposed answer can be checked with the agent's `fits()`.
 import re
 
 from agent.forms.dates import iso_date
@@ -16,15 +11,18 @@ NOTHING_FOUND = "Nothing in your profile or Answer bank answers this."
 DATE_EXAMPLE = "June 1, 2027"
 
 
-def question_id(job_id: str, n: int) -> str:
-    return f"q-{job_id}-{n}"
+def question_id(job_id: str, number: int) -> str:
+    """Return the id of the `number`th question a job asks."""
+    return f"q-{job_id}-{number}"
 
 
 def is_yes_no(options: list[str]) -> bool:
+    """Return True when the options are exactly Yes and No."""
     return len(options) == 2 and {o.strip().lower() for o in options} == {"yes", "no"}
 
 
 def _first_message(form_field: FormField, guess: FieldAnswer | None) -> str:
+    """Return the agent's opening message for the question."""
     if form_field.options:
         # The frontend shows the options to pick from and no reply box
         return f"{NOTHING_FOUND} Pick one."
@@ -34,26 +32,30 @@ def _first_message(form_field: FormField, guess: FieldAnswer | None) -> str:
     return f"{NOTHING_FOUND} What should I enter?"
 
 
-def make_question(job_id: str, n: int, form_field: FormField,
-                  guess: FieldAnswer | None = None) -> tuple[dict, dict]:
-    """(API AgentQuestion, internal field record) for the `n`th question a job asks.
+def _placeholder(form_field: FormField, yes_no: bool) -> str:
+    """Return the reply box's placeholder for the field."""
+    if yes_no:
+        return "e.g. Yes"
+    if form_field.kind == "textarea":
+        return "A sentence or two in your own words"
+    if form_field.kind == "date":
+        return f"e.g. {DATE_EXAMPLE}"
+    return "e.g. the right answer"
 
-    `guess` is Claude's below-threshold answer for the field, if it had one
-    (`answerer.claude_answers[field.key]`); only text and textarea questions quote it.
+
+def make_question(job_id: str, number: int, form_field: FormField,
+                  guess: FieldAnswer | None = None) -> tuple[dict, dict]:
+    """Return (API AgentQuestion, internal field record) for the `number`th question a job asks.
+
+    `guess` is Claude's below-threshold answer for the field, if it had one; only text and
+    textarea questions quote it.
     """
     options = list(form_field.options)
     yes_no = bool(options) and is_yes_no(options)
-    if yes_no:
-        placeholder = "e.g. Yes"
-    elif form_field.kind == "textarea":
-        placeholder = "A sentence or two in your own words"
-    elif form_field.kind == "date":
-        placeholder = f"e.g. {DATE_EXAMPLE}"
-    else:
-        placeholder = "e.g. the right answer"
+    placeholder = _placeholder(form_field, yes_no)
     usable_guess = guess if guess is not None and guess.value and not options else None
     question = {
-        "id": question_id(job_id, n),
+        "id": question_id(job_id, number),
         "type": "yesno" if yes_no else "confirm",
         "field": form_field.label,
         "confidence": int(guess.confidence) if guess is not None and guess.value else 0,
@@ -70,7 +72,7 @@ def make_question(job_id: str, n: int, form_field: FormField,
     return question, internal
 
 
-# ----- reading a reply (spec 2.8, a port of mocks/agent.ts interpretReply) -----
+# ----- reading a reply (the same rules as the frontend's mock agent) -----
 
 UNSURE = re.compile(r"\b(maybe|depends|not sure|unsure|idk|possibly|might|perhaps|probably)\b")
 NO = re.compile(r"\b(no|nope|nah|not|never|can't|cannot|won't|wouldn't|don't)\b")
@@ -86,7 +88,7 @@ PICK_CONFIDENCE = 100
 
 
 def _yes_no_value(text: str) -> str | None:
-    """Yes, No, or None when the reply is unsure or unclear (the mock's regexes)."""
+    """Return Yes, No, or None when the reply is unsure or unclear."""
     words = " " + text.lower().replace("’", "'") + " "  # curly apostrophes, as in don’t
     if UNSURE.search(words):
         return None
@@ -98,11 +100,12 @@ def _yes_no_value(text: str) -> str | None:
 
 
 def _unique(matches: list[str]) -> str | None:
+    """Return the only match, or None when there are none or several."""
     return matches[0] if len(matches) == 1 else None
 
 
 def match_option(text: str, options: list[str]) -> str | None:
-    """The one option `text` means, exactly as on the form, or None.
+    """Return the one option `text` means, exactly as on the form, or None.
 
     In order: a case-insensitive exact match, then the only option contained in the reply as
     whole words (so "He" isn't found in "she"), then the only option that starts with the reply.
@@ -121,11 +124,12 @@ def match_option(text: str, options: list[str]) -> str | None:
 
 
 def _option_for(options: list[str], wanted: str) -> str | None:
+    """Return the option that is `wanted` ignoring case, or None."""
     return next((o for o in options if o.strip().casefold() == wanted.casefold()), None)
 
 
 def interpret(question: dict, internal: dict, text: str) -> dict:
-    """Appends the user's reply to `question` and reads it into `proposedAnswer` (in place).
+    """Append the user's reply to `question` and read it into `proposedAnswer`; return it.
 
     A field with options only ever gets a value that is exactly one of them, or the agent's
     `fits()` would reject it and the job would ask again forever. When the reply doesn't name
@@ -169,16 +173,18 @@ def interpret(question: dict, internal: dict, text: str) -> dict:
 
 
 def pickable(question: dict, internal: dict, value: str) -> bool:
-    """True when `value` is one of the question's pickOptions or the field's options."""
+    """Return True when `value` is one of the question's pickOptions or the field's options."""
     return value in (question.get("pickOptions") or []) \
         or value in ((internal or {}).get("options") or [])
 
 
 def pick(question: dict, value: str) -> dict:
+    """Propose the option the user picked and return the question."""
     question["proposedAnswer"] = {"value": value, "confidence": PICK_CONFIDENCE}
     return question
 
 
 def revise(question: dict) -> dict:
+    """Clear the proposed answer so the user can give another, and return the question."""
     question["proposedAnswer"] = None
     return question

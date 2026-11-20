@@ -1,28 +1,28 @@
-"""The question conversation: replies, pick, revise and accept, against the fake Greenhouse form.
-
-Runs use real headless Chromium only when a run gets as far as filling (the last step here).
-"""
-# pylint: disable=redefined-outer-name,unused-argument
+"""The question conversation: replies, pick, revise and accept, against the fake form."""
+# Runs use real headless Chromium only when a run gets as far as filling (the last step here).
+# pylint: disable=unused-argument  # tests ask for fixtures they only need set up
 import urllib.request
 
 import pytest
 
 from agent.forms.form_field import FieldAnswer
 from server.questions import interpret, match_option
-from server.tests.job_helpers import (FAKE_ASHBY_URL, SPONSORSHIP, WHY_HERE, add_job, apply, job_detail,
-                                      set_up_profile)
+from server.tests.job_helpers import (FAKE_ASHBY_URL, SPONSORSHIP, WHY_HERE, add_job, apply,
+                                      job_detail, set_up_profile)
 
 
-@pytest.fixture(autouse=True)
-def offline(monkeypatch):
+@pytest.fixture(name="offline", autouse=True)
+def fixture_offline(monkeypatch):
+    """Any attempt to reach the network fails the test."""
     def refuse(*_args, **_kwargs):
+        """Fail like a network call would."""
         raise AssertionError("tried to reach the network")
     monkeypatch.setattr(urllib.request, "urlopen", refuse)
     monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", refuse)
 
 
-@pytest.fixture
-def asking(client, app):
+@pytest.fixture(name="asking")
+def fixture_asking(client, app):
     """The fake job, run once: it waits on the sponsorship question."""
     set_up_profile(client)
     job = add_job(client)
@@ -33,16 +33,19 @@ def asking(client, app):
 
 
 def question_url(job_id, part=""):
+    """Return the URL of a job's question route."""
     return f"/api/jobs/{job_id}/question{part}"
 
 
 def reply(client, job_id, text):
+    """Send a reply to a job's question and return the response."""
     response = client.post(question_url(job_id, "/messages"), json={"text": text})
     assert response.status_code == 200, response.text
     return response.json()
 
 
-def test_full_conversation_to_ready(client, app, asking):
+def test_full_conversation_to_ready(client, app, asking):  # pylint: disable=too-many-locals  # one long flow
+    """Replying to and accepting each question takes the job to ready."""
     question = reply(client, asking, "nope, I don't")
     assert question["proposedAnswer"] == {"value": "No", "confidence": 96}
     assert question["messages"][-1] == {"from": "you", "text": "nope, I don't"}
@@ -100,7 +103,9 @@ def test_full_conversation_to_ready(client, app, asking):
 
 
 def test_claude_guess_is_quoted_and_yes_uses_it(client, app, monkeypatch):
+    """Claude guess is quoted and yes uses it."""
     def fake_ask(form_field, _facts):
+        """Answer every field below the threshold."""
         if form_field.key == "question_2004":
             return FieldAnswer("I like the team.", "claude", 60, "A guess.")
         return FieldAnswer("", "claude", 0, "Not in the profile.")
@@ -120,6 +125,7 @@ def test_claude_guess_is_quoted_and_yes_uses_it(client, app, monkeypatch):
 
 
 def test_no_question_and_no_answer(client, app, asking):
+    """Question routes answer 404 or 409 when there's nothing to act on."""
     other = add_job(client, FAKE_ASHBY_URL)
     for method, part, body in (("post", "/messages", {"text": "yes"}),
                                ("put", "/answer", {"value": "Yes"}),
@@ -136,12 +142,13 @@ def test_no_question_and_no_answer(client, app, asking):
 
 
 def test_text_reply_drops_one_trailing_period_for_text_fields_only():
+    """Text reply drops one trailing period for text fields only."""
     question = {"messages": [{"from": "agent", "text": "What should I enter?"}],
                 "proposedAnswer": None, "pickOptions": None}
     interpret(question, {"kind": "text", "options": []}, "Boston, MA.")
     assert question["proposedAnswer"] == {"value": "Boston, MA", "confidence": 95}
     interpret(question, {"kind": "textarea", "options": []}, "  I like it.  ")
-    assert question["proposedAnswer"]["value"] == "I like it."
+    assert question["proposedAnswer"] == {"value": "I like it.", "confidence": 95}
 
 
 def test_date_reply_is_read_as_a_date_or_asked_again():
@@ -160,10 +167,12 @@ def test_date_reply_is_read_as_a_date_or_asked_again():
     ("she/her", "She"), ("They", "They"), ("i'd say she", "She"), ("th", "They"),
     ("he or she", None), ("", None)])
 def test_match_option(text, expected):
+    """A reply matches the one option it names, or none."""
     assert match_option(text, ["She", "He", "They"]) == expected
 
 
 def test_option_reply_must_match_an_option():
+    """Option reply must match an option."""
     options = ["Boston", "New York", "Remote"]
     question = {"messages": [{"from": "agent", "text": "Pick one"}], "proposedAnswer": None,
                 "pickOptions": None}

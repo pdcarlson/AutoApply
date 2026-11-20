@@ -1,4 +1,4 @@
-"""PUT /common-answers mirrors the answers into `onb-*` Answer-bank records (spec 2.5)."""
+"""PUT /common-answers mirrors the answers into `onb-*` Answer-bank records."""
 import json
 
 from server.common_answers import answer_text, long_date
@@ -7,6 +7,7 @@ from server.store import Store
 
 
 def _common(**overrides):
+    """Return a full PUT /common-answers body, with overrides."""
     body = {"workAuthorized": None, "needsSponsorship": None, "graduation": None,
             "earliestStart": None, "relocate": None, "locations": [], "expectedPay": "",
             "familyEmployers": [], "gender": None, "hispanicLatino": None, "race": None,
@@ -16,10 +17,12 @@ def _common(**overrides):
 
 
 def _onb(client):
+    """Return the `onb-*` answers by id."""
     return {a["id"]: a for a in client.get("/api/answers").json() if a["id"].startswith("onb-")}
 
 
 def test_put_syncs_onboarding_records(client):
+    """Saving common answers writes the matching `onb-*` records."""
     body = _common(needsSponsorship="No", gender="decline", graduation="May 2027",
                    skipped=["graduation"])
     response = client.put("/api/common-answers", json=body)
@@ -48,6 +51,7 @@ def test_put_syncs_onboarding_records(client):
 
 
 def test_clearing_an_answer_deletes_its_record(client, app):
+    """Clearing an answer deletes its record."""
     client.put("/api/common-answers", json=_common(expectedPay="$30/hour", gender="decline"))
     assert "onb-expectedPay" in _onb(client)
     app.state.answer_bank.record_use("onb-expectedPay", "Fake Company")
@@ -60,11 +64,13 @@ def test_clearing_an_answer_deletes_its_record(client, app):
 
 
 def test_invalid_common_answers_are_rejected(client):
+    """Invalid common answers are rejected."""
     response = client.put("/api/common-answers", json=_common(workAuthorized="Maybe"))
     assert response.status_code == 422 and response.json()["code"] == "invalid_request"
 
 
 def test_answer_text_rules():
+    """Each common question's stored value reads as the right bank answer."""
     common = _common(workAuthorized="Yes", relocate="Depends", earliestStart="2027-06-01",
                      locations=["Remote (US)", "New York, NY"], familyEmployers=["Acme", "Initech"],
                      gender="Male", veteran="No", disability="decline")
@@ -81,6 +87,7 @@ def test_answer_text_rules():
 
 
 def test_every_self_id_question_takes_an_answer_or_decline(client):
+    """Every self-ID question takes one of its values or decline."""
     body = _common(gender="Non-binary", hispanicLatino="No", race="Two or More Races",
                    veteran="Yes", disability="No")
     assert client.put("/api/common-answers", json=body).json() == body
@@ -105,6 +112,7 @@ def test_every_self_id_question_takes_an_answer_or_decline(client):
 
 
 def test_race_is_a_follow_up_to_hispanic_latino():
+    """Race only applies to applicants who aren't Hispanic or Latino."""
     assert answer_text("race", _common(hispanicLatino="No", race="White")) == "White"
     # Hispanic or Latino applicants aren't asked race; declining one declines both
     assert answer_text("race", _common(hispanicLatino="Yes", race="White")) is None
@@ -114,6 +122,7 @@ def test_race_is_a_follow_up_to_hispanic_latino():
 
 
 def test_the_old_single_self_id_question_is_migrated(tmp_path):
+    """The old single self-ID answer is upgraded on load."""
     legacy = _common()
     for key in ("gender", "hispanicLatino", "race", "veteran", "disability"):
         del legacy[key]
@@ -130,6 +139,7 @@ def test_the_old_single_self_id_question_is_migrated(tmp_path):
 
 
 def test_saving_deletes_the_old_self_id_record(app, client):
+    """Saving setup deletes the old self-ID bank record."""
     app.state.answer_bank.put("onb-selfId", question="Voluntary self-identification",
                               answer="I don’t wish to answer", category="Self-ID",
                               origin="onboarding", source="Onboarding · common questions")

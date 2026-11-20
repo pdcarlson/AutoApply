@@ -1,4 +1,6 @@
+"""The error envelope every failed request answers with."""
 def test_unknown_route_is_404_envelope(client):
+    """An unknown route answers 404 with the error envelope."""
     response = client.get("/api/does-not-exist")
     assert response.status_code == 404
     body = response.json()
@@ -7,12 +9,14 @@ def test_unknown_route_is_404_envelope(client):
 
 
 def test_wrong_method_is_405_envelope(client):
+    """A wrong method answers 405 with the error envelope."""
     response = client.delete("/api/session")
     assert response.status_code == 405
     assert response.json()["code"] == "method_not_allowed"
 
 
 def test_validation_error_envelope(client):
+    """A body that doesn't validate answers 422 with the envelope."""
     response = client.put("/api/preferences", content=b"not json",
                           headers={"Content-Type": "application/json"})
     assert response.status_code == 422
@@ -22,6 +26,7 @@ def test_validation_error_envelope(client):
 
 
 def test_screenshot_route_rejects_bad_names_and_serves_png(client, app):
+    """Screenshot route rejects bad names and serves png."""
     assert client.get("/api/screenshots/..%2Fstate.json").status_code == 404
     assert client.get("/api/screenshots/missing.png").json()["code"] == "not_found"
     png = b"\x89PNG\r\n\x1a\nfake"
@@ -33,6 +38,7 @@ def test_screenshot_route_rejects_bad_names_and_serves_png(client, app):
 
 
 def test_cors_allows_vite_origin(client):
+    """CORS lets the Vite dev server's origin in."""
     response = client.options("/api/session", headers={
         "Origin": "http://localhost:5173", "Access-Control-Request-Method": "GET"})
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"

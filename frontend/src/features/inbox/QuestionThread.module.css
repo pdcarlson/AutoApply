@@ -1,0 +1,43 @@
+/* Styles for QuestionThread. */
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.messageAgent {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.messageAgent p {
+  padding-top: 3px;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--ink2);
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.messageYou {
+  align-self: flex-end;
+  max-width: 80%;
+  padding: 9px 13px;
+  border-radius: var(--radius);
+  background: var(--ink-btn);
+  color: var(--ink-btn-fg);
+  font-size: 14px;
+  line-height: 1.5;
+}

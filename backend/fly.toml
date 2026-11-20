@@ -1,0 +1,43 @@
+# Fly.io: one machine with a volume, stopped when idle. From backend/:
+#   fly launch --no-deploy --copy-config      (once; pick your own app name and region)
+#   fly volumes create autoapply_data --size 3
+#   fly secrets set CLERK_PUBLISHABLE_KEY=pk_... CLERK_SECRET_KEY=sk_... ALLOWED_ORIGINS=http://localhost:5173
+#   fly deploy
+# See README.md, "Deploy the backend".
+app = "autoapply-api-b97199"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  AUTOAPPLY_DATA_DIR = "/data"
+  SUBMIT_REAL_FORM = "false"
+  MAX_CONCURRENT_RUNS = "2"
+
+[mounts]
+  source = "autoapply_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Stops the machine a few minutes after the last request (no charge for it while stopped)
+  # and starts it again on the next one. Stopping closes the open browsers: forms waiting for
+  # review are filled again at Submit, and queued jobs wait until the machine is started.
+  # For always-on, set auto_stop_machines = "off" and min_machines_running = 1.
+  # Never more than one machine: filled forms are open browsers in this one process.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"

@@ -1,0 +1,37 @@
+/* Styles for the empty, loading, and load-error states. */
+.empty {
+  padding: 32px 16px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.loadError {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px;
+  color: var(--ink2);
+  font-size: 14px;
+}
+
+.retry {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link);
+  text-decoration: underline;
+  cursor: pointer;
+}

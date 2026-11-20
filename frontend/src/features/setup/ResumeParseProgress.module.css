@@ -1,0 +1,44 @@
+/* Styles for ResumeParseProgress. */
+.parse {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.parseHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.parseHeadText {
+  display: flex;
+  flex-direction: column;
+}
+
+.parseList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.parseList li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink2);
+  font-size: 14px;
+  animation: fade-in 0.25s;
+}
+
+.parseList svg {
+  color: var(--ink);
+}
+
+.parseList li.warn svg {
+  color: var(--ink2);
+}

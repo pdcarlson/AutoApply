@@ -1,29 +1,37 @@
+/** The "Watch it fill" drawer: a job's progress and every field filled so far. */
 import { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router';
-import { useAgentSettings, useJob, useMarkSubmitted } from '@/api/queries';
-import { inboxJob } from '@/app/paths';
+import type { Job } from '@/api/types';
+import { useAgentSettings, useJob, usePauseToggle } from '@/api/queries';
 import { useOverlays } from '@/app/providers/overlays';
-import { useToast } from '@/app/providers/toast';
 import { Chip } from '@/components/ui/Badges';
-import { Button } from '@/components/ui/Button';
-import { Note } from '@/components/ui/Callouts';
-import { FieldList, Loading, LoadError } from '@/components/ui/DataDisplay';
+import { Drawer, DrawerSection } from '@/components/ui/Drawer';
+import { FieldList } from '@/components/ui/FieldList';
 import { Icon } from '@/components/ui/Icon';
-import { Drawer, DrawerSection } from '@/components/ui/Overlay';
+import { Loading, LoadError } from '@/components/ui/LoadStates';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { LiveBrowser } from '@/components/liveBrowser/LiveBrowser';
 import { jobChip, progressPercent, runStatusText } from '@/lib/jobStatus';
-import { usePauseToggle } from './usePauseToggle';
+import { JobDrawerFooter } from './JobDrawerFooter';
+import { JobStateNote } from './JobStateNote';
 import styles from './JobDrawer.module.css';
 
+/** What "Filled so far" says before any field is filled. */
+function emptyFieldsText(job: Job) {
+  if (job.state === 'queued') return 'Waiting for its turn in the queue.';
+  if (job.state === 'waiting') return 'Waiting for tomorrow’s daily limit to reset.';
+  return 'Nothing yet.';
+}
+
+interface JobDrawerProps {
+  jobId: string;
+}
+
 /** "Watch it fill": a job's progress and every field the agent has filled so far. */
-export function JobDrawer({ jobId }: { jobId: string }) {
-  const { close, open } = useOverlays();
-  const navigate = useNavigate();
-  const notify = useToast();
+export function JobDrawer({ jobId }: JobDrawerProps) {
+  const { close } = useOverlays();
   const job = useJob(jobId);
   const threshold = useAgentSettings().data?.confidenceThreshold;
-  const { paused, pending, toggle } = usePauseToggle();
-  const markSubmitted = useMarkSubmitted();
+  const { paused } = usePauseToggle();
   const bodyEnd = useRef<HTMLDivElement>(null);
   const data = job.data;
 
@@ -53,12 +61,7 @@ export function JobDrawer({ jobId }: { jobId: string }) {
     data.state === 'needs_input' && data.question
       ? { label: data.question.field, confidence: data.question.confidence }
       : null;
-  const emptyText =
-    data.state === 'queued'
-      ? 'Waiting for its turn in the queue.'
-      : data.state === 'waiting'
-        ? 'Waiting for tomorrow’s daily limit to reset.'
-        : 'Nothing yet.';
+  const hasFields = data.fields.length || data.currentField || heldField;
 
   const head = (
     <>
@@ -80,51 +83,18 @@ export function JobDrawer({ jobId }: { jobId: string }) {
     </>
   );
 
-  const footer = (
-    <>
-      {data.state === 'ready' && (
-        <Button variant="primary" grow onClick={() => open({ type: 'review', jobId: data.id })}>
-          Review and submit
-        </Button>
-      )}
-      {data.state === 'needs_input' && (
-        <Button
-          variant="primary"
-          grow
-          onClick={() => {
-            close();
-            navigate(inboxJob(data.id));
-          }}
-        >
-          Answer in Inbox
-        </Button>
-      )}
-      {data.state === 'handoff' && (
-        <Button
-          variant="primary"
-          grow
-          loading={markSubmitted.isPending}
-          onClick={() =>
-            markSubmitted.mutate(data.id, {
-              onSuccess: () => {
-                close();
-                notify(`Marked as submitted. ${data.company} is in Applications.`);
-              },
-            })
-          }
-        >
-          I submitted it
-        </Button>
-      )}
-      <Button disabled={pending} onClick={toggle}>
-        <Icon name={paused ? 'play' : 'pause'} size={15} />
-        {paused ? 'Resume queue' : 'Pause queue'}
-      </Button>
-    </>
+  const aside = data.liveView && (
+    <LiveBrowser url={data.liveView.url} label={`${data.company} application form`} />
   );
 
   return (
-    <Drawer labelledBy="drawer-title" onClose={close} head={head} footer={footer}>
+    <Drawer
+      labelledBy="drawer-title"
+      onClose={close}
+      head={head}
+      footer={<JobDrawerFooter job={data} />}
+      aside={aside}
+    >
       <div className={styles.runStatus}>
         <div className={styles.runRow}>
           <b>{runStatusText(data, paused) || 'Not started'}</b>
@@ -139,27 +109,12 @@ export function JobDrawer({ jobId }: { jobId: string }) {
             ` Your threshold is ${threshold}: anything that scores lower comes to you as a question.`}
         </span>
       </div>
-      {data.state === 'ready' && (
-        <Note tone="teal" title="Ready for your review">
-          Every field is filled. The agent stopped before Submit and waits for you to approve it.
-        </Note>
-      )}
-      {data.state === 'needs_input' && (
-        <Note tone="amber" title="Waiting for you">
-          The agent moved on to other jobs. Answer the question in your Inbox and this one picks up
-          where it stopped.
-        </Note>
-      )}
-      {data.state === 'handoff' && (
-        <Note tone="amber" title="Stopped at a CAPTCHA">
-          Finish it on {data.company}’s site. These are the answers to copy over.
-        </Note>
-      )}
+      <JobStateNote job={data} />
       <DrawerSection title="Filled so far">
-        {data.fields.length || data.currentField || heldField ? (
+        {hasFields ? (
           <FieldList fields={data.fields} pendingLabel={data.currentField} heldField={heldField} />
         ) : (
-          <p className="small muted">{emptyText}</p>
+          <p className="small muted">{emptyFieldsText(data)}</p>
         )}
       </DrawerSection>
       <div ref={bodyEnd} />

@@ -1,3 +1,4 @@
+/** Unit tests for the pasted job link check. */
 import { describe, expect, it } from 'vitest';
 import { checkJobLink } from './jobLinks';
 

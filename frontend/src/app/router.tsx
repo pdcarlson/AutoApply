@@ -1,26 +1,31 @@
+/** The app's routes: sign-in, setup, and the signed-in screens. */
 import { createBrowserRouter, Navigate } from 'react-router';
-import { AppShell } from '@/layouts/AppShell';
-import { SetupLayout } from '@/layouts/SetupLayout';
+import { SsoCallbackPage } from '@/auth/SsoCallbackPage';
 import { AccountDeletedPage } from '@/features/auth/AccountDeletedPage';
 import { AuthCallbackPage } from '@/features/auth/AuthCallbackPage';
 import { SignInPage } from '@/features/auth/SignInPage';
 import { ApplicationsPage } from '@/features/applications/ApplicationsPage';
 import { AnswerBankPage } from '@/features/answers/AnswerBankPage';
 import { InboxPage } from '@/features/inbox/InboxPage';
+import { JobBoardPage } from '@/features/jobs/JobBoardPage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { CommonQuestionsPage } from '@/features/setup/CommonQuestionsPage';
 import { ProfileReviewPage } from '@/features/setup/ProfileReviewPage';
 import { ResumeUploadPage } from '@/features/setup/ResumeUploadPage';
+import { AppShell } from '@/layouts/AppShell';
+import { SetupLayout } from '@/layouts/SetupLayout';
 import { RedirectIfSignedIn, RequireSession } from './guards';
 import { paths } from './paths';
 
+/** The browser router `App` renders. */
 export const router = createBrowserRouter([
   {
     element: <RedirectIfSignedIn />,
     children: [{ path: paths.signIn, element: <SignInPage /> }],
   },
   { path: paths.authCallback, element: <AuthCallbackPage /> },
+  { path: paths.ssoCallback, element: <SsoCallbackPage /> },
   { path: paths.accountDeleted, element: <AccountDeletedPage /> },
   {
     element: <RequireSession />,
@@ -38,6 +43,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to={paths.inbox} replace /> },
           { path: paths.inbox, element: <InboxPage /> },
+          { path: paths.jobs, element: <JobBoardPage /> },
           { path: paths.applications, element: <ApplicationsPage /> },
           { path: paths.answers, element: <AnswerBankPage /> },
           { path: paths.profile, element: <ProfilePage /> },

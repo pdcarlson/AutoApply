@@ -1,13 +1,11 @@
-/**
- * API contract between the frontend and the Auto Apply backend.
- *
- * Every type here is a JSON shape the backend sends or receives. Dates are ISO 8601 strings:
- * full timestamps (`2026-10-20T13:41:00Z`) for moments, `YYYY-MM-DD` for calendar dates.
- * The endpoint for each shape is documented in src/api/endpoints.ts and in docs/api.md.
- */
+/** The JSON shapes the backend sends and receives, mirrored exactly (camelCase). */
+
+// Dates are ISO 8601 strings: full timestamps (`2026-10-20T13:41:00Z`) for moments and
+// `YYYY-MM-DD` for calendar dates. src/api/endpoints.ts says which endpoint uses each shape.
 
 // ===== Shared =====
 
+/** The job boards (applicant tracking systems) Auto Apply can apply through. */
 export type Ats = 'Greenhouse' | 'Ashby';
 
 /** Error body returned with any non-2xx status. `code` is stable; `message` is for people. */
@@ -21,6 +19,7 @@ export interface ApiErrorBody {
 
 export interface User {
   id: string;
+  /** Display name, derived from the profile: "First Middle Last", skipping an empty middle name. */
   name: string;
   email: string;
 }
@@ -29,11 +28,6 @@ export interface Session {
   user: User;
   /** False until the user finishes setup by confirming their profile. */
   profileConfirmed: boolean;
-}
-
-export interface GoogleSignInStart {
-  /** Google's authorization URL. The browser is sent there; Google redirects back to the backend. */
-  authorizationUrl: string;
 }
 
 // ===== Profile =====
@@ -66,8 +60,21 @@ export interface Education {
   coursework: string;
 }
 
+/** A job, or a role shaped like one that isn't employment (a club office, volunteering). */
+export type ExperienceKind = 'work' | 'leadership' | 'volunteer' | 'activity';
+
+/** Every experience kind with its label, in the order the editor offers them. */
+export const EXPERIENCE_KINDS: readonly { value: ExperienceKind; label: string }[] = [
+  { value: 'work', label: 'Work' },
+  { value: 'leadership', label: 'Leadership' },
+  { value: 'volunteer', label: 'Volunteer' },
+  { value: 'activity', label: 'Activity' },
+];
+
 export interface Experience {
   id: string;
+  /** Only `work` counts as employment (current employer, work history). */
+  kind: ExperienceKind;
   title: string;
   org: string;
   location: string;
@@ -101,7 +108,12 @@ export interface UnplacedSection {
 }
 
 export interface Profile {
-  name: string;
+  /** Required to finish setup. */
+  firstName: string;
+  /** Optional; empty when the user has none. */
+  middleName: string;
+  /** Required to finish setup. */
+  lastName: string;
   email: string;
   phone: string;
   street: string;
@@ -149,7 +161,25 @@ export type CommonQuestionKey =
   | 'locations'
   | 'expectedPay'
   | 'familyEmployers'
-  | 'selfId';
+  | SelfIdKey;
+
+/** Voluntary self-identification questions; each one can be answered, declined, or skipped. */
+export type SelfIdKey = 'gender' | 'hispanicLatino' | 'race' | 'veteran' | 'disability';
+
+/** "I don't wish to answer", a valid answer to every self-ID question. */
+export type Decline = 'decline';
+
+/** The race options self-ID questions offer. */
+export const RACES = [
+  'American Indian or Alaska Native',
+  'Asian',
+  'Black or African American',
+  'Native Hawaiian or Other Pacific Islander',
+  'White',
+  'Two or More Races',
+] as const;
+
+export type Race = (typeof RACES)[number];
 
 export interface CommonAnswers {
   workAuthorized: YesNo | null;
@@ -163,8 +193,14 @@ export interface CommonAnswers {
   /** Free text; only used when a form requires a number. */
   expectedPay: string;
   familyEmployers: string[];
-  /** `decline` always picks "I don't wish to answer"; `ask` asks the first time each comes up. */
-  selfId: 'decline' | 'ask';
+  // Self-ID: null means not answered yet, so the agent asks the first time a form has it.
+  gender: 'Male' | 'Female' | 'Non-binary' | Decline | null;
+  hispanicLatino: YesNo | Decline | null;
+  /** Only asked when `hispanicLatino` is "No"; declining Hispanic/Latino declines race too. */
+  race: Race | Decline | null;
+  /** "Yes" means a protected veteran. */
+  veteran: YesNo | Decline | null;
+  disability: YesNo | Decline | null;
   skipped: CommonQuestionKey[];
 }
 
@@ -236,6 +272,22 @@ export interface Job {
   formSummary: { totalFields: number; fieldsToAsk: number } | null;
   question: AgentQuestion | null;
   readyAt: string | null;
+  /**
+   * `handoff` only: the agent pressed Submit and the site emailed the user a verification code.
+   * The form is still open, so the user enters the code here (POST /jobs/:id/verification-code)
+   * and the agent types it in and submits.
+   */
+  asksForCode: boolean;
+  /** Set while the job's browser is open: where to watch and drive it (see LiveView). */
+  liveView: LiveView | null;
+}
+
+/**
+ * A job's browser, streamed. `url` is a WebSocket endpoint: a path on the API, or a full
+ * ws(s)/http(s) URL when the browser is hosted elsewhere.
+ */
+export interface LiveView {
+  url: string;
 }
 
 export type FieldSourceKind =
@@ -276,7 +328,10 @@ export interface AgentQuestion {
   draft: { text: string; gap: string } | null;
   messages: { from: 'agent' | 'you'; text: string }[];
   placeholder: string;
-  /** Options the user can pick directly instead of replying. Null hides them. */
+  /**
+   * The form field's options, when it only takes one of them. The user picks one and there's
+   * no reply box. Null when the field takes free text, so the user replies in their own words.
+   */
   pickOptions: string[] | null;
   /** The answer the agent will enter once the user accepts it. Null while it still needs a reply. */
   proposedAnswer: { value: string; confidence: number } | null;
@@ -298,6 +353,42 @@ export interface ApplyResult {
   queued: string[];
   /** Jobs held until tomorrow by the daily limit. */
   deferred: string[];
+}
+
+// ===== Job board =====
+
+export type PostingStatus = 'open' | 'in_inbox' | 'applied';
+
+/** An open job collected from a company's Greenhouse or Ashby board. */
+export interface Posting {
+  id: string;
+  company: string;
+  role: string;
+  location: string;
+  ats: Ats;
+  url: string;
+  postedAt: string | null;
+  internship: boolean;
+  /** How well it fits the profile: 0–100, with a short reason for each thing that matched. */
+  fit: { score: number; reasons: string[] };
+  status: PostingStatus;
+  /** The Inbox job made from it (status `in_inbox`). */
+  jobId: string | null;
+}
+
+export interface JobBoard {
+  /** Best fit first. */
+  postings: Posting[];
+  /** When the postings were last collected. Null before the first collection finishes. */
+  fetchedAt: string | null;
+  /** True while the backend is collecting postings from the boards. */
+  refreshing: boolean;
+}
+
+export interface PostingApplyResult {
+  job: Job;
+  /** True when the daily limit holds it until tomorrow. */
+  deferred: boolean;
 }
 
 // ===== Applications =====
@@ -332,12 +423,13 @@ export interface TimelineEvent {
 export interface ApplicationDetail extends Application {
   fields: FilledField[];
   timeline: TimelineEvent[];
-  /** Image saved when the form was submitted. Null when the user submitted it themselves. */
+  /** The page after Submit (the thank-you page); a dry run's is the filled form. Null if none was saved. */
   screenshotUrl: string | null;
 }
 
 // ===== Answer bank =====
 
+/** The Answer bank's categories, in display order. */
 export const ANSWER_CATEGORIES = [
   'Eligibility',
   'Education',

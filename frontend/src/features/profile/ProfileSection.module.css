@@ -1,0 +1,27 @@
+/* Styles for ProfileSection. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 760px;
+  padding: 26px 0 30px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 16px;
+}
+
+.sectionHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sectionHead h2 {
+  font-size: 20px;
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

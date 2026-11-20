@@ -1,13 +1,14 @@
 """Asks Claude how to answer a question the profile doesn't cover directly."""
-import os
+from datetime import date
 from functools import cache
 
 import anthropic
 from pydantic import BaseModel
 
-from agent.forms.form_field import FieldAnswer
-from agent.settings import CLAUDE_MODEL
+from agent.forms.form_field import AnswerSource, FieldAnswer, FieldKind, FormField
+from agent.settings import CLAUDE_MODEL, has_anthropic_key
 
+MAX_TOKENS = 4000
 PROMPT = """You are filling out a job application for the applicant below.
 
 Applicant facts:
@@ -33,33 +34,44 @@ class ClaudeAnswer(BaseModel):
 
 
 @cache
-def claude_client():
+def claude_client() -> anthropic.Anthropic:
     """Make the Claude client once and reuse it for every question."""
     return anthropic.Anthropic()
 
 
-def ask_claude(form_field, facts):
-    """Return Claude's answer for one field. Confidence 0 means Claude couldn't help."""
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        return FieldAnswer("", "claude", 0, "No Anthropic API key set.")
-    if form_field.options:
-        choices = "Answer with exactly one of these choices: " + " | ".join(form_field.options)
-    else:
-        choices = "Answer in a short line of text."
-    prompt = PROMPT.format(facts=facts, label=form_field.label, choices=choices)
+def _no_answer(reason: str) -> FieldAnswer:
+    """Return the empty answer that means Claude couldn't help."""
+    return FieldAnswer("", AnswerSource.CLAUDE, 0, reason)
 
+
+def _choices(form_field: FormField) -> str:
+    """Return the line that tells Claude what shape of answer the field takes."""
+    if form_field.options:
+        return "Answer with exactly one of these choices: " + " | ".join(form_field.options)
+    if form_field.kind is FieldKind.DATE:
+        # "June 2027" in the facts has to become a day, and "as soon as possible" needs today
+        return (f"Answer with one date written YYYY-MM-DD. Today is {date.today().isoformat()}"
+                ", so a start date can't be before then.")
+    return "Answer in a short line of text."
+
+
+def ask_claude(form_field: FormField, facts: str) -> FieldAnswer:
+    """Return Claude's answer for one field. Confidence 0 means Claude couldn't help."""
+    if not has_anthropic_key():
+        return _no_answer("No Anthropic API key set.")
+    prompt = PROMPT.format(facts=facts, label=form_field.label, choices=_choices(form_field))
     try:
         response = claude_client().messages.parse(
             model=CLAUDE_MODEL,
-            max_tokens=4000,
+            max_tokens=MAX_TOKENS,
             output_config={"effort": "low"},
             messages=[{"role": "user", "content": prompt}],
             output_format=ClaudeAnswer,
         )
     except anthropic.APIError as error:
-        return FieldAnswer("", "claude", 0, f"Couldn't reach Claude: {error}")
+        return _no_answer(f"Couldn't reach Claude: {error}")
 
     if response.stop_reason != "end_turn" or response.parsed_output is None:
-        return FieldAnswer("", "claude", 0, f"Claude stopped early ({response.stop_reason}).")
+        return _no_answer(f"Claude stopped early ({response.stop_reason}).")
     answer = response.parsed_output
-    return FieldAnswer(answer.value, "claude", answer.confidence, answer.reason)
+    return FieldAnswer(answer.value, AnswerSource.CLAUDE, answer.confidence, answer.reason)

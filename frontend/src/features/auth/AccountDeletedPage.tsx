@@ -1,9 +1,10 @@
+/** The screen shown after the account is deleted. */
 import { Link } from 'react-router';
 import { paths } from '@/app/paths';
 import { buttonClass } from '@/components/ui/classNames';
-import { Brand } from '@/components/ui/DataDisplay';
+import { Brand } from '@/components/ui/Brand';
 import { Icon } from '@/components/ui/Icon';
-import styles from './auth.module.css';
+import styles from './AccountDeletedPage.module.css';
 
 const REMOVED = [
   'Profile and resume file',
@@ -13,6 +14,7 @@ const REMOVED = [
   'Job preferences and agent controls',
 ];
 
+/** Confirms what was removed and links back to sign-in. */
 export function AccountDeletedPage() {
   return (
     <div className={styles.frame}>

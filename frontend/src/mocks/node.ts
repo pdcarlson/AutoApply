@@ -1,5 +1,6 @@
+/** The mock API as a Node server, for tests. */
 import { setupServer } from 'msw/node';
 import { handlers } from './handlers';
 
-/** The same mock API, for tests running in Node. */
+/** The mock API server the test setup starts. */
 export const server = setupServer(...handlers);

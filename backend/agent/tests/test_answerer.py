@@ -1,10 +1,12 @@
 """Tests for picking answers."""
+import copy
+
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile
 from agent.forms.form_field import FieldAnswer, FormField
-from agent.settings import AGENT_DIR
+from agent.tests.helpers import EXAMPLE_PROFILE
 
-PROFILE = Profile.load(AGENT_DIR / "applicant" / "example_profile.json")
+PROFILE = Profile.load(EXAMPLE_PROFILE)
 SPONSORSHIP = FormField("question_1", "Do you need sponsorship?", "select", True, ["Yes", "No"])
 
 
@@ -24,7 +26,9 @@ def test_standard_fields_come_from_the_profile():
 
 def test_saved_answer_beats_claude():
     """A question the applicant already answered uses their answer."""
-    answerer = Answerer(PROFILE, claude_says("wrong", 100))
+    profile = copy.deepcopy(PROFILE)
+    profile.save_answer("How did you hear about this job?", "LinkedIn")
+    answerer = Answerer(profile, claude_says("wrong", 100))
     answer = answerer.answer(FormField("question_1", "How did you hear about this job? ", "text"))
     assert (answer.value, answer.source) == ("LinkedIn", "saved")
 
@@ -43,3 +47,34 @@ def test_unsure_claude_answer_means_ask():
 def test_answer_that_isnt_an_option_means_ask():
     """A dropdown answer has to be one of the dropdown's options."""
     assert Answerer(PROFILE, claude_says("Nope", 100)).answer(SPONSORSHIP) is None
+
+
+def test_middle_name_box_comes_from_the_profile():
+    """A "Middle Name" question is filled from the profile; with no middle name Claude decides."""
+    profile = copy.deepcopy(PROFILE)
+    profile.middle_name = "Ann"
+    middle = FormField("question_2", "Middle Name", "text")
+    answer = Answerer(profile, claude_says("wrong", 100)).answer(middle)
+    assert (answer.value, answer.source) == ("Ann", "profile")
+    assert "Middle name: Ann" in profile.facts() and "Middle name" not in PROFILE.facts()
+    assert Answerer(PROFILE, claude_says("", 100)).answer(middle) is None
+
+
+START = FormField("question_9", "When can you start a new role?", "date", True)
+
+
+def test_date_answers_are_kept_as_iso_dates():
+    """A saved "June 2027" is filled as the first of June, the way date pickers take it."""
+    profile = copy.deepcopy(PROFILE)
+    profile.save_answer(START.label, "June 2027")
+    answer = Answerer(profile, claude_says("wrong", 100)).answer(START)
+    assert (answer.value, answer.source) == ("2027-06-01", "saved")
+
+
+def test_answers_that_arent_dates_dont_fill_date_questions():
+    """A saved answer that isn't a date goes to Claude, and a non-date from Claude is asked."""
+    profile = copy.deepcopy(PROFILE)
+    profile.save_answer(START.label, "After graduation")
+    answer = Answerer(profile, claude_says("2027-06-01", 90)).answer(START)
+    assert (answer.value, answer.source) == ("2027-06-01", "claude")
+    assert Answerer(profile, claude_says("Summer", 90)).answer(START) is None

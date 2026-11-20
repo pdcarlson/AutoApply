@@ -1,0 +1,16 @@
+/* Styles for EntryField. */
+.wide {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field > label {
+  font-size: 14px;
+  font-weight: 600;
+}

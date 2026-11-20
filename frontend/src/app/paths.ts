@@ -1,11 +1,17 @@
+/** Every route path in the app, and helpers that link deep into a screen. */
+
+/** The URL path of each screen. */
 export const paths = {
   signIn: '/sign-in',
   authCallback: '/auth/callback',
+  /** Clerk sign-in only: where Google returns to. */
+  ssoCallback: '/sso-callback',
   accountDeleted: '/account-deleted',
   setupResume: '/setup/resume',
   setupProfile: '/setup/profile',
   setupQuestions: '/setup/questions',
   inbox: '/inbox',
+  jobs: '/jobs',
   applications: '/applications',
   answers: '/answers',
   profile: '/profile',

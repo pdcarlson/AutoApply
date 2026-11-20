@@ -1,3 +1,4 @@
+/** Tests for the Inbox screen. */
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
@@ -44,6 +45,21 @@ describe('InboxPage', () => {
 
     expect(await screen.findByText(/Filling 1 job/)).toBeInTheDocument();
     await waitFor(() => expect(db.jobs.find((j) => j.id === 'job-101')?.state).not.toBe('open'));
+  });
+
+  it('applies to one job from its row, even when it isn’t checked', async () => {
+    signIn();
+    const user = userEvent.setup();
+    renderAt(inbox, '/inbox');
+
+    await user.click(await screen.findByRole('button', { name: 'Apply to Globex' }));
+
+    expect(await screen.findByText(/Filling 1 job/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(db.jobs.find((j) => j.company === 'Globex')?.state).not.toBe('open'),
+    );
+    // The checked job is left alone.
+    expect(db.jobs.find((j) => j.id === 'job-101')?.state).toBe('open');
   });
 
   it('asks to confirm the profile before applying', async () => {
@@ -99,18 +115,39 @@ describe('InboxPage', () => {
     expect(await screen.findByRole('button', { name: /^Contoso ·/ })).toBeInTheDocument();
   });
 
-  it('answers a question in plain words and accepts the result', async () => {
+  it('answers an options question by picking one, with no reply box', async () => {
     signIn();
     const user = userEvent.setup();
     renderAt(inbox, '/inbox?job=job-103');
 
-    await user.type(await screen.findByLabelText('Your reply'), 'yes, I would move');
-    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await user.click(await screen.findByRole('button', { name: 'Yes' }));
+    expect(screen.queryByLabelText('Your reply')).not.toBeInTheDocument();
     expect(await screen.findByText('I’ll enter')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Use this answer' }));
 
     expect(await screen.findByText(/Saved to your Answer bank/)).toBeInTheDocument();
     expect(db.answers[0]).toMatchObject({ answer: 'Yes', company: 'Initech' });
+  });
+
+  it('sends the code the site emailed, and takes another after a wrong one', async () => {
+    signIn();
+    const acme = db.jobs.find((j) => j.id === 'job-101')!;
+    Object.assign(acme, { state: 'handoff', asksForCode: true });
+    const user = userEvent.setup();
+    renderAt(inbox, '/inbox?job=job-101');
+
+    const box = await screen.findByLabelText(/Check your email for a message from Greenhouse/);
+    await user.type(box, '00000000');
+    await user.click(screen.getByRole('button', { name: 'Submit code' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/didn’t take that code/);
+    expect(db.jobs).toContain(acme);
+
+    await user.clear(box);
+    await user.type(box, 'AB12CD34');
+    await user.click(screen.getByRole('button', { name: 'Submit code' }));
+
+    await waitFor(() => expect(db.jobs).not.toContain(acme));
+    expect(db.applications[0]).toMatchObject({ jobId: 'job-101', submittedBy: 'agent' });
   });
 });

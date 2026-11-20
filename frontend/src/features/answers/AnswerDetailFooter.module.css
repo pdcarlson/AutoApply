@@ -1,0 +1,29 @@
+/* Styles for AnswerDetailFooter. */
+.detailFoot {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+}
+
+.confirmDelete {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (width <= 899px) {
+  .detailFoot {
+    padding-left: var(--gutter);
+    padding-right: var(--gutter);
+  }
+}

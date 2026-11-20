@@ -1,8 +1,6 @@
-/*
- * Design tokens. Grayscale wireframe palette with one link blue and one red for destructive
- * and error states. Light is the default; dark applies when the user picks it, or when they
- * pick "Match my device" (no data-theme attribute) and the OS prefers dark.
- */
+/* Design tokens: colors, shadows, fonts, radius, and layout sizes for light and dark themes. */
+/* Grayscale palette with one link blue and one red for destructive and error states. Dark
+   applies when the user picks it, or picks "Match my device" and the OS prefers dark. */
 :root {
   --bg: #fff;
   --surface: #fff;

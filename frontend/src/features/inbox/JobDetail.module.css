@@ -1,0 +1,23 @@
+/* Styles for JobDetail. */
+.redText {
+  color: var(--red-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+}
+
+.progressBar {
+  width: 160px;
+}

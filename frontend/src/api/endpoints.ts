@@ -1,8 +1,4 @@
-/**
- * One function per backend endpoint. Paths are relative to VITE_API_BASE_URL (default `/api`).
- * All requests send the session cookie; any non-2xx response throws an ApiError carrying the
- * `{ code, message, details }` body. docs/api.md lists the same endpoints for the backend team.
- */
+/** One function per backend endpoint, each noting its method, path, and replies. */
 import { http } from './client';
 import type {
   AgentQuestion,
@@ -16,10 +12,11 @@ import type {
   ApplicationStatus,
   ApplyResult,
   CommonAnswers,
-  GoogleSignInStart,
   Job,
+  JobBoard,
   JobDetail,
   JobPreferences,
+  PostingApplyResult,
   Profile,
   ProfileUpdate,
   ResumeFile,
@@ -27,21 +24,13 @@ import type {
   Session,
 } from './types';
 
+/** The signed-in session. */
 export const authApi = {
   /** GET /session → 200 Session, or 401 `unauthenticated` when signed out. */
   getSession: () => http.get<Session>('/session'),
-  /**
-   * POST /auth/google { returnTo } → 200 { authorizationUrl }.
-   * The backend creates the OAuth state, the browser goes to Google, Google returns to the
-   * backend's callback, and the backend sets the session cookie and redirects to
-   * `/auth/callback` (or `/auth/callback?error=access_denied` when the user cancels).
-   */
-  startGoogleSignIn: (returnTo: string) =>
-    http.post<GoogleSignInStart>('/auth/google', { returnTo }),
-  /** POST /auth/logout → 204. */
-  signOut: () => http.post<void>('/auth/logout'),
 };
 
+/** The profile and finishing setup. */
 export const profileApi = {
   /** GET /profile → 200 Profile. */
   get: () => http.get<Profile>('/profile'),
@@ -54,6 +43,7 @@ export const profileApi = {
   confirm: () => http.post<Session>('/profile/confirm'),
 };
 
+/** Uploading and reading the resume. */
 export const resumeApi = {
   /**
    * POST /resume multipart `file` → 202 ResumeParse (status `parsing`).
@@ -77,6 +67,7 @@ export const resumeApi = {
   },
 };
 
+/** Answers to the common application questions. */
 export const commonAnswersApi = {
   /** GET /common-answers → 200 CommonAnswers. */
   get: () => http.get<CommonAnswers>('/common-answers'),
@@ -84,13 +75,15 @@ export const commonAnswersApi = {
   update: (answers: CommonAnswers) => http.put<CommonAnswers>('/common-answers', answers),
 };
 
+/** The kinds of jobs the user wants. */
 export const preferencesApi = {
   /** GET /preferences → 200 JobPreferences. */
   get: () => http.get<JobPreferences>('/preferences'),
   /** PUT /preferences JobPreferences → 200 JobPreferences. */
-  update: (prefs: JobPreferences) => http.put<JobPreferences>('/preferences', prefs),
+  update: (preferences: JobPreferences) => http.put<JobPreferences>('/preferences', preferences),
 };
 
+/** The agent's settings and run state. */
 export const agentApi = {
   /** GET /settings → 200 AgentSettings. */
   getSettings: () => http.get<AgentSettings>('/settings'),
@@ -104,6 +97,7 @@ export const agentApi = {
   resume: () => http.post<AgentStatus>('/agent/resume'),
 };
 
+/** Inbox jobs and moving them through the agent. */
 export const jobsApi = {
   /** GET /jobs → 200 Job[]: every job not yet submitted or skipped (Inbox, queue, ready). */
   list: () => http.get<Job[]>('/jobs'),
@@ -125,10 +119,30 @@ export const jobsApi = {
   restore: (id: string) => http.post<Job>(`/jobs/${id}/restore`),
   /** POST /jobs/:id/submit → 200 Application. Approves a `ready` job; resolves once confirmed. */
   submit: (id: string) => http.post<Application>(`/jobs/${id}/submit`),
+  /**
+   * POST /jobs/:id/verification-code { code } → 200 Application once the site confirms it.
+   * The agent types the code the site emailed into the open form (`asksForCode`) and submits.
+   * 422 `code_rejected` (try another code) | `invalid_code`; 409 `no_code_window` | `not_handoff`.
+   */
+  enterCode: (id: string, code: string) =>
+    http.post<Application>(`/jobs/${id}/verification-code`, { code }),
   /** POST /jobs/:id/mark-submitted → 200 Application. The user finished a `handoff` job. */
   markSubmitted: (id: string) => http.post<Application>(`/jobs/${id}/mark-submitted`),
 };
 
+/** The job board. */
+export const postingsApi = {
+  /** GET /postings → 200 JobBoard: open postings, ranked by fit to the profile. */
+  list: () => http.get<JobBoard>('/postings'),
+  /**
+   * POST /postings/:id/apply → 200 PostingApplyResult. Adds the posting to the Inbox and
+   * queues it. 409 `profile_not_confirmed` | `already_applied` | `already_in_inbox`;
+   * 422 `posting_closed`.
+   */
+  apply: (id: string) => http.post<PostingApplyResult>(`/postings/${id}/apply`),
+};
+
+/** The conversation about a question the agent paused on. */
 export const questionsApi = {
   /** POST /jobs/:id/question/messages { text } → 200 AgentQuestion with the agent's reading. */
   reply: (jobId: string, text: string) =>
@@ -146,6 +160,7 @@ export const questionsApi = {
     http.post<Job>(`/jobs/${jobId}/question/accept`, { scope }),
 };
 
+/** Sent applications. */
 export const applicationsApi = {
   /** GET /applications → 200 Application[], newest first. */
   list: () => http.get<Application[]>('/applications'),
@@ -156,6 +171,7 @@ export const applicationsApi = {
     http.patch<Application>(`/applications/${id}`, { status }),
 };
 
+/** The Answer bank. */
 export const answersApi = {
   /** GET /answers → 200 Answer[]. */
   list: () => http.get<Answer[]>('/answers'),
@@ -167,6 +183,7 @@ export const answersApi = {
   remove: (id: string) => http.delete(`/answers/${id}`),
 };
 
+/** Exporting and deleting the account. */
 export const accountApi = {
   /** GET /account/export → 200 file (JSON or ZIP) with the profile, answers, and applications. */
   exportData: () => http.download('/account/export', 'auto-apply-export.json'),

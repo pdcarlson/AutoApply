@@ -1,0 +1,113 @@
+/* Styles for PostingList and its rows. */
+.check {
+  grid-area: check;
+  width: 18px;
+  height: 18px;
+}
+
+.check:disabled {
+  opacity: 0.45;
+}
+
+.list {
+  /* Keeps its full height so the page scrolls, instead of the list being cut off. */
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 18px 44px minmax(0, 1.5fr) minmax(0, 1.2fr) auto;
+  grid-template-areas: 'check fit main why actions';
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.listHead {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--frame);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.fit {
+  grid-area: fit;
+  font-variant-numeric: tabular-nums;
+}
+
+.fit b {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.main b {
+  font-weight: 700;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.why {
+  grid-area: why;
+  min-width: 0;
+  color: var(--ink2);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.listHead .why {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  white-space: nowrap;
+}
+
+@media (width <= 899px) {
+  .listHead {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: 18px 36px minmax(0, 1fr);
+    grid-template-areas:
+      'check fit main'
+      'why why why'
+      'actions actions actions';
+    gap: 8px 12px;
+    padding: 14px;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+}

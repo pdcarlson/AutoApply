@@ -1,8 +1,22 @@
+/** Helpers that render routes inside the app's providers for tests. */
 import { render } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router';
 import { AppProviders } from '@/app/App';
 import { createQueryClient } from '@/app/queryClient';
+import { AuthActionsContext, type AuthActions } from '@/auth/actions';
+import { db } from '@/mocks/db';
+
+/** Stands in for Clerk: signing in or out flips the mock backend's session. */
+const testAuthActions: AuthActions = {
+  startSignIn: async () => {
+    db.signedIn = true;
+  },
+  signOut: async () => {
+    db.signedIn = false;
+  },
+  afterAccountDeleted: async () => {},
+};
 
 /** Renders routes inside the app's providers, starting at `path`. */
 export function renderRoutes(routes: RouteObject[], path: string) {
@@ -11,7 +25,9 @@ export function renderRoutes(routes: RouteObject[], path: string) {
   queryClient.setDefaultOptions({ queries: { retry: false, staleTime: 0 } });
   const view = render(
     <AppProviders queryClient={queryClient}>
-      <RouterProvider router={router} />
+      <AuthActionsContext.Provider value={testAuthActions}>
+        <RouterProvider router={router} />
+      </AuthActionsContext.Provider>
     </AppProviders>,
   );
   return { ...view, router, queryClient };

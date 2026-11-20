@@ -1,3 +1,4 @@
+/* Styles for AppShell. */
 .shell {
   display: flex;
   height: 100%;
@@ -101,6 +102,10 @@
 .user > button {
   align-self: flex-start;
   font-size: 12.5px;
+}
+
+.user > .danger {
+  color: var(--red-text);
 }
 
 /* ===== Bottom tabs (phones) ===== */

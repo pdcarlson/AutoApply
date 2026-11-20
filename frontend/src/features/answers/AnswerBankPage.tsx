@@ -1,92 +1,85 @@
+/** The Answer bank screen: saved answers the agent reuses, with a detail panel. */
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { ANSWER_CATEGORIES, type Answer, type AnswerCategory } from '@/api/types';
-import { useAnswers, useJobs } from '@/api/queries';
-import { inboxJob } from '@/app/paths';
-import { Dot, MiniTag } from '@/components/ui/Badges';
+import type { Answer } from '@/api/types';
+import { useAnswers } from '@/api/queries';
 import { Button } from '@/components/ui/Button';
-import { Banner } from '@/components/ui/Callouts';
-import { Empty, FilterChips, Loading, LoadError } from '@/components/ui/DataDisplay';
+import { FilterChips } from '@/components/ui/FilterChips';
+import { Empty, Loading, LoadError } from '@/components/ui/LoadStates';
 import { Icon } from '@/components/ui/Icon';
 import { PageTitle } from '@/layouts/Page';
-import { formatDay, plural } from '@/lib/format';
+import { plural } from '@/lib/format';
 import { cx } from '@/lib/cx';
 import { AnswerDetail } from './AnswerDetail';
+import { categoryOptions, filterAnswers, type CategoryFilter } from './answerFilters';
+import { AnswerTable } from './AnswerTable';
+import { WaitingQuestionBanner } from './WaitingQuestionBanner';
 import styles from './AnswerBankPage.module.css';
 
-type Category = 'All' | AnswerCategory;
+/** Below this width the detail sits under the list instead of beside it. */
+const PHONE_MAX_WIDTH_PX = 900;
 
-const matchesSearch = (answer: Answer, term: string) =>
-  !term ||
-  [answer.question, answer.answer, ...answer.alsoMatches.map((m) => m.wording)]
-    .join(' ')
-    .toLowerCase()
-    .includes(term);
+const LEDE =
+  'Answer once. The agent reuses these on every form that asks the same thing, even when it’s worded differently. Company-specific answers are only used for that company.';
 
 /** `null` = nothing picked yet (first answer shows), `'new'` = adding one. */
 type Selection = string | 'new' | null;
 
-export function AnswerBankPage() {
-  const answers = useAnswers();
-  const jobs = useJobs();
-  const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<Category>('All');
-  const [selection, setSelection] = useState<Selection>(null);
-
-  const all = answers.data ?? [];
-  const term = search.trim().toLowerCase();
-  const visible = all.filter(
-    (a) => (category === 'All' || a.category === category) && matchesSearch(a, term),
-  );
-  const selected =
-    selection === 'new' ? null : (all.find((a) => a.id === selection) ?? all[0] ?? null);
-  const waiting = (jobs.data ?? []).filter((job) => job.state === 'needs_input' && job.question);
-  const showDetail = selection === 'new' || selected !== null;
-
-  // On phones the detail sits under the list; bring it into view when one is picked.
+/** On phones, scrolls the detail into view whenever an answer is picked. */
+function useScrollDetailIntoView(selection: Selection) {
   useEffect(() => {
-    if (selection && window.innerWidth < 900) {
+    if (selection && window.innerWidth < PHONE_MAX_WIDTH_PX) {
       document.getElementById('answer-detail')?.scrollIntoView({ block: 'start' });
     }
   }, [selection]);
+}
+
+/** Search, filter and pick saved answers; the picked one opens beside the list. */
+export function AnswerBankPage() {
+  const answers = useAnswers();
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<CategoryFilter>('All');
+  const [selection, setSelection] = useState<Selection>(null);
+  useScrollDetailIntoView(selection);
+
+  const all = answers.data ?? [];
+  const visible = filterAnswers(all, category, search);
+  const selected: Answer | null =
+    selection === 'new' ? null : (all.find((answer) => answer.id === selection) ?? all[0] ?? null);
+  const isDetailShown = selection === 'new' || selected !== null;
+
+  const startNewAnswer = () => {
+    setSearch('');
+    setCategory('All');
+    setSelection('new');
+  };
+
+  const emptyMessage = all.length
+    ? `No answers match “${search}”.`
+    : 'No saved answers yet. They build up as you answer the agent’s questions.';
+  const placeholder = answers.isPending ? (
+    <Loading />
+  ) : answers.isError ? (
+    <LoadError what="your answers" onRetry={() => answers.refetch()} />
+  ) : visible.length ? null : (
+    <Empty>{emptyMessage}</Empty>
+  );
 
   return (
-    <div className={cx(styles.layout, showDetail && styles.withDetail)}>
+    <div className={cx(styles.layout, isDetailShown && styles.withDetail)}>
       <main id="main" className={styles.main}>
         <div className={styles.head}>
           <PageTitle
             title="Answer bank"
             meta={plural(all.length, 'answer', 'answers')}
-            lede="Answer once. The agent reuses these on every form that asks the same thing, even when it’s worded differently. Company-specific answers are only used for that company."
+            lede={LEDE}
             action={
-              <Button
-                size="sm"
-                onClick={() => {
-                  setSearch('');
-                  setCategory('All');
-                  setSelection('new');
-                }}
-              >
+              <Button size="sm" onClick={startNewAnswer}>
                 <Icon name="plus" size={16} />
                 Add answer
               </Button>
             }
           />
-          {waiting.length > 0 && (
-            <Banner
-              tone="amber"
-              leading={<Dot tone="amber" />}
-              title={`${plural(waiting.length, 'question', 'questions')} waiting for an answer`}
-              action={
-                <Button size="sm" onClick={() => navigate(inboxJob(waiting[0].id))}>
-                  Answer in Inbox
-                </Button>
-              }
-            >
-              {waiting[0].company}’s form asks: “{waiting[0].question!.field}”
-            </Banner>
-          )}
+          <WaitingQuestionBanner />
           <div className={styles.tools}>
             <label className={styles.search} htmlFor="answer-search">
               <Icon name="search" size={16} stroke={2} />
@@ -96,83 +89,31 @@ export function AnswerBankPage() {
                 type="search"
                 placeholder="Search questions and answers"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(event) => setSearch(event.target.value)}
               />
             </label>
-            <FilterChips<Category>
+            <FilterChips<CategoryFilter>
               label="Filter by category"
               value={category}
               onChange={setCategory}
-              options={(['All', ...ANSWER_CATEGORIES] as Category[]).map((key) => ({
-                key,
-                label: key,
-                count: key === 'All' ? all.length : all.filter((a) => a.category === key).length,
-              }))}
+              options={categoryOptions(all)}
             />
           </div>
         </div>
-
-        <div className={styles.table}>
-          <div className={cx(styles.grid, styles.tableHead)} aria-hidden="true">
-            <span>Question</span>
-            <span>Your answer</span>
-            <span className={styles.right}>Used</span>
-          </div>
-          <div className={styles.tableBody}>
-            {answers.isPending ? (
-              <Loading />
-            ) : answers.isError ? (
-              <LoadError what="your answers" onRetry={() => answers.refetch()} />
-            ) : visible.length ? (
-              visible.map((answer) => (
-                <button
-                  key={answer.id}
-                  type="button"
-                  className={cx(styles.grid, styles.row, answer.id === selected?.id && styles.on)}
-                  aria-pressed={answer.id === selected?.id}
-                  onClick={() => setSelection(answer.id)}
-                >
-                  <span className={styles.question}>
-                    <b>{answer.question}</b>
-                    <span className={styles.meta}>
-                      <span>{answer.category}</span>
-                      {answer.company && <MiniTag>Only {answer.company}</MiniTag>}
-                      {answer.savedRecently && <MiniTag filled>Saved today</MiniTag>}
-                    </span>
-                  </span>
-                  <span className={styles.answer}>{answer.answer || '—'}</span>
-                  <span className={styles.used}>
-                    <b>{answer.timesUsed}×</b>
-                    <span>{answer.lastUsedAt ? formatDay(answer.lastUsedAt) : 'Not used yet'}</span>
-                  </span>
-                </button>
-              ))
-            ) : (
-              <Empty>
-                {all.length
-                  ? `No answers match “${search}”.`
-                  : 'No saved answers yet. They build up as you answer the agent’s questions.'}
-              </Empty>
-            )}
-          </div>
-        </div>
+        <AnswerTable
+          answers={visible}
+          selectedId={selected?.id}
+          onSelect={setSelection}
+          placeholder={placeholder}
+        />
       </main>
-      {selection === 'new' ? (
+      {isDetailShown && (
         <AnswerDetail
-          key="new"
-          answer={null}
+          key={selected?.id ?? 'new'}
+          answer={selected}
           onSaved={setSelection}
           onDeleted={() => setSelection(null)}
         />
-      ) : (
-        selected && (
-          <AnswerDetail
-            key={selected.id}
-            answer={selected}
-            onSaved={setSelection}
-            onDeleted={() => setSelection(null)}
-          />
-        )
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+/** Tests that the query client sends the user to sign in when a session expires. */
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
@@ -8,11 +9,13 @@ import { renderRoutes } from '@/test/render';
 import { RequireSession } from './guards';
 import { paths } from './paths';
 
+/** Shows the profile's name once it loads. */
 function ProfileName() {
-  return <p>{useProfile().data?.name ?? 'Loading'}</p>;
+  const profile = useProfile().data;
+  return <p>{profile ? `${profile.firstName} ${profile.lastName}` : 'Loading'}</p>;
 }
 
-describe('expired session', () => {
+describe('createQueryClient', () => {
   it('sends the user to sign in when a request returns 401', async () => {
     db.signedIn = true;
     const { router, queryClient } = renderRoutes(

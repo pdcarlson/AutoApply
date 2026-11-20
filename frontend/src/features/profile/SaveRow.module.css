@@ -1,0 +1,7 @@
+/* Styles for SaveRow. */
+.saveRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}

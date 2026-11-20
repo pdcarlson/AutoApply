@@ -1,4 +1,5 @@
 playwright
+websockets>=13
 anthropic
 python-dotenv
 

@@ -1,24 +1,14 @@
+/** One job in the Inbox table, which expands to show its detail. */
 import type { Job } from '@/api/types';
-import { useOverlays } from '@/app/providers/overlays';
 import { Chip } from '@/components/ui/Badges';
 import { Button, IconButton } from '@/components/ui/Button';
-import { ChecksList } from '@/components/ui/DataDisplay';
 import { Icon } from '@/components/ui/Icon';
-import { ProgressBar } from '@/components/ui/ProgressBar';
-import {
-  formSummaryText,
-  isInProgress,
-  jobChip,
-  jobDate,
-  jobSummaryLine,
-  progressPercent,
-  runStatusText,
-} from '@/lib/jobStatus';
+import { jobChip, jobDate, jobSummaryLine } from '@/lib/jobStatus';
 import { formatDay } from '@/lib/format';
 import { cx } from '@/lib/cx';
-import { HandoffPanel } from './HandoffPanel';
-import { QuestionPanel } from './QuestionPanel';
-import styles from './InboxPage.module.css';
+import { jobElementId } from './inboxFilters';
+import { JobDetail } from './JobDetail';
+import styles from './JobRow.module.css';
 
 interface JobRowProps {
   job: Job;
@@ -29,8 +19,12 @@ interface JobRowProps {
   onToggleExpanded: () => void;
   onToggleChecked: () => void;
   onSkip: () => void;
+  onApply: () => void;
+  /** True while an Apply request is in flight, which disables every row's Apply. */
+  applying: boolean;
 }
 
+/** A selectable row with date, job, location, form and status; the title toggles the detail. */
 export function JobRow({
   job,
   paused,
@@ -40,14 +34,17 @@ export function JobRow({
   onToggleExpanded,
   onToggleChecked,
   onSkip,
+  onApply,
+  applying,
 }: JobRowProps) {
   const chip = jobChip(job);
   const date = jobDate(job);
   const sourceLabel = job.source === 'matched' ? 'New match' : 'You added';
+  const dateTitle = job.source === 'added' ? 'Date you added it' : 'Date posted';
 
   return (
     <li
-      id={`job-${job.id}`}
+      id={jobElementId(job.id)}
       className={cx(styles.row, expanded && styles.open, flash && styles.flash)}
     >
       <div className={styles.grid}>
@@ -59,10 +56,7 @@ export function JobRow({
           disabled={job.state !== 'open'}
           onChange={onToggleChecked}
         />
-        <span
-          className={styles.when}
-          title={job.source === 'added' ? 'Date you added it' : 'Date posted'}
-        >
+        <span className={styles.when} title={dateTitle}>
           <b>{date.day}</b>
           <span>{date.label}</span>
         </span>
@@ -98,6 +92,19 @@ export function JobRow({
         >
           <Icon name="chevron" className={cx(expanded && styles.flip)} />
         </IconButton>
+        <span className={styles.rowApply}>
+          {job.state === 'open' && (
+            <Button
+              size="sm"
+              variant="primary"
+              aria-label={`Apply to ${job.company}`}
+              disabled={applying}
+              onClick={onApply}
+            >
+              Apply
+            </Button>
+          )}
+        </span>
       </div>
       {expanded && (
         <div className={styles.detail}>
@@ -111,61 +118,5 @@ export function JobRow({
         </div>
       )}
     </li>
-  );
-}
-
-function JobDetail({
-  job,
-  paused,
-  checked,
-  onCheck,
-  onSkip,
-}: {
-  job: Job;
-  paused: boolean;
-  checked: boolean;
-  onCheck: () => void;
-  onSkip: () => void;
-}) {
-  const { open } = useOverlays();
-
-  if (job.state === 'needs_input' && job.question) {
-    return <QuestionPanel key={job.question.id} job={job} question={job.question} />;
-  }
-  if (job.state === 'handoff') return <HandoffPanel job={job} />;
-  if (isInProgress(job)) {
-    return (
-      <div className={styles.progress}>
-        <ProgressBar value={progressPercent(job)} className={styles.progressBar} />
-        <span>{runStatusText(job, paused)}</span>
-        <Button size="sm" onClick={() => open({ type: 'job', jobId: job.id })}>
-          Watch it fill
-        </Button>
-      </div>
-    );
-  }
-
-  const summary = formSummaryText(job);
-  return (
-    <>
-      <span className={cx('eyebrow', job.skipSuggested && styles.redText)}>
-        {job.skipSuggested ? 'Why we’d skip it' : 'Checked against your profile'}
-      </span>
-      <ChecksList checks={job.checks} />
-      {summary && <p className="small ink2">{summary}</p>}
-      <div className={styles.actions}>
-        {job.skipSuggested && !checked && (
-          <Button size="sm" onClick={onCheck}>
-            Check it anyway
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" onClick={onSkip}>
-          Skip this job
-        </Button>
-        <a className="small" href={job.url} target="_blank" rel="noopener noreferrer">
-          Open posting
-        </a>
-      </div>
-    </>
   );
 }

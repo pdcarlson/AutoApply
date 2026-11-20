@@ -1,0 +1,194 @@
+/* Styles for JobRow. */
+.row {
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.open {
+  background: var(--surface2);
+}
+
+.flash {
+  animation: row-flash 2.2s;
+}
+
+@keyframes row-flash {
+  0%,
+  40% {
+    background: var(--accent-tint);
+  }
+  to {
+    background: none;
+  }
+}
+
+/* Keep these columns in step with the header row in JobTable.module.css. */
+.grid {
+  display: grid;
+  grid-template-columns: 28px 64px minmax(0, 1fr) 124px 104px 132px 40px 72px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+}
+
+.check:disabled {
+  opacity: 0.45;
+}
+
+.when {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.when b {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.when span {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--ink);
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.title:hover .name b {
+  text-decoration: underline;
+}
+
+.name {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name b {
+  font-weight: 700;
+}
+
+.reason {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: none;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.flip {
+  transform: rotate(180deg);
+}
+
+.rowApply {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 16px 18px 132px;
+}
+
+@media (width <= 1179px) {
+  .grid {
+    grid-template-columns: 28px 56px minmax(0, 1fr) 112px 92px 124px 40px 72px;
+    gap: 10px;
+  }
+
+  .detail {
+    padding-left: 16px;
+  }
+}
+
+@media (width <= 899px) {
+  .grid {
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'check title when'
+      'check title status'
+      'check title apply';
+    gap: 4px 12px;
+    padding: 12px 14px;
+  }
+
+  .check {
+    grid-area: check;
+    align-self: start;
+    margin-top: 3px;
+  }
+
+  .when {
+    grid-area: when;
+    align-items: flex-end;
+  }
+
+  .title {
+    grid-area: title;
+  }
+
+  .status {
+    grid-area: status;
+    justify-self: end;
+  }
+
+  .rowApply {
+    grid-area: apply;
+    margin-top: 4px;
+  }
+
+  .cell,
+  .expand {
+    display: none;
+  }
+
+  .name,
+  .reason {
+    white-space: normal;
+  }
+
+  .meta {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+
+  .detail {
+    padding: 0 14px 16px;
+  }
+}

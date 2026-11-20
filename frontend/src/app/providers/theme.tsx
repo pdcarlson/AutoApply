@@ -1,3 +1,4 @@
+/** App-wide light, dark, or match-the-device color theme, remembered in this browser. */
 import {
   createContext,
   useCallback,
@@ -9,11 +10,13 @@ import {
   type ReactNode,
 } from 'react';
 
+/** The theme the user picked; `system` follows the device. */
 export type ThemeChoice = 'light' | 'dark' | 'system';
 
 const STORAGE_KEY = 'aa-theme';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
+/** The saved choice, or light when nothing usable is saved. */
 function readStoredTheme(): ThemeChoice {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -45,7 +48,12 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
+interface ThemeProviderProps {
+  children: ReactNode;
+}
+
+/** Applies the chosen theme to the page and shares it with the app. */
+export function ThemeProvider({ children }: ThemeProviderProps) {
   const [choice, setChoiceState] = useState<ThemeChoice>(readStoredTheme);
   const systemDark = useSyncExternalStore(
     subscribeToSystem,
@@ -72,6 +80,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext value={value}>{children}</ThemeContext>;
 }
 
+/** The theme choice, whether dark colors are showing, and a setter that remembers the choice. */
 export function useTheme() {
   const value = useContext(ThemeContext);
   if (!value) throw new Error('useTheme must be used inside ThemeProvider');

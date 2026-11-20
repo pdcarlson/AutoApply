@@ -1,20 +1,22 @@
+/** The root component and the providers every screen runs inside. */
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { RouterProvider } from 'react-router';
+import { OverlayProvider } from '@/app/providers/overlays';
+import { ThemeProvider } from '@/app/providers/theme';
+import { ToastProvider } from '@/app/providers/toast';
+import { ClerkAuth } from '@/auth/ClerkAuth';
 import { createQueryClient } from './queryClient';
-import { OverlayProvider } from './providers/overlays';
-import { ThemeProvider } from './providers/theme';
-import { ToastProvider } from './providers/toast';
 import { router } from './router';
 
-/** Everything the app needs around its routes. Tests render pages inside this too. */
-export function AppProviders({
-  children,
-  queryClient,
-}: {
+interface AppProvidersProps {
   children: ReactNode;
+  /** A client to use instead of a new one, e.g. one a test configured. */
   queryClient?: QueryClient;
-}) {
+}
+
+/** Everything around the routes except sign-in. Tests render pages inside this too. */
+export function AppProviders({ children, queryClient }: AppProvidersProps) {
   const [client] = useState(() => queryClient ?? createQueryClient());
   return (
     <QueryClientProvider client={client}>
@@ -27,10 +29,13 @@ export function AppProviders({
   );
 }
 
+/** The whole app: providers and Clerk sign-in around the router. */
 export function App() {
   return (
     <AppProviders>
-      <RouterProvider router={router} />
+      <ClerkAuth>
+        <RouterProvider router={router} />
+      </ClerkAuth>
     </AppProviders>
   );
 }

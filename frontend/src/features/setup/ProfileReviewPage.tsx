@@ -1,24 +1,21 @@
-import { useState } from 'react';
+/** The second setup step: check and fix the profile pulled from the resume. */
 import { useNavigate } from 'react-router';
-import type { Profile, ProfileUpdate, UnplacedSection } from '@/api/types';
-import { useProfile, useResolveUnplaced, useUpdateProfile } from '@/api/queries';
+import type { Profile, ProfileUpdate } from '@/api/types';
+import { useProfile } from '@/api/queries';
 import { paths } from '@/app/paths';
 import { Button } from '@/components/ui/Button';
-import { ErrorBox, Note, Panel } from '@/components/ui/Callouts';
-import { Loading, LoadError } from '@/components/ui/DataDisplay';
-import { PillInput } from '@/components/ui/Form';
-import { Icon } from '@/components/ui/Icon';
-import {
-  ContactFields,
-  CustomFieldsEditor,
-  EntryList,
-  LinksEditor,
-} from '@/features/profile/editors';
-import { SetupFooter, SetupIntro } from '@/layouts/SetupLayout';
-import { toProfileUpdate } from '@/features/profile/profileUpdate';
-import { ResumeFileCard } from '@/features/profile/ResumeFileCard';
-import styles from './setup.module.css';
+import { ErrorBox, Note } from '@/components/ui/Callouts';
+import { Loading, LoadError } from '@/components/ui/LoadStates';
+import { missingName } from '@/lib/profileUpdate';
+import { ResumeFileCard } from '@/components/profile/ResumeFileCard';
+import { SetupFooter } from '@/layouts/SetupFooter';
+import { SetupIntro } from '@/layouts/SetupIntro';
+import { ReviewSections } from './ReviewSections';
+import { UnplacedCard } from './UnplacedCard';
+import { useReviewDraft } from './useReviewDraft';
+import styles from './ProfileReviewPage.module.css';
 
+/** Loads the profile and shows the review form. */
 export function ProfileReviewPage() {
   const profile = useProfile();
   if (profile.isPending) return <Loading />;
@@ -26,31 +23,27 @@ export function ProfileReviewPage() {
   return <ReviewForm profile={profile.data} />;
 }
 
-function ReviewForm({ profile }: { profile: Profile }) {
+/** Why Continue is disabled, or null when the profile has what setup needs. */
+function continueBlockedReason(draft: ProfileUpdate) {
+  const nameMissing = missingName(draft);
+  if (nameMissing) return `Add your ${nameMissing} to continue`;
+  if (!draft.email.trim()) return 'Add your email to continue';
+  return null;
+}
+
+interface ReviewFormProps {
+  profile: Profile;
+}
+
+function ReviewForm({ profile }: ReviewFormProps) {
   const navigate = useNavigate();
-  const save = useUpdateProfile();
-  const resolve = useResolveUnplaced();
-  const [draft, setDraft] = useState<ProfileUpdate>(() => toProfileUpdate(profile));
-  const patch = (changes: Partial<ProfileUpdate>) => setDraft((d) => ({ ...d, ...changes }));
-
-  const missingName = !draft.name.trim();
-  const missingEmail = !draft.email.trim();
-
-  // Accepting moves resume text into the profile on the server, so save edits first, then
-  // take the server's merged result as the new draft.
-  const resolveUnplaced = async (section: UnplacedSection, action: 'accept' | 'dismiss') => {
-    await save.mutateAsync(draft);
-    const updated = await resolve.mutateAsync({ id: section.id, action });
-    setDraft(toProfileUpdate(updated));
-  };
-
-  const unplaced = resolve.data?.unplaced ?? save.data?.unplaced ?? profile.unplaced;
+  const { draft, patch, resolveUnplaced, save, unplaced, isResolving } = useReviewDraft(profile);
+  const blockedReason = continueBlockedReason(draft);
+  const title = profile.resume ? 'Check what we pulled from your resume' : 'Fill in your profile';
 
   return (
     <>
-      <SetupIntro
-        title={profile.resume ? 'Check what we pulled from your resume' : 'Fill in your profile'}
-      >
+      <SetupIntro title={title}>
         Fix anything that’s wrong. Nothing here goes into an application until you confirm your
         profile at the end of setup.
       </SetupIntro>
@@ -74,121 +67,21 @@ function ReviewForm({ profile }: { profile: Profile }) {
             <UnplacedCard
               key={section.id}
               section={section}
-              busy={resolve.isPending || save.isPending}
+              busy={isResolving}
               onResolve={(action) => void resolveUnplaced(section, action)}
             />
           ))}
         </div>
-        <div className={styles.reviewSections}>
-          <Panel aria-labelledby="review-contact">
-            <h2 className="eyebrow" id="review-contact">
-              Contact
-            </h2>
-            <ContactFields value={draft} onChange={patch} />
-          </Panel>
-          <Panel aria-labelledby="review-links">
-            <h2 className="eyebrow" id="review-links">
-              Links
-            </h2>
-            <LinksEditor links={draft.links} onChange={(links) => patch({ links })} />
-          </Panel>
-          <Panel aria-labelledby="review-education">
-            <h2 className="eyebrow" id="review-education">
-              Education
-            </h2>
-            <EntryList
-              kind="education"
-              entries={draft.education}
-              onChange={(education) => patch({ education })}
-            />
-          </Panel>
-          <Panel aria-labelledby="review-experience">
-            <h2 className="eyebrow" id="review-experience">
-              Experience
-            </h2>
-            <EntryList
-              kind="experience"
-              entries={draft.experience}
-              onChange={(experience) => patch({ experience })}
-            />
-          </Panel>
-          <Panel aria-labelledby="review-projects">
-            <h2 className="eyebrow" id="review-projects">
-              Projects
-            </h2>
-            <EntryList
-              kind="projects"
-              entries={draft.projects}
-              onChange={(projects) => patch({ projects })}
-            />
-          </Panel>
-          <Panel aria-labelledby="review-skills">
-            <h2 className="eyebrow" id="review-skills">
-              Skills
-            </h2>
-            <PillInput
-              items={draft.skills}
-              onChange={(skills) => patch({ skills })}
-              label="Skills"
-              addLabel="Add skill"
-              placeholder="e.g. Docker"
-            />
-          </Panel>
-          <Panel aria-labelledby="review-custom">
-            <h2 className="eyebrow" id="review-custom">
-              Additional information
-            </h2>
-            <CustomFieldsEditor fields={draft.custom} onChange={(custom) => patch({ custom })} />
-          </Panel>
-        </div>
+        <ReviewSections draft={draft} onChange={patch} />
       </div>
       {save.isError && <ErrorBox>We couldn’t save your profile. {save.error.message}</ErrorBox>}
       <SetupFooter
         onNext={() => save.mutate(draft, { onSuccess: () => navigate(paths.setupQuestions) })}
         nextLabel="Looks right, continue"
         loading={save.isPending}
-        nextDisabled={missingName || missingEmail}
-        note={
-          missingName
-            ? 'Add your name to continue'
-            : missingEmail
-              ? 'Add your email to continue'
-              : null
-        }
+        nextDisabled={blockedReason !== null}
+        note={blockedReason}
       />
     </>
-  );
-}
-
-function UnplacedCard({
-  section,
-  busy,
-  onResolve,
-}: {
-  section: UnplacedSection;
-  busy: boolean;
-  onResolve: (action: 'accept' | 'dismiss') => void;
-}) {
-  return (
-    <div className={styles.unplaced}>
-      <span className={styles.unplacedTitle}>
-        <Icon name="warn" size={16} />
-        <b className="small">A section we couldn’t place</b>
-      </span>
-      <q>{section.text}</q>
-      <div className={styles.row}>
-        {section.suggestion && (
-          <Button size="xs" disabled={busy} onClick={() => onResolve('accept')}>
-            {section.suggestion}
-          </Button>
-        )}
-        <Button size="xs" variant="ghost" disabled={busy} onClick={() => onResolve('dismiss')}>
-          Leave it out
-        </Button>
-      </div>
-      <span className="tiny muted">
-        Every line of your resume ends up in a field or here, so nothing is lost.
-      </span>
-    </div>
   );
 }

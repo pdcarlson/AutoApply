@@ -1,0 +1,20 @@
+/* Styles for InboxToolbar. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.applyCount {
+  color: var(--ink2);
+  font-size: 14px;
+  white-space: nowrap;
+}

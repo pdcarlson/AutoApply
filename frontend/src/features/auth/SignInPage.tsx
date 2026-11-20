@@ -1,10 +1,11 @@
+/** The sign-in screen, with what happens after signing in. */
 import { useMutation } from '@tanstack/react-query';
 import { useLocation } from 'react-router';
-import { authApi } from '@/api/endpoints';
+import { useAuthActions } from '@/auth/actions';
 import { Button } from '@/components/ui/Button';
 import { ErrorBox } from '@/components/ui/Callouts';
-import { Brand } from '@/components/ui/DataDisplay';
-import styles from './auth.module.css';
+import { Brand } from '@/components/ui/Brand';
+import styles from './SignInPage.module.css';
 
 const NEXT_STEPS = [
   [
@@ -25,19 +26,19 @@ const NEXT_STEPS = [
   ],
 ] as const;
 
+/** What other screens pass along when they send the user here. */
 interface SignInState {
   from?: string;
-  signInError?: 'cancelled' | 'failed';
+  signInError?: 'failed';
 }
 
+/** Starts sign-in, shows why the last attempt failed, and lists the setup steps. */
 export function SignInPage() {
   const state = (useLocation().state ?? {}) as SignInState;
-  const start = useMutation({
-    mutationFn: () => authApi.startGoogleSignIn(state.from ?? '/'),
-    onSuccess: ({ authorizationUrl }) => window.location.assign(authorizationUrl),
-  });
-  // Stays "waiting" after success too, while the browser leaves for Google.
-  const waiting = start.isPending || start.isSuccess;
+  const auth = useAuthActions();
+  const start = useMutation({ mutationFn: () => auth.startSignIn(state.from ?? '/') });
+  // Stays "waiting" after success too, while the browser goes to Google.
+  const isWaiting = start.isPending || start.isSuccess;
 
   return (
     <div className={styles.welcome}>
@@ -51,13 +52,6 @@ export function SignInPage() {
               waits for your approval before it submits.
             </p>
           </div>
-          {state.signInError === 'cancelled' && (
-            <ErrorBox>
-              <span>
-                <b>Google sign-in was cancelled.</b> Nothing was saved. Try again when you’re ready.
-              </span>
-            </ErrorBox>
-          )}
           {(state.signInError === 'failed' || start.isError) && (
             <ErrorBox>
               <span>
@@ -67,19 +61,13 @@ export function SignInPage() {
             </ErrorBox>
           )}
           <Button
-            className={styles.googleBtn}
-            loading={waiting}
-            loadingLabel="Waiting for Google…"
+            className={styles.startBtn}
+            loading={isWaiting}
+            loadingLabel="Starting…"
             onClick={() => start.mutate()}
           >
-            <span className={styles.googleMark} aria-hidden="true">
-              G
-            </span>
             Continue with Google
           </Button>
-          <p className={styles.finePrint}>
-            By continuing you agree to the Terms and Privacy policy.
-          </p>
         </div>
       </main>
       <aside className={styles.nextSteps} aria-label="What happens next">

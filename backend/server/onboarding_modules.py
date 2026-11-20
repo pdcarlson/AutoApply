@@ -1,18 +1,18 @@
-"""The one place that loads the answer bank, onboarding and resume modules in backend/AutoApply/."""
+"""Loads the answer bank, onboarding and resume modules from backend/onboarding/."""
 import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-AUTOAPPLY_DIR = Path(__file__).resolve().parents[1] / "AutoApply"
+ONBOARDING_DIR = Path(__file__).resolve().parents[1] / "onboarding"
 # The folder is a flat set of scripts with bare imports (`import AnswerBankManager`).
 # Appending it to sys.path (rather than making it a package) keeps those working, and its
 # `User` never shadows anything of ours.
-if str(AUTOAPPLY_DIR) not in sys.path:
-    sys.path.append(str(AUTOAPPLY_DIR))
+if str(ONBOARDING_DIR) not in sys.path:
+    sys.path.append(str(ONBOARDING_DIR))
 
-# pylint: disable=wrong-import-position,import-error  # loaded from the folder appended above
+# pylint: disable=wrong-import-position,wrong-import-order,import-error  # loaded from the folder appended above
 import AnswerBankManager  # noqa: E402
 import Onboarding  # noqa: E402
 import resumeRead  # noqa: E402

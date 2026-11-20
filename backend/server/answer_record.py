@@ -66,7 +66,7 @@ class AnswerRecord:  # pylint: disable=too-many-instance-attributes  # one per s
     def from_json(cls, key: str, value) -> "AnswerRecord | None":
         """Build a record from what's stored under `key`, or None for a value to ignore.
 
-        A plain string (written by the AutoApply command line) reads as an imported answer
+        A plain string (as the onboarding module saves it) reads as an imported answer
         whose id and question are the key.
         """
         if isinstance(value, str):

@@ -1,7 +1,7 @@
 """Mirrors setup's common answers into the Answer bank as `onb-<key>` records."""
 from datetime import date
 
-from server import autoapply_modules, self_id
+from server import onboarding_modules, self_id
 from server.answer_bank import AnswerBank, guess_category
 from server.answer_record import AnswerOrigin
 
@@ -79,7 +79,7 @@ def answer_text(key: str, common: dict) -> str | None:
 
 def catalog() -> dict[str, tuple[str, str]]:
     """Return key -> (question wording, category) from OnboardingQuestions.json."""
-    questions = autoapply_modules.onboarding_questions()
+    questions = onboarding_modules.onboarding_questions()
     out = {}
     for key in COMMON_QUESTION_KEYS:
         entry = questions.get(key) or [key, key]

@@ -1,4 +1,4 @@
-"""The Answer bank: one user's saved answers, stored through the AutoApply AnswerBankManager."""
+"""The Answer bank: one user's saved answers, stored through the onboarding AnswerBankManager."""
 from __future__ import annotations  # the `list` method would shadow list[...] annotations
 
 import logging
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from agent.applicant.profile import SavedAnswer, normalize
-from server import autoapply_modules
+from server import onboarding_modules
 from server.answer_record import (ANSWER_CATEGORIES, AnswerOrigin, AnswerRecord, clean_company,
                                   guess_category, same_company)
 from server.store import Store, new_id, parse_iso
@@ -31,13 +31,13 @@ class AnswerBank:
 
     def __init__(self, store: Store, path: Path | str | None = None):
         self.store = store
-        self.path = Path(path) if path is not None else autoapply_modules.bank_path(store.data_dir)
+        self.path = Path(path) if path is not None else onboarding_modules.bank_path(store.data_dir)
 
     # ----- raw access -----
 
     def _load(self) -> dict[str, AnswerRecord]:
         """Return id -> record for every usable entry of the user."""
-        with autoapply_modules.bank_file(self.path) as manager:
+        with onboarding_modules.bank_file(self.path) as manager:
             try:
                 raw = manager.LoadUser(USER)
             except (OSError, ValueError):
@@ -51,7 +51,7 @@ class AnswerBank:
 
     def _save(self, record: AnswerRecord) -> None:
         """Write one record to the bank file."""
-        with autoapply_modules.bank_file(self.path) as manager:
+        with onboarding_modules.bank_file(self.path) as manager:
             manager.SaveSingleResponse(USER, record.id, record.to_json())
 
     @staticmethod
@@ -177,7 +177,7 @@ class AnswerBank:
     def delete(self, answer_id: str) -> bool:
         """Delete a record; return True if there was one."""
         with self.store.lock:
-            with autoapply_modules.bank_file(self.path) as manager:
+            with onboarding_modules.bank_file(self.path) as manager:
                 return manager.DeleteResponse(USER, answer_id)
 
     def put(self, answer_id: str, *, question: str, answer: str,  # pylint: disable=too-many-arguments  # one keyword per record field

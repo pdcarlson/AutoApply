@@ -10,7 +10,7 @@ about anything it can't answer, and waits for your review before it submits.
 | -------------------- | ------------------------------------------------------------------------------ |
 | `backend/agent/`     | The agent: reads job forms, drafts answers, drives the browser with Playwright |
 | `backend/server/`    | The FastAPI web API, per-user storage and the job queue                        |
-| `backend/AutoApply/` | Answer bank, onboarding questions and resume reading, used by the server       |
+| `backend/onboarding/` | Answer bank, onboarding questions and resume reading, used by the server      |
 | `frontend/`          | The React + TypeScript web app (see [frontend/README.md](frontend/README.md))  |
 
 ## Run the web app

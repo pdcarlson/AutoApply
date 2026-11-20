@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 \
 
 COPY agent agent
 COPY server server
-COPY AutoApply AutoApply
+COPY onboarding onboarding
 COPY deploy/entrypoint.sh /entrypoint.sh
 
 RUN useradd --create-home --uid 1000 app \

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.jobs.job_feed import JobFeed
-from server import autoapply_modules
+from server import onboarding_modules
 from server.accounts import Accounts
 from server.clerk import ClerkUsers, TokenVerifier, issuer_from_publishable_key
 from server.config import Config, load_config
@@ -28,7 +28,7 @@ def _install_services(app: FastAPI, verifier: TokenVerifier | None = None) -> No
     and `get_worker` dependencies, never through app.state.
     """
     config: Config = app.state.config
-    autoapply_modules.configure(config.data_dir)
+    onboarding_modules.configure(config.data_dir)
     run_slots = threading.BoundedSemaphore(config.max_concurrent_runs)
     if verifier is None:
         issuer = config.clerk_issuer or issuer_from_publishable_key(config.clerk_publishable_key)

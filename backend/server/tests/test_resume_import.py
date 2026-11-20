@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from server import autoapply_modules
+from server import onboarding_modules
 from server.resume.dates import read_dates
 from server.resume.layout import split_line
 from server.resume.mapper import sections_to_profile
@@ -354,14 +354,14 @@ def test_split_line_takes_a_right_hand_date_column():
 
 def test_example_resume_pdf_parses():
     """The example resume PDF reads into the expected lines."""
-    sections = autoapply_modules.read_resume(EXAMPLE_PDF)
+    sections = onboarding_modules.read_resume(EXAMPLE_PDF)
     assert sections["Other"] == EXAMPLE_OTHER
-    assert autoapply_modules.page_count(EXAMPLE_PDF) == 1
+    assert onboarding_modules.page_count(EXAMPLE_PDF) == 1
 
 
 def test_header_fixture_pdf_parses_with_case_insensitive_headers(header_resume_pdf):
     """A rendered PDF with upper-case headers parses into the profile."""
-    sections = autoapply_modules.read_resume(header_resume_pdf)
+    sections = onboarding_modules.read_resume(header_resume_pdf)
     assert {"EDUCATION", "RELEVANT COURSEWORK", "EXPERIENCE", "SKILLS"} <= set(sections)
 
     patch, unplaced, labels = sections_to_profile(sections)
@@ -391,4 +391,4 @@ def test_empty_text_gives_none(tmp_path):
     writer.add_blank_page(width=612, height=792)
     with open(blank, "wb") as handle:
         writer.write(handle)
-    assert autoapply_modules.read_resume(blank) is None
+    assert onboarding_modules.read_resume(blank) is None

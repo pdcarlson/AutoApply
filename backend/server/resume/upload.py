@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
-from server.autoapply_modules import page_count
+from server.onboarding_modules import page_count
 from server.errors import ApiError
 from server.store import Store
 

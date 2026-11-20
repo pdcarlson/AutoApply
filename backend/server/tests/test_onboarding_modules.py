@@ -1,4 +1,4 @@
-"""The modules in backend/AutoApply/ load and work as the server uses them."""
+"""The modules in backend/onboarding/ load and work as the server uses them."""
 # pylint: disable=unused-argument  # `bank_file` points the bank at a temporary file
 import json
 import subprocess
@@ -6,12 +6,12 @@ import sys
 
 import pytest
 
-from server import autoapply_modules
+from server import onboarding_modules
 from server.common_answers import COMMON_QUESTION_KEYS
 from server.tests.job_helpers import EXAMPLE_PDF
 
-ABM = autoapply_modules.AnswerBankManager
-USER = autoapply_modules.Onboarding.User
+ABM = onboarding_modules.AnswerBankManager
+USER = onboarding_modules.Onboarding.User
 
 
 @pytest.fixture(name="bank_file")
@@ -25,8 +25,8 @@ def fixture_bank_file(tmp_path, monkeypatch):
 
 def test_folder_is_appended_to_sys_path():
     """The folder is appended to sys.path, after everything of ours."""
-    assert str(autoapply_modules.AUTOAPPLY_DIR) in sys.path
-    assert sys.path.index(str(autoapply_modules.AUTOAPPLY_DIR)) > 0  # appended, never shadows
+    assert str(onboarding_modules.ONBOARDING_DIR) in sys.path
+    assert sys.path.index(str(onboarding_modules.ONBOARDING_DIR)) > 0  # appended, never shadows
 
 
 def test_save_single_response_for_a_new_user(bank_file):
@@ -62,7 +62,7 @@ def test_delete_response(bank_file):
 
 def test_load_questions_has_the_common_keys_and_the_originals():
     """The onboarding catalog has every common question and its original ones."""
-    questions = autoapply_modules.Onboarding.loadQuestions()
+    questions = onboarding_modules.Onboarding.loadQuestions()
     for key in COMMON_QUESTION_KEYS:
         assert key in questions
         prompt, bank_key, category = questions[key]
@@ -74,7 +74,7 @@ def test_load_questions_has_the_common_keys_and_the_originals():
 def test_ask_questions_no_longer_raises(bank_file, monkeypatch):
     """Asking every onboarding question saves each reply."""
     monkeypatch.setattr("builtins.input", lambda *args: "x")
-    autoapply_modules.Onboarding.askQuestions(-1)
+    onboarding_modules.Onboarding.askQuestions(-1)
     saved = ABM.LoadUser(-1)
     assert saved["Name"] == "x" and saved["gender"] == "x"
 
@@ -82,35 +82,35 @@ def test_ask_questions_no_longer_raises(bank_file, monkeypatch):
 def test_ask_question_and_save_answer(bank_file, monkeypatch):
     """Asking one question and saving one answer both write the bank."""
     monkeypatch.setattr("builtins.input", lambda *args: "Jo")
-    autoapply_modules.Onboarding.askQuestion(-1, "0")
-    autoapply_modules.Onboarding.saveAnswer(-1, "1", "21")
+    onboarding_modules.Onboarding.askQuestion(-1, "0")
+    onboarding_modules.Onboarding.saveAnswer(-1, "1", "21")
     assert ABM.LoadUser(-1) == {"Name": "Jo", "Age": "21"}
 
 
 def test_read_resume_handles_case_and_missing_files(tmp_path):
     """Headers match in any case, and a missing file reads as None."""
-    assert autoapply_modules.resumeRead.isHeader("EDUCATION")
-    assert autoapply_modules.resumeRead.isHeader("Skills:")
-    assert not autoapply_modules.resumeRead.isHeader("Hudson Valley Institute of Technology")
-    assert autoapply_modules.resumeRead.readResume(str(tmp_path / "nope.pdf")) is None
-    assert autoapply_modules.resumeRead.sectionsFromLines(["Jo", "", "SKILLS", "Python"]) == {
+    assert onboarding_modules.resumeRead.isHeader("EDUCATION")
+    assert onboarding_modules.resumeRead.isHeader("Skills:")
+    assert not onboarding_modules.resumeRead.isHeader("Hudson Valley Institute of Technology")
+    assert onboarding_modules.resumeRead.readResume(str(tmp_path / "nope.pdf")) is None
+    assert onboarding_modules.resumeRead.sectionsFromLines(["Jo", "", "SKILLS", "Python"]) == {
         "Other": ["Jo"], "SKILLS": ["Python"]}
 
 
 def test_autoapply_folder_still_imports_on_its_own():
-    """`python -c "import ..."` from inside backend/AutoApply still works."""
+    """`python -c "import ..."` from inside backend/onboarding still works."""
     result = subprocess.run(
         [sys.executable, "-c", "import AnswerBankManager, Onboarding, resumeRead"],
-        cwd=autoapply_modules.AUTOAPPLY_DIR, capture_output=True, text=True, timeout=60,
+        cwd=onboarding_modules.ONBOARDING_DIR, capture_output=True, text=True, timeout=60,
         check=False)
     assert result.returncode == 0, result.stderr
 
 
-# ----- the checks from the AutoApply folder's own tests.py -----
+# ----- the checks from the onboarding folder's own tests.py -----
 
 def test_read_resume_returns_its_lines():
     """resumeRead reads the example resume into sections of text lines."""
-    resume = autoapply_modules.resumeRead.readResume(str(EXAMPLE_PDF))
+    resume = onboarding_modules.resumeRead.readResume(str(EXAMPLE_PDF))
     assert resume is not None and resume["Other"]
     assert all(isinstance(line, str) for lines in resume.values() for line in lines)
 
@@ -119,15 +119,15 @@ def test_onboarding_asks_the_first_two_questions(bank_file, monkeypatch):
     """Asking questions 0 and 1 for the test user saves both replies."""
     monkeypatch.setattr("builtins.input", lambda *args: "x")
     user_id = USER.getTestUserID()
-    autoapply_modules.Onboarding.askQuestion(user_id, "0")
-    autoapply_modules.Onboarding.askQuestion(user_id, "1")
+    onboarding_modules.Onboarding.askQuestion(user_id, "0")
+    onboarding_modules.Onboarding.askQuestion(user_id, "1")
     assert ABM.LoadUser(user_id) == {"Name": "x", "Age": "x"}
 
 
 def test_saved_resume_sections_load_back_and_clear(bank_file):
     """A whole resume saved for the test user loads back by section, and clearing empties it."""
     user_id = USER.getTestUserID()
-    resume = autoapply_modules.resumeRead.readResume(str(EXAMPLE_PDF))
+    resume = onboarding_modules.resumeRead.readResume(str(EXAMPLE_PDF))
     ABM.SaveResponseDictionary(user_id, resume)
     for header, lines in resume.items():
         assert ABM.LoadData(user_id, header) == lines

@@ -2,6 +2,10 @@ import json
 import os
 
 bankPath = "Bank.json"
+# make into a class
+# update names of functions to match convention
+# set up a consistent naming standard
+# don't load bank every time.  cache class instead
 
 
 def LoadBank():
@@ -23,7 +27,7 @@ def SaveBank(data):
 
 def UserExists(user):
     data = LoadBank()
-    return data["userdata"].keys().__contains__(str(user))
+    return str(user) in data["userdata"].keys()
 
 
 def SaveSingleResponse(user, question, answer):
@@ -34,14 +38,8 @@ def SaveSingleResponse(user, question, answer):
 
 def SaveResponseDictionary(user, resp):
     data = LoadBank()
-    if not UserExists(user):
-        data.setdefault("userdata", {}).setdefault(str(user), {}).update(resp)
-    else:
-        # update changed fields in the dictionary, while leaving fields that haven't been updated alone.
-        # union all fields that are not in both the dictionary and json
-        pass
+    data.setdefault("userdata", {}).setdefault(str(user), {}).update(resp)
     SaveBank(data)
-
 
 
 def LoadData(user, question):
@@ -49,6 +47,23 @@ def LoadData(user, question):
     return data.get("userdata", {}).get(str(user), {}).get(question)
 
 
+def LoadFullUserData(user):
+    data = LoadBank()
+    return data.get("userdata", {}).get(str(user))
+
+
 def LoadUser(user):
     data = LoadBank()
     return data["userdata"].get(str(user), {})
+
+
+def ClearUser(user):
+    data = LoadBank()
+    data.setdefault("userdata", {}).setdefault(str(user), {}).clear()
+    SaveBank(data)
+
+
+def WipeDict():
+    data = LoadBank()
+    data.setdefault("userdata", {}).clear()
+    SaveBank(data)

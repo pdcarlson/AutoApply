@@ -36,7 +36,7 @@ def readResumePDF(pdf_path):
     reader = PdfReader(pdf_path)
 
     # printing number of pages in pdf file
-    # print(len(reader.pages))
+    print(len(reader.pages))
 
     # creating a page object
     text = []
@@ -57,3 +57,9 @@ def readResumePDF(pdf_path):
             else:
                 sections[curKey].append(line)
     return sections
+
+
+def shouldAcceptFile():
+    # stop from using files over a certain page len or file size
+
+    pass

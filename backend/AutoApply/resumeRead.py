@@ -3,6 +3,7 @@ import os
 from pypdf import PdfReader
 
 MAX_HEADER_WORDS = 3
+MAX_PDF_PAGES = 15
 KNOWN_HEADERS = ["Education", "Experience", "Service", "Hobbies", "Projects",
                  "Skills", "Awards", "Honors", "Relevant", "Coursework",
                  "Certifications", "Activities", "Leadership", "Summary",
@@ -31,8 +32,9 @@ def readResume(path):
     return None
 
 
-def sectionsFromLines(lines):
-    # create a dictionary: headers as keys, else as value for most recent key
+def sectionsFromLines(lines, styledHeaders=()):
+    # create a dictionary: headers as keys, else as value for most recent key.
+    # styledHeaders: lines the source document marked as headings (e.g. DOCX Heading/Title styles)
     sections = {"Other": []}
     curKey = "Other"
     for line in lines:
@@ -40,7 +42,7 @@ def sectionsFromLines(lines):
         if not line:
             continue
 
-        if isHeader(line):
+        if isHeader(line) or line in styledHeaders:
             curKey = line
             sections.setdefault(curKey, [])
         else:
@@ -51,6 +53,11 @@ def sectionsFromLines(lines):
 def readResumePDF(pdf_path):
     # creating a pdf reader object
     reader = PdfReader(pdf_path)
+
+    # check if the file is too short or too long - someone may be messing with us
+    if len(reader.pages) == 0 or len(reader.pages) > MAX_PDF_PAGES:
+        print("File not valid")
+        return None
 
     lines = []
     for page in reader.pages:
@@ -69,6 +76,7 @@ def readResumeDOCX(docx_path):
 
     document = docx.Document(docx_path)
     lines = []
+    styledHeaders = set()
     for block in document.iter_inner_content():
         if isinstance(block, Table):
             for row in block.rows:

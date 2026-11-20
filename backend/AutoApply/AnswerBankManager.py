@@ -53,7 +53,7 @@ def SaveBank(data):
 
 def UserExists(user):
     data = LoadBank()
-    return data["userdata"].keys().__contains__(str(user))
+    return str(user) in data["userdata"].keys()
 
 
 def SaveSingleResponse(user, question, answer):
@@ -85,6 +85,23 @@ def LoadData(user, question):
     return data.get("userdata", {}).get(str(user), {}).get(question)
 
 
+def LoadFullUserData(user):
+    data = LoadBank()
+    return data.get("userdata", {}).get(str(user))
+
+
 def LoadUser(user):
     data = LoadBank()
     return data["userdata"].get(str(user), {})
+
+
+def ClearUser(user):
+    data = LoadBank()
+    data.setdefault("userdata", {}).setdefault(str(user), {}).clear()
+    SaveBank(data)
+
+
+def WipeDict():
+    data = LoadBank()
+    data.setdefault("userdata", {}).clear()
+    SaveBank(data)

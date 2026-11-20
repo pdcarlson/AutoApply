@@ -1,5 +1,8 @@
+/** Formatting for numbers, dates, and text shown in the UI. */
+
 /** "1 job", "3 jobs". */
-export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+export const plural = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
 
 const DAY_MS = 86_400_000;
 

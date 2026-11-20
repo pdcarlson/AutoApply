@@ -1,3 +1,4 @@
+/* Styles for SetupLayout. */
 .frame {
   height: 100%;
   overflow-y: auto;
@@ -85,27 +86,6 @@
   padding: 40px var(--gutter) 48px;
 }
 
-.intro {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 4px 0 8px;
-}
-
-.footRight {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-left: auto;
-}
-
 @media (width <= 899px) {
   .steps {
     display: none;
@@ -117,9 +97,5 @@
 
   .main {
     padding: 24px var(--gutter) 32px;
-  }
-
-  .footNote {
-    display: none;
   }
 }

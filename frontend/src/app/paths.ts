@@ -1,3 +1,6 @@
+/** Every route path in the app, and helpers that link deep into a screen. */
+
+/** The URL path of each screen. */
 export const paths = {
   signIn: '/sign-in',
   authCallback: '/auth/callback',

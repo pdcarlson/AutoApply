@@ -1,0 +1,13 @@
+/* Styles for ScreenshotModal. */
+.screenshotFrame {
+  overflow: hidden;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.screenshot {
+  display: block;
+  width: 100%;
+  height: auto;
+}

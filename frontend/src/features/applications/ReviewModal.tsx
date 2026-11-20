@@ -1,38 +1,44 @@
-import { useJob, useSubmitJob } from '@/api/queries';
+/** The modal for a last look at a filled form before submitting it. */
 import type { Application } from '@/api/types';
-import { VerificationCodeForm } from '@/features/inbox/VerificationCodeForm';
-import { LiveBrowser } from '@/features/liveBrowser/LiveBrowser';
+import { useJob, useSubmitJob } from '@/api/queries';
 import { useOverlays } from '@/app/providers/overlays';
 import { useToast } from '@/app/providers/toast';
 import { Button } from '@/components/ui/Button';
 import { ErrorBox, Note } from '@/components/ui/Callouts';
-import { FieldList, Loading, LoadError } from '@/components/ui/DataDisplay';
-import { Modal, ModalHead } from '@/components/ui/Overlay';
-import styles from './applications.module.css';
+import { FieldList } from '@/components/ui/FieldList';
+import { Loading, LoadError } from '@/components/ui/LoadStates';
+import { Modal, ModalHead } from '@/components/ui/Modal';
+import { VerificationCodeForm } from '@/components/jobs/VerificationCodeForm';
+import { LiveBrowser } from '@/components/liveBrowser/LiveBrowser';
+import styles from './ReviewModal.module.css';
+
+interface ReviewModalProps {
+  jobId: string;
+}
 
 /** Last look at a filled form before the user approves submitting it. */
-export function ReviewModal({ jobId }: { jobId: string }) {
+export function ReviewModal({ jobId }: ReviewModalProps) {
   const { close, open } = useOverlays();
   const notify = useToast();
   const job = useJob(jobId);
   const submit = useSubmitJob();
   const data = job.data;
 
-  const onSubmitted = (app: Application) => {
+  const handleSubmitted = (application: Application) => {
     close();
     notify(
-      app.confirmation
-        ? `Submitted to ${app.company}. Their confirmation page came back, so it’s confirmed.`
-        : `Submitted to ${app.company}. It’s in Applications.`,
+      application.confirmation
+        ? `Submitted to ${application.company}. Their confirmation page came back, so it’s confirmed.`
+        : `Submitted to ${application.company}. It’s in Applications.`,
       {
         action: {
           label: 'See confirmation',
-          run: () => open({ type: 'application', applicationId: app.id }),
+          run: () => open({ type: 'application', applicationId: application.id }),
         },
       },
     );
   };
-  const onSubmit = () => submit.mutate(jobId, { onSuccess: onSubmitted });
+  const handleSubmit = () => submit.mutate(jobId, { onSuccess: handleSubmitted });
 
   const live = data?.liveView ?? null;
 
@@ -46,7 +52,7 @@ export function ReviewModal({ jobId }: { jobId: string }) {
         The agent pressed Submit, and {data.ats} wants a code it sent to your email before it takes
         the application. The form is still open and filled in.
       </Note>
-      <VerificationCodeForm job={data} onSubmitted={onSubmitted} />
+      <VerificationCodeForm job={data} onSubmitted={handleSubmitted} />
       <div className={styles.reviewActions}>
         <Button variant="ghost" onClick={close}>
           Later
@@ -71,7 +77,7 @@ export function ReviewModal({ jobId }: { jobId: string }) {
           variant="primary"
           loading={submit.isPending}
           loadingLabel="Submitting…"
-          onClick={onSubmit}
+          onClick={handleSubmit}
         >
           Submit application
         </Button>

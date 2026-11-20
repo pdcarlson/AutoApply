@@ -31,11 +31,11 @@ To work against a real backend running on `localhost:8080` instead:
 
 Set in `.env.development`, `.env.backend`, `.env.production`, or a git-ignored `.env.*.local`.
 
-| Variable                | Meaning                                                      |
-| ----------------------- | ------------------------------------------------------------ |
-| `VITE_API_BASE_URL`     | Where API requests go. Default `/api`; may be a full origin. |
-| `VITE_API_MOCKING`      | `enabled` serves `/api` from `src/mocks` (development only). |
-| `VITE_API_PROXY_TARGET` | Dev server only: forward `/api` to this backend.             |
+| Variable                     | Meaning                                                                |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`          | Where API requests go. Default `/api`; may be a full origin.           |
+| `VITE_API_MOCKING`           | `enabled` serves `/api` from `src/mocks` (development only).           |
+| `VITE_API_PROXY_TARGET`      | Dev server only: forward `/api` to this backend.                       |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Set: sign in with Google through Clerk. Unset: the local demo sign-in. |
 
 Sign-in comes in two kinds, chosen at build time by `VITE_CLERK_PUBLISHABLE_KEY`:
@@ -81,7 +81,7 @@ CAPTCHA hand-offs, and "ready for review" can all be exercised.
 
 Conventions:
 
-- **Server state** lives in TanStack Query (`src/api/queries.ts`). Components never call `fetch`
+- **Server state** lives in TanStack Query (`src/api/queries/`). Components never call `fetch`
   directly. Jobs and agent status poll every 2 s while the agent is working.
 - **UI state** that several screens share (open drawer/modal, toasts, theme) lives in small React
   contexts under `src/app/providers`.
@@ -112,6 +112,6 @@ the backend is responsible for:
 ## Not done yet
 
 - Background updates use polling. If the backend adds server-sent events or a WebSocket, replace
-  the `refetchInterval`s in `src/api/queries.ts` with cache updates from the stream.
+  the `refetchInterval`s in `src/api/queries/` with cache updates from the stream.
 - The "Terms and Privacy policy" text on the sign-in page has no links yet.
 - The old patched-bundle prototype is in `../prototype/` for visual reference only.

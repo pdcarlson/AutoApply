@@ -1,6 +1,6 @@
+/** The app's routes: sign-in, setup, and the signed-in screens. */
 import { createBrowserRouter, Navigate } from 'react-router';
-import { AppShell } from '@/layouts/AppShell';
-import { SetupLayout } from '@/layouts/SetupLayout';
+import { clerkEnabled } from '@/auth/config';
 import { AccountDeletedPage } from '@/features/auth/AccountDeletedPage';
 import { AuthCallbackPage } from '@/features/auth/AuthCallbackPage';
 import { SignInPage } from '@/features/auth/SignInPage';
@@ -13,10 +13,12 @@ import { SettingsPage } from '@/features/settings/SettingsPage';
 import { CommonQuestionsPage } from '@/features/setup/CommonQuestionsPage';
 import { ProfileReviewPage } from '@/features/setup/ProfileReviewPage';
 import { ResumeUploadPage } from '@/features/setup/ResumeUploadPage';
-import { clerkEnabled } from '@/auth/config';
+import { AppShell } from '@/layouts/AppShell';
+import { SetupLayout } from '@/layouts/SetupLayout';
 import { RedirectIfSignedIn, RequireSession } from './guards';
 import { paths } from './paths';
 
+/** The browser router `App` renders. Clerk's return page exists only when Clerk is on. */
 export const router = createBrowserRouter([
   {
     element: <RedirectIfSignedIn />,

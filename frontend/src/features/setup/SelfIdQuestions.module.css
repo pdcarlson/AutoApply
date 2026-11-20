@@ -1,0 +1,20 @@
+/* Styles for SelfIdQuestions. */
+
+/* Heads the run of self-identification questions. */
+.questionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 22px 20px 4px;
+}
+
+.groupLabel {
+  font-weight: 700;
+}
+
+.groupHint {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}

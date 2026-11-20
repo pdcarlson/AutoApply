@@ -1,3 +1,4 @@
+/** Tests for the three-step setup flow. */
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';

@@ -1,0 +1,35 @@
+/* Styles for AnswerHistory. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.match {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--surface2);
+  line-height: 1.35;
+}
+
+.match span:first-child {
+  font-size: 13px;
+}
+
+.match span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.usedRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.usedRow span:last-child {
+  color: var(--muted);
+}

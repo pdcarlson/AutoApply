@@ -1,0 +1,43 @@
+/* Styles for ThresholdPanel. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.range {
+  flex: 1;
+  min-width: 180px;
+  height: 28px;
+  accent-color: var(--mark);
+}
+
+.numberBox {
+  width: 84px;
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.numberBox:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--line-soft);
+  outline: none;
+}
+
+.invalid {
+  border-color: var(--red-dot);
+}
+
+.error {
+  color: var(--red-text);
+  font-size: 13px;
+}

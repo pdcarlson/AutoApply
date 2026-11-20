@@ -1,3 +1,4 @@
+/** Tests for the delete-account modal. */
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';

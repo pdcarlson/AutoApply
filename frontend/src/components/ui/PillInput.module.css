@@ -1,0 +1,59 @@
+/* Styles for PillInput. */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 6px 0 12px;
+  border: 1.3px solid var(--ink2);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13.5px;
+}
+
+.pill button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pill button:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.pillAdd {
+  height: 28px;
+  padding: 0 12px;
+  border: 1.3px dashed var(--ink2);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink2);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.pillInput {
+  width: 170px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1.3px solid var(--ink);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 14px;
+  outline: none;
+}

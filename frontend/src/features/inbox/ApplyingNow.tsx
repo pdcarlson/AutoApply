@@ -1,6 +1,7 @@
+/** The "Applying now" panel: the queue, the pause control and today's count. */
 import { Link } from 'react-router';
 import type { Job } from '@/api/types';
-import { useAgentStatus, useJobs } from '@/api/queries';
+import { useAgentStatus, useJobs, usePauseToggle } from '@/api/queries';
 import { paths } from '@/app/paths';
 import { useOverlays } from '@/app/providers/overlays';
 import { Button } from '@/components/ui/Button';
@@ -8,7 +9,6 @@ import { Icon } from '@/components/ui/Icon';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { isInProgress, progressPercent, runStatusText } from '@/lib/jobStatus';
 import { cx } from '@/lib/cx';
-import { usePauseToggle } from './usePauseToggle';
 import styles from './ApplyingNow.module.css';
 
 /** Jobs the agent is working through, in queue order. */
@@ -23,8 +23,13 @@ function useQueue(): Job[] {
   return [...ordered, ...active.filter((job) => !status.queue.includes(job.id))];
 }
 
+interface ApplyingNowProps {
+  /** `sidebar` in the app shell, `card` at the foot of the Inbox on phones. */
+  variant: 'sidebar' | 'card';
+}
+
 /** What the agent is doing now, the pause control, and today's count against the daily limit. */
-export function ApplyingNow({ variant }: { variant: 'sidebar' | 'card' }) {
+export function ApplyingNow({ variant }: ApplyingNowProps) {
   const queue = useQueue();
   const status = useAgentStatus().data;
   const { paused, pending, toggle } = usePauseToggle();

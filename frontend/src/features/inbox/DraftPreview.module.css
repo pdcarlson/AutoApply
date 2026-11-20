@@ -1,0 +1,23 @@
+/* Styles for DraftPreview. */
+.draft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.draft p {
+  line-height: 1.55;
+}
+
+.gap {
+  padding: 0 3px;
+  border-bottom: 2px dashed var(--ink2);
+  border-radius: 3px;
+  background: var(--surface2);
+  color: var(--ink);
+  font-weight: 600;
+}

@@ -1,3 +1,4 @@
+/** Changing a sent application's status, with Undo. */
 import type { Application, ApplicationStatus } from '@/api/types';
 import { useSetApplicationStatus } from '@/api/queries';
 import { useToast } from '@/app/providers/toast';
@@ -10,17 +11,17 @@ export function useStatusChange() {
 
   return {
     pending: setStatus.isPending,
-    change: (app: Application, status: ApplicationStatus) => {
-      if (app.status === status) return;
-      const previous = app.status;
+    change: (application: Application, status: ApplicationStatus) => {
+      if (application.status === status) return;
+      const previous = application.status;
       setStatus.mutate(
-        { id: app.id, status },
+        { id: application.id, status },
         {
           onSuccess: () =>
-            notify(`Moved ${app.company} to ${APPLICATION_STATUS_LABELS[status]}.`, {
-              undo: () => setStatus.mutate({ id: app.id, status: previous }),
+            notify(`Moved ${application.company} to ${APPLICATION_STATUS_LABELS[status]}.`, {
+              undo: () => setStatus.mutate({ id: application.id, status: previous }),
             }),
-          onError: () => notify(`Couldn’t move ${app.company}. Try again.`),
+          onError: () => notify(`Couldn’t move ${application.company}. Try again.`),
         },
       );
     },

@@ -1,0 +1,33 @@
+/* Styles for ChecksList. */
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.checksLarge li {
+  font-size: 15px;
+}
+
+.checks svg {
+  margin-top: 1px;
+}
+
+.check-ok {
+  color: var(--ink);
+}
+
+.check-warn {
+  color: var(--ink2);
+}
+
+.check-bad {
+  color: var(--red-text);
+}

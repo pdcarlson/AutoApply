@@ -1,14 +1,14 @@
-/**
- * Where API requests get the signed-in user's token.
- *
- * With Clerk sign-in (VITE_CLERK_PUBLISHABLE_KEY is set) `main.tsx` registers Clerk's
- * `getToken` here, and every request, the live browser socket and screenshots send it. With
- * the local backend or the mock API nothing is registered and requests go out as before.
- */
+/** Where API requests get the signed-in user's token. */
+
+/** Returns a fresh session token, or null when signed out. */
 type TokenSource = () => Promise<string | null>;
 
 let source: TokenSource | null = null;
 
+/**
+ * Registers where tokens come from. With Clerk sign-in, `main.tsx` registers Clerk's
+ * `getToken`; with the local backend or the mock API nothing is registered.
+ */
 export function setTokenSource(next: TokenSource | null) {
   source = next;
 }

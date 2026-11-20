@@ -1,3 +1,4 @@
+/** App-wide toasts: short messages at the bottom of the screen, with optional buttons. */
 import {
   createContext,
   useCallback,
@@ -27,16 +28,21 @@ type Notify = (text: string, options?: ToastOptions) => void;
 const ToastContext = createContext<Notify | null>(null);
 
 const PLAIN_MS = 5000;
+// Longer when there's a button, so there is time to reach it.
 const WITH_BUTTON_MS = 7000;
 
+interface ToastProviderProps {
+  children: ReactNode;
+}
+
 /** One toast at a time; a new one replaces the last. */
-export function ToastProvider({ children }: { children: ReactNode }) {
+export function ToastProvider({ children }: ToastProviderProps) {
   const [toast, setToast] = useState<Toast | null>(null);
-  const seq = useRef(0);
+  const lastId = useRef(0);
 
   const notify = useCallback<Notify>((text, options = {}) => {
-    seq.current += 1;
-    setToast({ id: seq.current, text, ...options });
+    lastId.current += 1;
+    setToast({ id: lastId.current, text, ...options });
   }, []);
   const dismiss = useCallback(() => setToast(null), []);
 
@@ -48,7 +54,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function ToastView({ toast, onDone }: { toast: Toast; onDone: () => void }) {
+interface ToastViewProps {
+  toast: Toast;
+  onDone: () => void;
+}
+
+/** The toast on screen; it closes itself after a few seconds, longer when it has a button. */
+function ToastView({ toast, onDone }: ToastViewProps) {
   const hasButton = Boolean(toast.undo || toast.action);
 
   useEffect(() => {
@@ -56,21 +68,21 @@ function ToastView({ toast, onDone }: { toast: Toast; onDone: () => void }) {
     return () => clearTimeout(timer);
   }, [hasButton, onDone]);
 
-  const run = (fn: () => void) => () => {
+  const closeThen = (action: () => void) => () => {
     onDone();
-    fn();
+    action();
   };
 
   return (
     <div className={styles.toast} role="status">
       <span>{toast.text}</span>
       {toast.undo && (
-        <button type="button" className={styles.button} onClick={run(toast.undo)}>
+        <button type="button" className={styles.button} onClick={closeThen(toast.undo)}>
           Undo
         </button>
       )}
       {toast.action && (
-        <button type="button" className={styles.button} onClick={run(toast.action.run)}>
+        <button type="button" className={styles.button} onClick={closeThen(toast.action.run)}>
           {toast.action.label}
         </button>
       )}
@@ -78,6 +90,7 @@ function ToastView({ toast, onDone }: { toast: Toast; onDone: () => void }) {
   );
 }
 
+/** A function that shows a toast. */
 export function useToast() {
   const notify = useContext(ToastContext);
   if (!notify) throw new Error('useToast must be used inside ToastProvider');

@@ -1,0 +1,51 @@
+/* Styles for ResumeDropZone. */
+.dropZone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 44px 24px;
+  border: 2px dashed var(--line2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+
+.dragging {
+  border-color: var(--ink);
+  background: var(--accent-tint);
+}
+
+.dropZone > label {
+  margin-top: 6px;
+}
+
+.dropIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 5px;
+  background: var(--surface2);
+  color: var(--ink);
+}
+
+.dropTitle {
+  font-family: var(--f-display);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.uploading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  margin-top: 6px;
+  color: var(--ink2);
+  font-size: 14px;
+}

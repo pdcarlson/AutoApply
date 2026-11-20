@@ -1,141 +1,57 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+/** The Inbox screen: jobs to apply to, and jobs waiting on the user. */
+import { useState } from 'react';
 import type { Job } from '@/api/types';
-import {
-  useAgentStatus,
-  useApplyJobs,
-  useCancelJobs,
-  useJobs,
-  useRestoreJob,
-  useSession,
-  useSkipJob,
-} from '@/api/queries';
-import { paths } from '@/app/paths';
-import { useOverlays } from '@/app/providers/overlays';
+import { useJobs, usePauseToggle } from '@/api/queries';
 import { useToast } from '@/app/providers/toast';
-import { Button } from '@/components/ui/Button';
-import { buttonClass } from '@/components/ui/classNames';
-import { Banner } from '@/components/ui/Callouts';
-import { FilterChips, Loading, LoadError, type FilterOption } from '@/components/ui/DataDisplay';
-import { byNewest, INBOX_STATES, isInProgress, isWaitingOnUser } from '@/lib/jobStatus';
-import { plural } from '@/lib/format';
+import { Loading, LoadError } from '@/components/ui/LoadStates';
 import { ApplyingNow } from './ApplyingNow';
-import { usePauseToggle } from './usePauseToggle';
+import { InboxBanners } from './InboxBanners';
+import { inboxJobs, jobElementId, visibleJobs, type InboxFilter } from './inboxFilters';
+import { InboxToolbar } from './InboxToolbar';
 import { JobRow } from './JobRow';
+import { JobTable } from './JobTable';
 import { PasteLink } from './PasteLink';
+import { useExpandedJob } from './useExpandedJob';
+import { useFlashedJob } from './useFlashedJob';
+import { useInboxActions } from './useInboxActions';
+import { useJobChecks } from './useJobChecks';
 import styles from './InboxPage.module.css';
 
-type Filter = 'all' | 'needs';
-
-const FILTERS: FilterOption<Filter>[] = [
-  { key: 'all', label: 'All' },
-  { key: 'needs', label: 'Needs you', dot: 'amber' },
-];
-
-const matches = (filter: Filter) => (job: Job) =>
-  filter === 'needs' ? job.state !== 'open' : true;
-
-/** Jobs you add from a link start checked; matches and skip-suggested ones don't. */
-const checkedByDefault = (job: Job) => job.source === 'added' && !job.skipSuggested;
-
-const FLASH_MS = 2400;
-
+/** Paste a link, filter and check jobs, and apply to one or many. */
 export function InboxPage() {
   const jobs = useJobs();
-  const session = useSession();
-  const { paused, toggle: togglePause } = usePauseToggle();
-  const dailyLimit = useAgentStatus().data?.dailyLimit;
-  const apply = useApplyJobs();
-  const cancel = useCancelJobs();
-  const skip = useSkipJob();
-  const restore = useRestoreJob();
   const notify = useToast();
-  const navigate = useNavigate();
-  const { open } = useOverlays();
-  const [params, setParams] = useSearchParams();
-  const [filter, setFilter] = useState<Filter>('all');
-  const [checkedOverrides, setCheckedOverrides] = useState<Record<string, boolean>>({});
-  const [flashId, setFlashId] = useState<string | null>(null);
+  const { paused, toggle: togglePause } = usePauseToggle();
+  const [filter, setFilter] = useState<InboxFilter>('all');
+  const [flashId, setFlashId] = useFlashedJob();
+  const { expandedId, setExpanded } = useExpandedJob(jobs.data);
+  const { applyTo, skipJob, isApplying } = useInboxActions({ expandedId, setExpanded });
 
-  const expandedId = params.get('job');
-  const all = (jobs.data ?? []).filter((job) => INBOX_STATES.includes(job.state)).sort(byNewest);
-  const waiting = all.filter(isWaitingOnUser);
-  const visible =
-    filter === 'all' ? all : all.filter((j) => !isInProgress(j)).filter(matches(filter));
-  const readyCount = (jobs.data ?? []).filter((job) => job.state === 'ready').length;
-
-  const isChecked = (job: Job) =>
-    job.state === 'open' && (checkedOverrides[job.id] ?? checkedByDefault(job));
-  const selected = all.filter(isChecked).map((job) => job.id);
-
-  const setExpanded = (jobId: string | null) =>
-    setParams(jobId ? { job: jobId } : {}, { replace: true });
-
-  // A deep link (?job=) shows that job: clear the filter and scroll it into view.
-  useEffect(() => {
-    if (!expandedId || !jobs.data) return;
-    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    document
-      .getElementById(`job-${expandedId}`)
-      ?.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
-  }, [expandedId, jobs.data]);
-
-  useEffect(() => {
-    if (!flashId) return;
-    const timer = setTimeout(() => setFlashId(null), FLASH_MS);
-    return () => clearTimeout(timer);
-  }, [flashId]);
+  const all = inboxJobs(jobs.data ?? []);
+  const visible = visibleJobs(all, filter);
+  const { isChecked, toggleChecked, checkedIds } = useJobChecks(all);
 
   const showJob = (jobId: string) => {
     setFilter('all');
     setExpanded(jobId);
   };
 
-  const applyTo = (ids: string[]) => {
-    if (!ids.length) return;
-    if (!session.data?.profileConfirmed) {
-      open({ type: 'confirmProfile' });
-      return;
-    }
-    apply.mutate(ids, {
-      onSuccess: ({ queued, deferred }) => {
-        setExpanded(null);
-        const count = plural(ids.length, 'job', 'jobs');
-        notify(
-          deferred.length
-            ? `Filling ${count}. ${queued.length} can go out today; ${deferred.length} wait until tomorrow${dailyLimit ? ` (daily limit ${dailyLimit})` : ''}.`
-            : `Filling ${count}. You’ll review each one before it’s submitted.`,
-          { undo: () => cancel.mutate(ids) },
-        );
-      },
-      onError: (error) => notify(`Couldn’t start those applications. ${error.message}`),
-    });
-  };
-
-  const skipJob = (job: Job) =>
-    skip.mutate(job.id, {
-      onSuccess: () => {
-        if (expandedId === job.id) setExpanded(null);
-        notify(`Skipped ${job.company}. It stays hidden, even after the next refresh.`, {
-          undo: () => restore.mutate(job.id),
-        });
-      },
-    });
-
-  const onAdded = (job: Job) => {
+  const handleAdded = (job: Job) => {
     setFilter('all');
     setFlashId(job.id);
     notify(
       `Added ${job.company} · ${job.role} from ${job.ats}. It’s at the top of your Inbox, checked and ready.`,
     );
     requestAnimationFrame(() =>
-      document.getElementById(`job-${job.id}`)?.scrollIntoView({ block: 'center' }),
+      document.getElementById(jobElementId(job.id))?.scrollIntoView({ block: 'center' }),
     );
   };
 
-  const counts = Object.fromEntries(
-    FILTERS.map(({ key }) => [key, waiting.filter(matches(key)).length]),
-  ) as Record<Filter, number>;
+  const emptyMessage =
+    filter === 'all'
+      ? 'Your Inbox is clear. Paste a job link to add one.'
+      : 'Nothing in this filter.';
+  const isEmpty = jobs.isSuccess && !visible.length;
 
   return (
     <main id="main" className={styles.page}>
@@ -143,90 +59,22 @@ export function InboxPage() {
         <div className={styles.titleRow}>
           <h1 className="h1">Inbox</h1>
         </div>
-        <PasteLink onAdded={onAdded} onShowJob={showJob} />
-
-        {readyCount > 0 && (
-          <Banner
-            icon="check"
-            title={`${plural(readyCount, 'application is', 'applications are')} ready to submit`}
-            action={
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => navigate(`${paths.applications}?filter=ready`)}
-              >
-                Review
-              </Button>
-            }
-          >
-            The agent filled {readyCount === 1 ? 'it' : 'them'} and stopped. Review and approve
-            before anything is sent.
-          </Banner>
-        )}
-        {paused && (
-          <Banner
-            tone="amber"
-            icon="pause"
-            action={
-              <Button size="sm" onClick={togglePause}>
-                Resume
-              </Button>
-            }
-          >
-            The queue is paused. Nothing new is submitted until you resume.
-          </Banner>
-        )}
-        {session.data && !session.data.profileConfirmed && (
-          <Banner
-            tone="amber"
-            icon="warn"
-            title="Your profile isn’t confirmed yet."
-            action={
-              <Link className={buttonClass({ size: 'sm' })} to={paths.setupProfile}>
-                Check my profile
-              </Link>
-            }
-          >
-            Applications only use your profile after you’ve checked it once.
-          </Banner>
-        )}
-
-        <div className={styles.toolbar}>
-          <FilterChips
-            label="Show"
-            value={filter}
-            onChange={setFilter}
-            options={FILTERS.map((option) => ({ ...option, count: counts[option.key] }))}
-          />
-          <div className={styles.toolbarActions}>
-            <span className={styles.applyCount}>{selected.length} selected</span>
-            <Button
-              variant="primary"
-              disabled={!selected.length}
-              loading={apply.isPending}
-              onClick={() => applyTo(selected)}
-            >
-              {selected.length ? `Apply to ${selected.length}` : 'Apply'}
-            </Button>
-          </div>
-        </div>
-
-        <div className={styles.table}>
-          <div className={`${styles.grid} ${styles.head}`} aria-hidden="true">
-            <span />
-            <span>Date</span>
-            <span>Job</span>
-            <span>Where</span>
-            <span>Form</span>
-            <span>Status</span>
-            <span />
-            <span />
-          </div>
+        <PasteLink onAdded={handleAdded} onShowJob={showJob} />
+        <InboxBanners paused={paused} onResume={togglePause} />
+        <InboxToolbar
+          jobs={all}
+          filter={filter}
+          onFilterChange={setFilter}
+          checkedCount={checkedIds.length}
+          applying={isApplying}
+          onApply={() => applyTo(checkedIds)}
+        />
+        <JobTable emptyMessage={isEmpty ? emptyMessage : undefined}>
           {jobs.isPending ? (
             <Loading label="Loading your Inbox…" />
           ) : jobs.isError ? (
             <LoadError what="your Inbox" onRetry={() => jobs.refetch()} />
-          ) : visible.length ? (
+          ) : (
             <ul>
               {visible.map((job) => (
                 <JobRow
@@ -237,24 +85,15 @@ export function InboxPage() {
                   checked={isChecked(job)}
                   flash={flashId === job.id}
                   onToggleExpanded={() => setExpanded(expandedId === job.id ? null : job.id)}
-                  onToggleChecked={() =>
-                    setCheckedOverrides((prev) => ({ ...prev, [job.id]: !isChecked(job) }))
-                  }
+                  onToggleChecked={() => toggleChecked(job)}
                   onSkip={() => skipJob(job)}
                   onApply={() => applyTo([job.id])}
-                  applying={apply.isPending}
+                  applying={isApplying}
                 />
               ))}
             </ul>
-          ) : (
-            <p className={styles.empty}>
-              {filter === 'all'
-                ? 'Your Inbox is clear. Paste a job link to add one.'
-                : 'Nothing in this filter.'}
-            </p>
           )}
-        </div>
-
+        </JobTable>
         <div className={styles.phoneOnly}>
           <ApplyingNow variant="card" />
         </div>

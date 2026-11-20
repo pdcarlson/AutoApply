@@ -1,15 +1,13 @@
+/** Toasts that announce job state changes the agent makes in the background. */
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import type { JobState } from '@/api/types';
 import { useJobs } from '@/api/queries';
+import type { JobState } from '@/api/types';
 import { inboxJob } from '@/app/paths';
 import { useOverlays } from '@/app/providers/overlays';
 import { useToast } from '@/app/providers/toast';
 
-/**
- * Tells the user when the agent changes a job's state in the background (seen through polling):
- * it paused on a question, hit a CAPTCHA, finished filling a form, or ran into the daily limit.
- */
+/** Tells the user when polling shows the agent paused, got stuck, finished, or hit the limit. */
 export function useJobEventToasts() {
   const { data: jobs } = useJobs();
   const notify = useToast();

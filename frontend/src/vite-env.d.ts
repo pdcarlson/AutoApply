@@ -1,3 +1,4 @@
+/** Types for Vite and the environment variables the app reads. */
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {

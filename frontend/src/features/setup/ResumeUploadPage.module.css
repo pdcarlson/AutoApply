@@ -1,0 +1,14 @@
+/* Styles for ResumeUploadPage. */
+.uploadColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 760px;
+}
+
+.alternatives {
+  display: flex;
+  justify-content: center;
+  font-size: 14px;
+}

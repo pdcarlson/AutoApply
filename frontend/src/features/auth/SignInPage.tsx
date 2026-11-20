@@ -1,10 +1,11 @@
+/** The sign-in screen, with what happens after signing in. */
 import { useMutation } from '@tanstack/react-query';
 import { useLocation } from 'react-router';
 import { useAuthActions } from '@/auth/actions';
 import { Button } from '@/components/ui/Button';
 import { ErrorBox } from '@/components/ui/Callouts';
-import { Brand } from '@/components/ui/DataDisplay';
-import styles from './auth.module.css';
+import { Brand } from '@/components/ui/Brand';
+import styles from './SignInPage.module.css';
 
 const NEXT_STEPS = [
   [
@@ -25,17 +26,19 @@ const NEXT_STEPS = [
   ],
 ] as const;
 
+/** What other screens pass along when they send the user here. */
 interface SignInState {
   from?: string;
   signInError?: 'cancelled' | 'failed';
 }
 
+/** Starts sign-in, shows why the last attempt failed, and lists the setup steps. */
 export function SignInPage() {
   const state = (useLocation().state ?? {}) as SignInState;
   const auth = useAuthActions();
   const start = useMutation({ mutationFn: () => auth.startSignIn(state.from ?? '/') });
   // Stays "waiting" after success too, while the browser follows the returned URL.
-  const waiting = start.isPending || start.isSuccess;
+  const isWaiting = start.isPending || start.isSuccess;
 
   return (
     <div className={styles.welcome}>
@@ -66,7 +69,7 @@ export function SignInPage() {
           )}
           <Button
             className={styles.startBtn}
-            loading={waiting}
+            loading={isWaiting}
             loadingLabel="Starting…"
             onClick={() => start.mutate()}
           >

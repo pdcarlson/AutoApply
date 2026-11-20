@@ -1,0 +1,9 @@
+/* Styles for CommonQuestionsPage. */
+.questionList {
+  display: flex;
+  flex-direction: column;
+  max-width: 820px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}

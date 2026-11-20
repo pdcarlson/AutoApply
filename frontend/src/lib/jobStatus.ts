@@ -1,10 +1,8 @@
-/**
- * Display rules for jobs and applications: labels, chip tones, and progress. Pure functions of
- * the data the backend sends, so every screen describes a job the same way.
- */
+/** Display rules for jobs and applications: labels, chip tones, and progress. */
 import type { ApplicationStatus, Job, JobState } from '@/api/types';
 import { formatDay } from './format';
 
+/** The color family of a status chip. */
 export type Tone = 'teal' | 'amber' | 'red' | 'grey';
 
 /** States shown in the Inbox list. `ready` jobs live under Applications instead. */
@@ -25,10 +23,10 @@ export const isWaitingOnUser = (job: Job) =>
 export const isInProgress = (job: Job) =>
   job.state === 'queued' || job.state === 'running' || job.state === 'waiting';
 
+const jobTime = (job: Job) => Date.parse(job.addedAt ?? job.postedAt ?? '') || 0;
+
 /** Newest first, by when it was added or posted. */
 export const byNewest = (a: Job, b: Job) => jobTime(b) - jobTime(a);
-
-const jobTime = (job: Job) => Date.parse(job.addedAt ?? job.postedAt ?? '') || 0;
 
 /** The day shown in the Inbox date column, and what it means. */
 export function jobDate(job: Job): { day: string; label: 'Added' | 'Posted' } {
@@ -132,6 +130,7 @@ export function formSummaryText(job: Job): string | null {
   return `The agent can fill ${totalFields - fieldsToAsk} of ${totalFields} fields. It will ask you about ${fieldsToAsk === 1 ? 'one' : fieldsToAsk} first, then hold the form for your review.`;
 }
 
+/** The label shown for each application status. */
 export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   submitted: 'Submitted',
   interviewing: 'Interviewing',
@@ -139,10 +138,18 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   rejected: 'Rejected',
 };
 
-export const APPLICATION_STATUSES = Object.keys(APPLICATION_STATUS_LABELS) as ApplicationStatus[];
+/** Every application status, in the order the status menu lists them. */
+export const APPLICATION_STATUSES: readonly ApplicationStatus[] = [
+  'submitted',
+  'interviewing',
+  'offer',
+  'rejected',
+];
 
+/** True for statuses that end the application. */
 export const isClosedStatus = (status: ApplicationStatus) => status === 'rejected';
 
+/** Status chip for an application. */
 export function applicationChip(status: ApplicationStatus): { tone: Tone; label: string } {
   const label = APPLICATION_STATUS_LABELS[status];
   if (status === 'submitted') return { tone: 'grey', label };

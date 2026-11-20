@@ -1,0 +1,48 @@
+/* Styles for EntrySummary. */
+.entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.entryText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.entryText b {
+  font-weight: 700;
+}
+
+.entryText > span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.entryCourse {
+  color: var(--ink2) !important;
+}
+
+.thinHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink) !important;
+  font-weight: 600;
+}
+
+.bullets {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+  color: var(--ink2);
+  font-size: 13px;
+  line-height: 1.45;
+}

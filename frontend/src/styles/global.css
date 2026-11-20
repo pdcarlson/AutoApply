@@ -1,8 +1,5 @@
-/*
- * Global base layer: reset, element defaults, form controls drawn so checked vs unchecked is
- * obvious on every OS, and a handful of text utilities. Component styles live next to their
- * components in *.module.css files.
- */
+/* Global base styles: reset, element defaults, form controls, and text utilities. */
+/* Checkboxes and radios are drawn by hand so checked vs unchecked is obvious on every OS. */
 @import './tokens.css';
 
 *,

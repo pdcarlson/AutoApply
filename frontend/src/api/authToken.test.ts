@@ -1,3 +1,4 @@
+/** Tests that API requests carry the session token when sign-in provides one. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { authHeaders, authToken, setTokenSource, usesAuthTokens } from './authToken';
 import { http } from './client';

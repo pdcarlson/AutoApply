@@ -1,14 +1,15 @@
+/** The browser entry point: starts the mock API or token sign-in if needed, then the app. */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { setTokenSource } from './api/authToken';
-import { App } from './app/App';
-import { clerkEnabled } from './auth/config';
-import './styles/global.css';
+import { setTokenSource } from '@/api/authToken';
+import { App } from '@/app/App';
+import { clerkEnabled } from '@/auth/config';
+import '@/styles/global.css';
 
 /** In development, VITE_API_MOCKING=enabled serves /api from the in-browser mock API. */
 async function startMockApi() {
   if (!import.meta.env.DEV || import.meta.env.VITE_API_MOCKING !== 'enabled') return;
-  const { worker } = await import('./mocks/browser');
+  const { worker } = await import('@/mocks/browser');
   await worker.start({ onUnhandledRequest: 'bypass', quiet: true });
 }
 

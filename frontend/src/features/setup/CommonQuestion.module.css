@@ -1,0 +1,43 @@
+/* Styles for CommonQuestion. */
+.question {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.question:last-child {
+  border-bottom: none;
+}
+
+.question > button {
+  align-self: start;
+}
+
+.questionLabel {
+  font-weight: 700;
+}
+
+.questionHint {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.questionControl {
+  grid-column: 1 / -1;
+}
+
+.skipped .questionLabel,
+.skipped .questionControl {
+  opacity: 0.45;
+}
+
+@media (width <= 899px) {
+  .question {
+    padding: 16px;
+  }
+}

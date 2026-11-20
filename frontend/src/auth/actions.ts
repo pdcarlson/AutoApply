@@ -1,3 +1,4 @@
+/** What signing in and out do, provided through context so either sign-in can supply it. */
 import { createContext, useContext } from 'react';
 import { authApi } from '@/api/endpoints';
 
@@ -7,6 +8,7 @@ export interface AuthActions {
   google: boolean;
   /** Starts sign-in; the browser ends up on `/auth/callback?returnTo=…`. */
   startSignIn: (returnTo: string) => Promise<void>;
+  /** Ends the session. */
   signOut: () => Promise<void>;
   /** After DELETE /account: drop whatever sign-in state is left in this browser. */
   afterAccountDeleted: () => Promise<void>;
@@ -23,6 +25,8 @@ export const localAuthActions: AuthActions = {
   afterAccountDeleted: async () => {},
 };
 
+/** Holds the sign-in actions; the local ones unless Clerk provides its own. */
 export const AuthActionsContext = createContext<AuthActions>(localAuthActions);
 
+/** The sign-in actions for the current sign-in. */
 export const useAuthActions = () => useContext(AuthActionsContext);

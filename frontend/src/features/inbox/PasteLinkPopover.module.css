@@ -1,0 +1,35 @@
+/* Styles for PasteLinkPopover. */
+.pop {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, 100vw - 32px);
+  padding: 14px 16px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 14px;
+  box-shadow: var(--shadow-lg);
+}
+
+.busy {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.error {
+  border-color: var(--red-dot);
+}
+
+.popTitle {
+  font-weight: 700;
+}
+
+.error .popTitle {
+  color: var(--red-text);
+}

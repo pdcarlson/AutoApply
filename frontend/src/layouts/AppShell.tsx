@@ -1,3 +1,4 @@
+/** The frame around every signed-in screen: navigation, the screen, and open overlays. */
 import { useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useJobs, useSession, useSignOut } from '@/api/queries';
@@ -6,7 +7,7 @@ import { useOverlays } from '@/app/providers/overlays';
 import { useTheme } from '@/app/providers/theme';
 import { Count } from '@/components/ui/Badges';
 import { IconButton, LinkButton } from '@/components/ui/Button';
-import { Brand } from '@/components/ui/DataDisplay';
+import { Brand } from '@/components/ui/Brand';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { ApplyingNow } from '@/features/inbox/ApplyingNow';
 import { isWaitingOnUser } from '@/lib/jobStatus';
@@ -30,21 +31,29 @@ const NAV: NavItem[] = [
   { to: paths.settings, label: 'Settings', icon: 'sliders' },
 ];
 
+interface NavCount {
+  value: number;
+  /** Read after the number, e.g. "3 waiting". */
+  label: string;
+  /** Dashed badge, and left off the phone tabs. */
+  warn?: boolean;
+}
+
 /** Badge counts for the nav: jobs waiting on the user, ready to submit, and open questions. */
-function useNavCounts() {
+function useNavCounts(): Partial<Record<string, NavCount>> {
   const { data: jobs = [] } = useJobs();
   return {
     [paths.inbox]: { value: jobs.filter(isWaitingOnUser).length, label: 'waiting' },
     [paths.applications]: {
-      value: jobs.filter((j) => j.state === 'ready').length,
+      value: jobs.filter((job) => job.state === 'ready').length,
       label: 'ready to submit',
     },
     [paths.answers]: {
-      value: jobs.filter((j) => j.state === 'needs_input').length,
+      value: jobs.filter((job) => job.state === 'needs_input').length,
       label: 'waiting for an answer',
       warn: true,
     },
-  } as Record<string, { value: number; label: string; warn?: boolean } | undefined>;
+  };
 }
 
 /** Signed-in frame: sidebar on wide screens, bottom tabs on phones. */
@@ -69,6 +78,7 @@ export function AppShell() {
   );
 }
 
+/** The sidebar on wide screens: links, the agent's progress, the account, and the theme. */
 function SideNav() {
   const counts = useNavCounts();
   const session = useSession();
@@ -76,6 +86,8 @@ function SideNav() {
   const signOut = useSignOut();
   const navigate = useNavigate();
   const { open } = useOverlays();
+  const handleSignOut = () =>
+    signOut.mutate(undefined, { onSettled: () => navigate(paths.signIn) });
 
   return (
     <aside className={styles.nav}>
@@ -110,11 +122,7 @@ function SideNav() {
         <div className={styles.user}>
           <span>{user?.name}</span>
           <span>{user?.email}</span>
-          <LinkButton
-            onClick={() => signOut.mutate(undefined, { onSettled: () => navigate(paths.signIn) })}
-          >
-            Sign out
-          </LinkButton>
+          <LinkButton onClick={handleSignOut}>Sign out</LinkButton>
           <LinkButton className={styles.danger} onClick={() => open({ type: 'deleteAccount' })}>
             Delete account
           </LinkButton>
@@ -125,6 +133,7 @@ function SideNav() {
   );
 }
 
+/** Switches between light and dark colors. */
 function ThemeToggle() {
   const { isDark, setChoice } = useTheme();
   const label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
@@ -135,6 +144,7 @@ function ThemeToggle() {
   );
 }
 
+/** The tab bar on phones. */
 function BottomNav() {
   const counts = useNavCounts();
   return (

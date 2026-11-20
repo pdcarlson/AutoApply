@@ -1,6 +1,7 @@
+/** Route guards that send visitors where their sign-in state allows. */
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { useSession } from '@/api/queries';
-import { Loading, LoadError } from '@/components/ui/DataDisplay';
+import { Loading, LoadError } from '@/components/ui/LoadStates';
 import { paths } from './paths';
 
 /** Sends signed-out visitors to sign in, remembering where they were headed. */

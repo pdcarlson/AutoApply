@@ -1,19 +1,24 @@
+/** The modal showing an application's screenshot full size. */
 import { useApplication } from '@/api/queries';
 import { useApiImage } from '@/api/useApiImage';
 import { useOverlays } from '@/app/providers/overlays';
-import { Loading, LoadError } from '@/components/ui/DataDisplay';
-import { Modal, ModalHead } from '@/components/ui/Overlay';
+import { Loading, LoadError } from '@/components/ui/LoadStates';
+import { Modal, ModalHead } from '@/components/ui/Modal';
 import { formatDateTime } from '@/lib/format';
-import styles from './applications.module.css';
+import styles from './ScreenshotModal.module.css';
+
+interface ScreenshotModalProps {
+  applicationId: string;
+}
 
 /** Full-size view of the screenshot of the page after Submit (a dry run's: the filled form). */
-export function ScreenshotModal({ applicationId }: { applicationId: string }) {
+export function ScreenshotModal({ applicationId }: ScreenshotModalProps) {
   const { close } = useOverlays();
-  const app = useApplication(applicationId);
-  const data = app.data;
+  const application = useApplication(applicationId);
+  const data = application.data;
   const screenshot = useApiImage(data?.screenshotUrl);
   // A dry run never pressed Submit, so its screenshot is the filled form, not the page after.
-  const dryRun = data?.submittedBy === 'agent' && !data.confirmation;
+  const isDryRun = data?.submittedBy === 'agent' && !data.confirmation;
 
   return (
     <Modal labelledBy="screenshot-title" onClose={close} wide>
@@ -22,8 +27,8 @@ export function ScreenshotModal({ applicationId }: { applicationId: string }) {
           {data ? `${data.company} · submitted application` : 'Submitted application'}
         </h2>
       </ModalHead>
-      {app.isError ? (
-        <LoadError what="the screenshot" onRetry={() => app.refetch()} />
+      {application.isError ? (
+        <LoadError what="the screenshot" onRetry={() => application.refetch()} />
       ) : !data ? (
         <Loading />
       ) : data.screenshotUrl ? (
@@ -33,7 +38,7 @@ export function ScreenshotModal({ applicationId }: { applicationId: string }) {
               className={styles.screenshot}
               src={screenshot}
               alt={
-                dryRun
+                isDryRun
                   ? `The filled ${data.company} application form`
                   : `The ${data.company} page after the application was submitted`
               }
@@ -41,7 +46,7 @@ export function ScreenshotModal({ applicationId }: { applicationId: string }) {
           </div>
           <p className="tiny muted">
             Saved {formatDateTime(data.submittedAt)},{' '}
-            {dryRun
+            {isDryRun
               ? 'just before Submit (a dry run, so it wasn’t sent).'
               : 'after it was submitted.'}
           </p>

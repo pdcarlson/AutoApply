@@ -1,8 +1,10 @@
+/** The one place that sends HTTP requests to the API and turns failures into ApiError. */
 import { authHeaders } from './authToken';
 import type { ApiErrorBody } from './types';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
+/** A non-2xx response, carrying the backend's `{ code, message, details }` body. */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -17,6 +19,7 @@ export class ApiError extends Error {
   }
 }
 
+/** True for an ApiError, optionally one with this `code`. */
 export const isApiError = (error: unknown, code?: string): error is ApiError =>
   error instanceof ApiError && (code === undefined || error.code === code);
 
@@ -27,6 +30,7 @@ export const apiUrl = (path: string) =>
 /** A JSON-serializable object or array, or FormData for file uploads. */
 type Body = object;
 
+/** Sends one request with the session cookie and token, and parses the JSON reply. */
 async function request<T>(method: string, path: string, body?: Body): Promise<T> {
   const isForm = body instanceof FormData;
   const response = await fetch(apiUrl(path), {
@@ -48,6 +52,7 @@ async function request<T>(method: string, path: string, body?: Body): Promise<T>
   return (await response.json()) as T;
 }
 
+/** The error body from a failed response, or a generic one when it isn't the API's JSON. */
 async function readError(response: Response): Promise<ApiErrorBody> {
   try {
     const body = (await response.json()) as Partial<ApiErrorBody>;
@@ -80,6 +85,7 @@ async function download(path: string, fallbackName: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+/** HTTP verbs for the endpoint functions. Paths are relative to the API base URL. */
 export const http = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: Body) => request<T>('POST', path, body),

@@ -1,3 +1,4 @@
+/** Unit tests for the display formatting helpers. */
 import { describe, expect, it } from 'vitest';
 import { daysAgo, formatSpan, graduationOptions, plural, toBullets } from './format';
 

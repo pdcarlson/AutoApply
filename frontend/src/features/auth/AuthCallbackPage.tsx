@@ -1,10 +1,9 @@
-import { useQueryClient } from '@tanstack/react-query';
+/** The page the backend returns the browser to after Google sign-in. */
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { authApi } from '@/api/endpoints';
-import { queryKeys } from '@/api/queries';
+import { useFetchFreshSession } from '@/api/queries';
 import { paths } from '@/app/paths';
-import { Loading } from '@/components/ui/DataDisplay';
+import { Loading } from '@/components/ui/LoadStates';
 
 /** Only same-site paths, so the callback can't be used to redirect somewhere else. */
 const safeReturnTo = (value: string | null) =>
@@ -17,7 +16,7 @@ const safeReturnTo = (value: string | null) =>
 export function AuthCallbackPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const client = useQueryClient();
+  const fetchFreshSession = useFetchFreshSession();
 
   useEffect(() => {
     const error = params.get('error');
@@ -29,23 +28,23 @@ export function AuthCallbackPage() {
       return;
     }
 
-    let cancelled = false;
-    client
-      .fetchQuery({ queryKey: queryKeys.session, queryFn: authApi.getSession, staleTime: 0 })
+    let isCancelled = false;
+    fetchFreshSession()
       .then((session) => {
-        if (cancelled) return;
-        const next = session.profileConfirmed
+        if (isCancelled) return;
+        const destination = session.profileConfirmed
           ? (safeReturnTo(params.get('returnTo')) ?? paths.inbox)
           : paths.setupResume;
-        navigate(next, { replace: true });
+        navigate(destination, { replace: true });
       })
       .catch(() => {
-        if (!cancelled) navigate(paths.signIn, { replace: true, state: { signInError: 'failed' } });
+        if (!isCancelled)
+          navigate(paths.signIn, { replace: true, state: { signInError: 'failed' } });
       });
     return () => {
-      cancelled = true;
+      isCancelled = true;
     };
-  }, [params, navigate, client]);
+  }, [params, navigate, fetchFreshSession]);
 
   return <Loading label="Signing you in…" />;
 }

@@ -1,3 +1,4 @@
+/** Renders the drawer or dialog that is open, if any. */
 import { useOverlays } from '@/app/providers/overlays';
 import { ApplicationDrawer } from '@/features/applications/ApplicationDrawer';
 import { ReviewModal } from '@/features/applications/ReviewModal';

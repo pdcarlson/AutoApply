@@ -1,3 +1,4 @@
+/** Helpers that render routes inside the app's providers for tests. */
 import { render } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router';

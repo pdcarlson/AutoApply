@@ -1,0 +1,28 @@
+/* Styles for UnplacedCard. */
+.unplaced {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1.5px dashed var(--ink2);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.unplacedTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unplaced q {
+  font-size: 14px;
+  quotes: '“' '”';
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

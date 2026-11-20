@@ -1,4 +1,5 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+/** Messages that call out something on a page: banners, notes, and error boxes. */
+import type { ReactNode } from 'react';
 import { cx } from '@/lib/cx';
 import { Icon, type IconName } from './Icon';
 import styles from './Callouts.module.css';
@@ -16,9 +17,10 @@ interface BannerProps {
 
 /** Full-width message across the top of a page, with an optional action on the right. */
 export function Banner({ tone = 'default', icon, leading, title, children, action }: BannerProps) {
+  const iconElement = icon && <Icon name={icon} size={16} stroke={icon === 'check' ? 2.5 : 1.9} />;
   return (
     <div className={cx(styles.banner, tone === 'amber' && styles.bannerAmber)}>
-      {leading ?? (icon && <Icon name={icon} size={16} stroke={icon === 'check' ? 2.5 : 1.9} />)}
+      {leading ?? iconElement}
       <span className={styles.bannerText}>
         {title && <b>{title}</b>}
         {children && <span className={title ? 'small ink2' : undefined}>{children}</span>}
@@ -28,16 +30,14 @@ export function Banner({ tone = 'default', icon, leading, title, children, actio
   );
 }
 
-/** Boxed note inside a panel or drawer: a bold line and a sentence. */
-export function Note({
-  tone = 'grey',
-  title,
-  children,
-}: {
+interface NoteProps {
   tone?: 'grey' | 'teal' | 'amber';
   title: ReactNode;
   children?: ReactNode;
-}) {
+}
+
+/** Boxed note inside a panel or drawer: a bold line and a sentence. */
+export function Note({ tone = 'grey', title, children }: NoteProps) {
   return (
     <div className={cx(styles.note, styles[`note-${tone}`])}>
       <b>{title}</b>
@@ -46,20 +46,16 @@ export function Note({
   );
 }
 
+interface ErrorBoxProps {
+  children: ReactNode;
+}
+
 /** Red error box with a warning icon. Announced to screen readers. */
-export function ErrorBox({ children }: { children: ReactNode }) {
+export function ErrorBox({ children }: ErrorBoxProps) {
   return (
     <div className={styles.errorBox} role="alert">
       <Icon name="warn" />
       <span className={styles.errorText}>{children}</span>
     </div>
   );
-}
-
-export function Panel({ className, ...rest }: HTMLAttributes<HTMLElement>) {
-  return <section className={cx(styles.panel, className)} {...rest} />;
-}
-
-export function PanelHead({ children }: { children: ReactNode }) {
-  return <div className={styles.panelHead}>{children}</div>;
 }

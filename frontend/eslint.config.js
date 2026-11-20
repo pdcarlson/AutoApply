@@ -1,3 +1,4 @@
+/** ESLint rules for the frontend's TypeScript and React code. */
 import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';

@@ -1,13 +1,11 @@
-/**
- * API contract between the frontend and the Auto Apply backend.
- *
- * Every type here is a JSON shape the backend sends or receives. Dates are ISO 8601 strings:
- * full timestamps (`2026-10-20T13:41:00Z`) for moments, `YYYY-MM-DD` for calendar dates.
- * The endpoint for each shape is documented in src/api/endpoints.ts and in docs/api.md.
- */
+/** The JSON shapes the backend sends and receives, mirrored exactly (camelCase). */
+
+// Dates are ISO 8601 strings: full timestamps (`2026-10-20T13:41:00Z`) for moments and
+// `YYYY-MM-DD` for calendar dates. src/api/endpoints.ts says which endpoint uses each shape.
 
 // ===== Shared =====
 
+/** The job boards (applicant tracking systems) Auto Apply can apply through. */
 export type Ats = 'Greenhouse' | 'Ashby';
 
 /** Error body returned with any non-2xx status. `code` is stable; `message` is for people. */
@@ -70,6 +68,7 @@ export interface Education {
 /** A job, or a role shaped like one that isn't employment (a club office, volunteering). */
 export type ExperienceKind = 'work' | 'leadership' | 'volunteer' | 'activity';
 
+/** Every experience kind with its label, in the order the editor offers them. */
 export const EXPERIENCE_KINDS: readonly { value: ExperienceKind; label: string }[] = [
   { value: 'work', label: 'Work' },
   { value: 'leadership', label: 'Leadership' },
@@ -175,6 +174,7 @@ export type SelfIdKey = 'gender' | 'hispanicLatino' | 'race' | 'veteran' | 'disa
 /** "I don't wish to answer", a valid answer to every self-ID question. */
 export type Decline = 'decline';
 
+/** The race options self-ID questions offer. */
 export const RACES = [
   'American Indian or Alaska Native',
   'Asian',
@@ -288,9 +288,8 @@ export interface Job {
 }
 
 /**
- * A job's browser, streamed. `url` is a WebSocket endpoint (a path on the API, or a full
- * ws(s)/http(s) URL when the browser is hosted elsewhere) that speaks the protocol in
- * docs/api.md, "Live view".
+ * A job's browser, streamed. `url` is a WebSocket endpoint: a path on the API, or a full
+ * ws(s)/http(s) URL when the browser is hosted elsewhere.
  */
 export interface LiveView {
   url: string;
@@ -435,6 +434,7 @@ export interface ApplicationDetail extends Application {
 
 // ===== Answer bank =====
 
+/** The Answer bank's categories, in display order. */
 export const ANSWER_CATEGORIES = [
   'Eligibility',
   'Education',

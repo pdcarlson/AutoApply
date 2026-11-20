@@ -1,14 +1,16 @@
+/** The side drawer with everything about one sent application. */
 import { useState } from 'react';
-import type { FilledField } from '@/api/types';
 import { useApplication } from '@/api/queries';
 import { useApiImage } from '@/api/useApiImage';
 import { useOverlays } from '@/app/providers/overlays';
 import { Chip } from '@/components/ui/Badges';
 import { Button, LinkButton } from '@/components/ui/Button';
 import { Note } from '@/components/ui/Callouts';
-import { FieldList, Loading, LoadError, Timeline } from '@/components/ui/DataDisplay';
+import { Drawer, DrawerSection } from '@/components/ui/Drawer';
+import { FieldList } from '@/components/ui/FieldList';
 import { Icon } from '@/components/ui/Icon';
-import { Drawer, DrawerSection } from '@/components/ui/Overlay';
+import { Loading, LoadError } from '@/components/ui/LoadStates';
+import { Timeline } from '@/components/ui/Timeline';
 import {
   APPLICATION_STATUS_LABELS,
   NEXT_STATUS,
@@ -16,27 +18,23 @@ import {
   isClosedStatus,
 } from '@/lib/jobStatus';
 import { formatDateTime } from '@/lib/format';
+import { orderFields } from './orderFields';
 import { useStatusChange } from './useStatusChange';
-import styles from './applications.module.css';
+import styles from './ApplicationDrawer.module.css';
 
 const COLLAPSED_FIELDS = 8;
 
-/** Fields the user supplied or the agent drafted come right after the basics, so they're easy to check. */
-const isPersonal = (field: FilledField) =>
-  field.sourceKind === 'you' || field.sourceKind === 'answer_bank' || field.sourceKind === 'draft';
-
-function orderFields(fields: FilledField[]) {
-  const [basics, rest] = [fields.slice(0, 3), fields.slice(3)];
-  return [...basics, ...rest.filter(isPersonal), ...rest.filter((f) => !isPersonal(f))];
+interface ApplicationDrawerProps {
+  applicationId: string;
 }
 
 /** Everything about one sent application: timeline, what was sent, and the screenshot. */
-export function ApplicationDrawer({ applicationId }: { applicationId: string }) {
+export function ApplicationDrawer({ applicationId }: ApplicationDrawerProps) {
   const { close, open } = useOverlays();
-  const app = useApplication(applicationId);
+  const application = useApplication(applicationId);
   const { change, pending } = useStatusChange();
-  const [showAll, setShowAll] = useState(false);
-  const data = app.data;
+  const [isShowingAll, setIsShowingAll] = useState(false);
+  const data = application.data;
   const screenshot = useApiImage(data?.screenshotUrl);
 
   if (!data) {
@@ -50,8 +48,8 @@ export function ApplicationDrawer({ applicationId }: { applicationId: string }) 
           </h2>
         }
       >
-        {app.isError ? (
-          <LoadError what="this application" onRetry={() => app.refetch()} />
+        {application.isError ? (
+          <LoadError what="this application" onRetry={() => application.refetch()} />
         ) : (
           <Loading />
         )}
@@ -61,7 +59,7 @@ export function ApplicationDrawer({ applicationId }: { applicationId: string }) 
 
   const chip = applicationChip(data.status);
   const fields = orderFields(data.fields);
-  const next = NEXT_STATUS[data.status];
+  const nextStatus = NEXT_STATUS[data.status];
 
   const head = (
     <>
@@ -85,11 +83,11 @@ export function ApplicationDrawer({ applicationId }: { applicationId: string }) 
 
   const footer = (
     <>
-      {next && (
-        <Button variant="primary" grow disabled={pending} onClick={() => change(data, next)}>
-          {next === 'submitted'
+      {nextStatus && (
+        <Button variant="primary" grow disabled={pending} onClick={() => change(data, nextStatus)}>
+          {nextStatus === 'submitted'
             ? 'Reopen as submitted'
-            : `Mark as ${APPLICATION_STATUS_LABELS[next].toLowerCase()}`}
+            : `Mark as ${APPLICATION_STATUS_LABELS[nextStatus].toLowerCase()}`}
         </Button>
       )}
       {!isClosedStatus(data.status) && (
@@ -121,10 +119,14 @@ export function ApplicationDrawer({ applicationId }: { applicationId: string }) 
         title="What was sent"
         aside="Every value scored at or above your threshold when it was filled"
       >
-        <FieldList fields={showAll ? fields : fields.slice(0, COLLAPSED_FIELDS)} />
+        <FieldList fields={isShowingAll ? fields : fields.slice(0, COLLAPSED_FIELDS)} />
         {fields.length > COLLAPSED_FIELDS && (
-          <LinkButton small className={styles.showMore} onClick={() => setShowAll(!showAll)}>
-            {showAll ? 'Show fewer fields' : `Show all ${fields.length} fields`}
+          <LinkButton
+            small
+            className={styles.showMore}
+            onClick={() => setIsShowingAll(!isShowingAll)}
+          >
+            {isShowingAll ? 'Show fewer fields' : `Show all ${fields.length} fields`}
           </LinkButton>
         )}
       </DrawerSection>

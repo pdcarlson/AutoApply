@@ -3,7 +3,7 @@
 What the frontend calls and expects back. The TypeScript shapes in
 [`src/api/types.ts`](../src/api/types.ts) are the source of truth for every body named here, and
 [`src/api/endpoints.ts`](../src/api/endpoints.ts) has one function per endpoint.
-[`src/mocks/handlers.ts`](../src/mocks/handlers.ts) is a working reference implementation.
+[`src/mocks/handlers/`](../src/mocks/handlers/) is a working reference implementation.
 
 ## Conventions
 

@@ -1,3 +1,4 @@
+/** Loads images the API serves, sending the session token when sign-in needs one. */
 import { useEffect, useState } from 'react';
 import { authHeaders, usesAuthTokens } from './authToken';
 import { apiUrl } from './client';

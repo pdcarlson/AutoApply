@@ -6,12 +6,12 @@ about anything it can't answer, and waits for your review before it submits.
 
 ## Repo layout
 
-| Folder               | What it holds                                                                  |
-| -------------------- | ------------------------------------------------------------------------------ |
-| `backend/agent/`     | The agent: reads job forms, drafts answers, drives the browser with Playwright |
-| `backend/server/`    | The FastAPI web API, per-user storage and the job queue                        |
-| `backend/onboarding/` | Answer bank, onboarding questions and resume reading, used by the server      |
-| `frontend/`          | The React + TypeScript web app (see [frontend/README.md](frontend/README.md))  |
+| Folder                | What it holds                                                                  |
+| --------------------- | ------------------------------------------------------------------------------ |
+| `backend/agent/`      | The agent: reads job forms, drafts answers, drives the browser with Playwright |
+| `backend/server/`     | The FastAPI web API, per-user storage and the job queue                        |
+| `backend/onboarding/` | Answer bank, onboarding questions and resume reading, used by the server       |
+| `frontend/`           | The React + TypeScript web app (see [frontend/README.md](frontend/README.md))  |
 
 ## Run the web app
 
@@ -47,6 +47,11 @@ fly deploy
 ```
 
 `https://autoapply-api-b97199.fly.dev/api/health` answers `{"ok": true, ...}` once it is up.
+
+After that, every change to `backend/` on `main` deploys itself:
+`.github/workflows/deploy-backend.yml` runs the backend tests and, if they pass, runs
+`fly deploy`. It needs a repository secret `FLY_API_TOKEN` holding a token from
+`fly tokens create deploy`. To redeploy by hand, run it from the repo's **Actions** tab.
 
 To run the same server somewhere else, install the dependencies (see [Run the tests](#run-the-tests)),
 set the environment variables below, and run `python -m server` from `backend/`. It listens on

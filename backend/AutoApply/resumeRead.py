@@ -29,8 +29,7 @@ def readResume(path):
     if path.endswith(".pdf"):
         return readResumePDF(path)
     if path.endswith(".docx"):
-        print("docx support not yet implemented.")
-        return None
+        return readResumeDOCX(path)
     pass
 
 

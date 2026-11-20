@@ -1,3 +1,4 @@
+import { authHeaders } from './authToken';
 import type { ApiErrorBody } from './types';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
@@ -30,10 +31,11 @@ async function request<T>(method: string, path: string, body?: Body): Promise<T>
   const isForm = body instanceof FormData;
   const response = await fetch(apiUrl(path), {
     method,
-    // The session is an HTTP-only cookie set by the backend.
     credentials: 'include',
     headers: {
       Accept: 'application/json',
+      // With Clerk sign-in this is the session token; otherwise nothing.
+      ...(await authHeaders()),
       ...(body && !isForm ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
@@ -64,7 +66,10 @@ async function readError(response: Response): Promise<ApiErrorBody> {
 
 /** Downloads a binary response (e.g. the data export) and hands it to the browser as a file. */
 async function download(path: string, fallbackName: string): Promise<void> {
-  const response = await fetch(apiUrl(path), { credentials: 'include' });
+  const response = await fetch(apiUrl(path), {
+    credentials: 'include',
+    headers: await authHeaders(),
+  });
   if (!response.ok) throw new ApiError(response.status, await readError(response));
 
   const disposition = response.headers.get('Content-Disposition') ?? '';

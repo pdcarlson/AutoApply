@@ -1,0 +1,17 @@
+# Runs the API image on any machine with Docker (your laptop, or a VM). From backend/:
+#   docker compose up --build
+# Settings come from deploy/api.env (copy deploy/api.env.example). Data stays in a volume.
+services:
+  api:
+    build: .
+    image: autoapply-api
+    restart: unless-stopped
+    env_file: deploy/api.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - autoapply_data:/data
+    shm_size: 1gb
+
+volumes:
+  autoapply_data:

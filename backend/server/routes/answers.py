@@ -1,7 +1,8 @@
 """Answer bank routes: GET/POST /answers, PATCH/DELETE /answers/:id (spec 2.5, section 3)."""
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 
+from server.accounts import get_bank
 from server.answer_bank import ANSWER_CATEGORIES, AnswerBank
 from server.errors import ApiError, not_found
 from server.store import Store, get_store
@@ -15,10 +16,6 @@ class AnswerInputBody(BaseModel):
     question: str | None = None
     answer: str | None = None
     company: str | None = None
-
-
-def get_bank(request: Request) -> AnswerBank:
-    return request.app.state.answer_bank
 
 
 def _invalid(message: str) -> ApiError:

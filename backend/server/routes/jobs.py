@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from agent.answers.answerer import Answerer
 from agent.forms.base_form import PostingClosed
 from agent.jobs.job_link import JobLink, UnsupportedLink
+from server.accounts import get_bank, get_worker
 from server import jobs
 from server.agent_bridge import build_agent_profile, link_to_dict, make_form, no_claude
 from server.config import Config, get_config
@@ -86,7 +87,7 @@ def _conflict(db, link: dict) -> dict | None:
 def _form_details(request: Request, link: JobLink, ats: str,  # pylint: disable=too-many-locals
                   config: Config) -> dict:
     """Reads the form (outside the lock) and works out the Inbox metadata for it."""
-    store: Store = request.app.state.store
+    store: Store = get_store(request)
     probe = {"internal": {"link": link_to_dict(link), "jobData": None}}
     try:
         form = make_form(probe, config)
@@ -106,7 +107,7 @@ def _form_details(request: Request, link: JobLink, ats: str,  # pylint: disable=
     posting = form.posting()
     company = posting["company"] or _title(link.company)
 
-    profile, _ids = build_agent_profile(store, request.app.state.answer_bank, company)
+    profile, _ids = build_agent_profile(store, get_bank(request), company)
     threshold = int(store.read("settings")["confidenceThreshold"])
     answerer = Answerer(profile, no_claude, threshold=threshold)
     to_ask = sum(1 for f in fields if f.required and answerer.answer(f) is None)
@@ -242,7 +243,7 @@ def apply_jobs(body: JobIdsBody, request: Request, store: Store = Depends(get_st
         if not db.state.get("profileConfirmed"):
             raise ApiError(409, "profile_not_confirmed", "Confirm your profile before applying.")
         queued, deferred = jobs.apply(db, body.jobIds, store.now())
-    request.app.state.worker.wake()  # a job whose window is still open reuses it
+    get_worker(request).wake()  # a job whose window is still open reuses it
     return {"queued": queued, "deferred": deferred}
 
 
@@ -250,7 +251,7 @@ def apply_jobs(body: JobIdsBody, request: Request, store: Store = Depends(get_st
 def cancel_jobs(body: JobIdsBody, request: Request, store: Store = Depends(get_store)):
     with store.tx() as db:
         jobs.cancel(db, body.jobIds)  # a filled window stays open; applying again reuses it
-    request.app.state.worker.wake()
+    get_worker(request).wake()
     return Response(status_code=204)
 
 
@@ -261,7 +262,7 @@ def skip_job(job_id: str, request: Request, store: Store = Depends(get_store)):
         if job is None or not jobs.visible(job):
             raise not_found("Job")
         jobs.skip(db, job)  # a filled window stays open (only the person closes it)
-    request.app.state.worker.wake()
+    get_worker(request).wake()
     return Response(status_code=204)
 
 

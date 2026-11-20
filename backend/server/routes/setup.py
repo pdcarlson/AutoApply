@@ -11,6 +11,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from pydantic import BaseModel
 
+from server.accounts import Account, get_account, get_bank
 from server import common_answers, resume_import
 from server.config import Config, get_config
 from server.errors import ApiError, not_found
@@ -299,10 +300,10 @@ def _accept_unplaced(profile: dict, section: dict) -> None:
 
 
 @router.post("/profile/confirm")
-def confirm_profile(store: Store = Depends(get_store)):
-    with store.tx() as db:
+def confirm_profile(account: Account = Depends(get_account)):
+    with account.store.tx() as db:
         db.state["profileConfirmed"] = True
-        return session_of(db)
+        return session_of(db, account.user_id)
 
 
 # ----- common answers -----
@@ -316,7 +317,7 @@ def get_common_answers(store: Store = Depends(get_store)):
 def put_common_answers(body: CommonAnswersBody, request: Request,
                        store: Store = Depends(get_store)):
     """Stores the answers and mirrors them into the Answer bank as `onb-*` records."""
-    bank = request.app.state.answer_bank
+    bank = get_bank(request)
     with store.tx() as db:
         db.common_answers = body.model_dump()
         if bank is not None:

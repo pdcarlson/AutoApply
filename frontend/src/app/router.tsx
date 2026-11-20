@@ -13,6 +13,7 @@ import { SettingsPage } from '@/features/settings/SettingsPage';
 import { CommonQuestionsPage } from '@/features/setup/CommonQuestionsPage';
 import { ProfileReviewPage } from '@/features/setup/ProfileReviewPage';
 import { ResumeUploadPage } from '@/features/setup/ResumeUploadPage';
+import { clerkEnabled } from '@/auth/config';
 import { RedirectIfSignedIn, RequireSession } from './guards';
 import { paths } from './paths';
 
@@ -22,6 +23,16 @@ export const router = createBrowserRouter([
     children: [{ path: paths.signIn, element: <SignInPage /> }],
   },
   { path: paths.authCallback, element: <AuthCallbackPage /> },
+  ...(clerkEnabled
+    ? [
+        {
+          path: paths.ssoCallback,
+          lazy: async () => ({
+            Component: (await import('@/auth/SsoCallbackPage')).SsoCallbackPage,
+          }),
+        },
+      ]
+    : []),
   { path: paths.accountDeleted, element: <AccountDeletedPage /> },
   {
     element: <RequireSession />,

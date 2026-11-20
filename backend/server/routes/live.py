@@ -11,12 +11,27 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from server.errors import ApiError
 from server.live_view import CLOSE_BROWSER_GONE, CLOSE_NO_BROWSER, BrowserGone, PageStream
 
 router = APIRouter()
 log = logging.getLogger(__name__)
 
 CLOSE_FORBIDDEN = 4403
+CLOSE_UNAUTHENTICATED = 4401
+# A browser can't put an Authorization header on a WebSocket, so the web app sends the session
+# token as a second subprotocol: `new WebSocket(url, [LIVE_PROTOCOL, token])`.
+LIVE_PROTOCOL = "autoapply.live"
+
+
+def offered_token(socket: WebSocket) -> tuple[str | None, str | None]:
+    """(the subprotocol to accept, the session token) from Sec-WebSocket-Protocol."""
+    offered = [part.strip() for part in
+               (socket.headers.get("sec-websocket-protocol") or "").split(",") if part.strip()]
+    if LIVE_PROTOCOL not in offered:
+        return None, None
+    token = next((part for part in offered if part != LIVE_PROTOCOL), None)
+    return LIVE_PROTOCOL, token
 
 
 def origin_allowed(socket: WebSocket, allowed: list[str]) -> bool:
@@ -44,11 +59,17 @@ async def _receive_input(socket: WebSocket, stream: PageStream) -> None:
 
 @router.websocket("/jobs/{job_id}/live")
 async def live_view(socket: WebSocket, job_id: str):
-    await socket.accept()
+    protocol, token = offered_token(socket)
+    await socket.accept(subprotocol=protocol)
     if not origin_allowed(socket, socket.app.state.live_origins):
         await socket.close(CLOSE_FORBIDDEN, "Not allowed from this origin.")
         return
-    views = getattr(socket.app.state.worker, "live", None)
+    try:  # checking the token can read Clerk's keys over the network: off the event loop
+        account = await asyncio.to_thread(socket.app.state.accounts.of, socket, token)
+    except ApiError:
+        await socket.close(CLOSE_UNAUTHENTICATED, "Sign in to continue.")
+        return
+    views = getattr(account.worker, "live", None)
     stream = await views.open_stream(job_id) if views is not None else None
     if stream is None:
         await socket.close(CLOSE_NO_BROWSER, "This job has no open browser.")

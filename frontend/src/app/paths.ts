@@ -1,6 +1,8 @@
 export const paths = {
   signIn: '/sign-in',
   authCallback: '/auth/callback',
+  /** Clerk sign-in only: where Google returns to. */
+  ssoCallback: '/sso-callback',
   accountDeleted: '/account-deleted',
   setupResume: '/setup/resume',
   setupProfile: '/setup/profile',

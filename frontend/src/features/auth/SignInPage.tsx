@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useLocation } from 'react-router';
-import { authApi } from '@/api/endpoints';
+import { useAuthActions } from '@/auth/actions';
 import { Button } from '@/components/ui/Button';
 import { ErrorBox } from '@/components/ui/Callouts';
 import { Brand } from '@/components/ui/DataDisplay';
@@ -32,10 +32,8 @@ interface SignInState {
 
 export function SignInPage() {
   const state = (useLocation().state ?? {}) as SignInState;
-  const start = useMutation({
-    mutationFn: () => authApi.startGoogleSignIn(state.from ?? '/'),
-    onSuccess: ({ authorizationUrl }) => window.location.assign(authorizationUrl),
-  });
+  const auth = useAuthActions();
+  const start = useMutation({ mutationFn: () => auth.startSignIn(state.from ?? '/') });
   // Stays "waiting" after success too, while the browser follows the returned URL.
   const waiting = start.isPending || start.isSuccess;
 
@@ -72,7 +70,7 @@ export function SignInPage() {
             loadingLabel="Starting…"
             onClick={() => start.mutate()}
           >
-            Begin Onboarding
+            {auth.google ? 'Continue with Google' : 'Begin Onboarding'}
           </Button>
         </div>
       </main>

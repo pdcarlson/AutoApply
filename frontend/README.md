@@ -19,6 +19,7 @@ To work against a real backend running on `localhost:8080` instead:
 | ------------------- | --------------------------------------------------- |
 | `npm run dev`       | Dev server with the mock API                        |
 | `npm run dev:api`   | Dev server talking to a real backend                |
+| `npm run dev:cloud` | Dev server talking to a backend in the cloud        |
 | `npm run build`     | Typecheck, then production build into `dist/`       |
 | `npm run preview`   | Serve the production build                          |
 | `npm test`          | Run the tests once (Vitest + Testing Library + MSW) |
@@ -35,10 +36,21 @@ Set in `.env.development`, `.env.backend`, `.env.production`, or a git-ignored `
 | `VITE_API_BASE_URL`     | Where API requests go. Default `/api`; may be a full origin. |
 | `VITE_API_MOCKING`      | `enabled` serves `/api` from `src/mocks` (development only). |
 | `VITE_API_PROXY_TARGET` | Dev server only: forward `/api` to this backend.             |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Set: sign in with Google through Clerk. Unset: the local demo sign-in. |
 
-Requests send cookies (`credentials: 'include'`), so the backend owns the session as an HTTP-only
-cookie. If the API is on a different origin than the app, the backend must allow it with CORS
-credentials.
+Sign-in comes in two kinds, chosen at build time by `VITE_CLERK_PUBLISHABLE_KEY`:
+
+- **Unset** (the mock API and the local backend): "Begin Onboarding" asks the backend, which
+  signs the one local user in.
+- **Set** (a backend running with `AUTH_MODE=clerk`): Clerk signs the person in with Google and
+  every API request carries its session token as `Authorization: Bearer <token>`
+  (`src/api/authToken.ts`). The live browser socket sends it as a WebSocket subprotocol and
+  screenshots are fetched with it (`src/api/useApiImage.ts`), since neither can set headers.
+  `src/auth/` holds everything Clerk-specific, and it is only downloaded by builds that use it.
+
+`npm run dev:cloud` runs this app against a backend in the cloud; put `VITE_API_BASE_URL` and
+`VITE_CLERK_PUBLISHABLE_KEY` in `.env.cloud.local`. The backend must list this app's address in
+`ALLOWED_ORIGINS`.
 
 ## Mock API (development only)
 

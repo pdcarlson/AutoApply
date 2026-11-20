@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Request
 
+from server.accounts import get_worker
 from server import applications
 from server.config import Config, get_config
 from server.errors import not_found
@@ -21,21 +22,21 @@ router = APIRouter()
 def submit_job(job_id: str, request: Request, store: Store = Depends(get_store),
                config: Config = Depends(get_config)):
     try:
-        return applications.submit(store, request.app.state.worker, config, job_id)
+        return applications.submit(store, get_worker(request), config, job_id)
     finally:
-        request.app.state.worker.wake()  # a freed place in today's limit, or the lock released
+        get_worker(request).wake()  # a freed place in today's limit, or the lock released
 
 
 @router.post("/jobs/{job_id}/verification-code")
 def enter_verification_code(job_id: str, request: Request, body: Any = Body(None),
                             store: Store = Depends(get_store)):
     code = body.get("code") if isinstance(body, dict) else None
-    return applications.enter_code(store, request.app.state.worker, job_id, code)
+    return applications.enter_code(store, get_worker(request), job_id, code)
 
 
 @router.post("/jobs/{job_id}/mark-submitted")
 def mark_submitted(job_id: str, request: Request, store: Store = Depends(get_store)):
-    return applications.mark_submitted(store, request.app.state.worker, job_id)
+    return applications.mark_submitted(store, get_worker(request), job_id)
 
 
 @router.get("/applications")

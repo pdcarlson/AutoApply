@@ -13,6 +13,7 @@ import {
   questionsApi,
   resumeApi,
 } from './endpoints';
+import { useAuthActions } from '@/auth/actions';
 import { isApiError } from './client';
 import type {
   AgentQuestion,
@@ -412,8 +413,9 @@ export function useDeleteAnswer() {
 
 export function useSignOut() {
   const client = useQueryClient();
+  const auth = useAuthActions();
   return useMutation({
-    mutationFn: authApi.signOut,
+    mutationFn: () => auth.signOut(),
     onSettled: () => {
       client.clear();
       client.setQueryData(queryKeys.session, null);
@@ -423,8 +425,13 @@ export function useSignOut() {
 
 export function useDeleteAccount() {
   const client = useQueryClient();
+  const auth = useAuthActions();
   return useMutation({
-    mutationFn: accountApi.remove,
+    mutationFn: async () => {
+      await accountApi.remove();
+      // The account is gone either way; a failure here only leaves a stale sign-in behind.
+      await auth.afterAccountDeleted().catch(() => undefined);
+    },
     onSuccess: () => {
       client.clear();
       client.setQueryData(queryKeys.session, null);

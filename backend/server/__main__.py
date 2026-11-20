@@ -1,4 +1,4 @@
-"""`python -m server` from backend/: the local API on 127.0.0.1:8080 (AUTOAPPLY_HOST/PORT).
+"""`python -m server` from backend/: the API on 127.0.0.1:8080 (AUTOAPPLY_HOST/PORT).
 
 Never run it with --reload or several workers on Windows: uvicorn then switches asyncio to the
 Selector loop, and sync Playwright can't launch Chromium under it.
@@ -22,8 +22,8 @@ def main() -> None:
     config = load_config()
     app = create_app(config=config, start_worker=True)
     logging.getLogger("server").info(
-        "Data dir %s; SUBMIT_REAL_FORM=%s; FAKE_GREENHOUSE=%s; Claude %s",
-        config.data_dir, config.submit_real_form, config.fake_greenhouse,
+        "Data dir %s; AUTH_MODE=%s; SUBMIT_REAL_FORM=%s; FAKE_GREENHOUSE=%s; Claude %s",
+        config.data_dir, config.auth_mode, config.submit_real_form, config.fake_greenhouse,
         "on" if config.claude_enabled else "off")
     uvicorn.run(app, host=config.host, port=config.port, reload=False, workers=1)
 

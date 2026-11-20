@@ -7,6 +7,10 @@ Extension points for later packages:
   `def` so they run in the threadpool (sync Playwright must not run on the event loop).
 - Services: `_install_services()` puts shared objects on `app.state`:
     app.state.config       Config (server.config)
+    app.state.accounts     Accounts (server.accounts): each user's Store, AnswerBank and
+                         AgentWorker. Routes reach them with the dependencies `get_store`,
+                         `get_bank` and `get_worker`, never through app.state.
+  With AUTH_MODE=local there is one account, also reachable (for tests and scripts) as
     app.state.store        Store  (server.store)
     app.state.answer_bank  AnswerBank (server.answer_bank) over <data_dir>/answer_bank.json
     app.state.job_feed     JobFeed (agent.jobs.job_feed): the postings the job board ranks
@@ -14,10 +18,12 @@ Extension points for later packages:
                          calls `.cancel_current()`, mark-submitted calls `.held_form(job_id)`,
                          tests call `.run_next()` directly, and the live view socket
                          (server.routes.live) reads `.live`, the open browsers by job id
-  The lifespan calls `worker.start()` when `start_worker` is true and `worker.stop()` on shutdown
+  With AUTH_MODE=clerk those three are None: there is one of each per signed-in user.
+  The lifespan starts every worker when `start_worker` is true and stops them on shutdown
   (which leaves the filled form windows alone: they end with the process).
 """
 import logging
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -25,19 +31,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.jobs.job_feed import JobFeed
-from server import jobs, konefal
+from server import konefal
+from server.accounts import Accounts
 from server.agent_bridge import fake_boards
-from server.answer_bank import AnswerBank
+from server.clerk import ClerkUsers, TokenVerifier, issuer_from_publishable_key
 from server.config import Config, load_config
 from server.errors import install_error_handlers
 from server.routes import ROUTE_MODULES
-from server.store import Store
 from server.worker import AgentWorker
 
 log = logging.getLogger(__name__)
 
 API_PREFIX = "/api"
-CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 class NullWorker:
@@ -65,45 +70,57 @@ class NullWorker:
     live = None  # no browsers, so no live views
 
 
-def _install_services(app: FastAPI) -> None:
+def _install_services(app: FastAPI, verifier: TokenVerifier | None = None) -> None:
     """Builds the shared services on app.state. Later packages add theirs here, in order."""
     config: Config = app.state.config
-    app.state.store = Store(config.data_dir)
     konefal.configure(config.data_dir)
-    bank = AnswerBank(app.state.store)
-    if config.seed_bank_from_profile:
-        bank.seed_from_profile(config.profile_path)  # once per data dir; reads PROFILE_PATH only
-    app.state.answer_bank = bank
-    # With FAKE_GREENHOUSE the board lists the local test postings and never goes online.
+    run_slots = threading.BoundedSemaphore(config.max_concurrent_runs)
+    clerk_users = None
+    if config.auth_mode == "clerk":
+        if verifier is None:
+            issuer = config.clerk_issuer or issuer_from_publishable_key(
+                config.clerk_publishable_key)
+            verifier = TokenVerifier(issuer, config.allowed_origins)
+        clerk_users = ClerkUsers(config.clerk_secret_key)
+    accounts = Accounts(
+        config, lambda store, bank: AgentWorker(store, bank, config, run_slots=run_slots),
+        verifier=verifier, clerk_users=clerk_users)
+    app.state.accounts = accounts
+    local = accounts.local
+    app.state.store = local.store if local else None
+    app.state.answer_bank = local.bank if local else None
+    app.state.worker = local.worker if local else None
+    # The job board's postings are public, so every user shares one feed. Each request ranks
+    # them against that user's own profile. With FAKE_GREENHOUSE it never goes online.
     feed_path = config.data_dir / "job_feed.json"
-    app.state.job_feed = JobFeed(feed_path, boards=fake_boards(), keep=None) \
-        if config.fake_greenhouse else JobFeed(feed_path)
-    with app.state.store.tx() as db:  # jobs a previous process left mid-run (spec 2.3)
-        jobs.recover_after_restart(db, app.state.store.now())
-    app.state.worker = AgentWorker(app.state.store, bank, config)
+    if config.fake_greenhouse:
+        app.state.job_feed = JobFeed(feed_path, boards=fake_boards(), keep=None)
+    else:
+        app.state.job_feed = JobFeed(feed_path)
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    worker = app.state.worker
+    accounts: Accounts = app.state.accounts
     if app.state.start_worker:
-        worker.start()
+        accounts.start()
     try:
         yield
     finally:
-        worker.stop()
+        accounts.stop()
 
 
 def create_app(data_dir: Path | str | None = None, start_worker: bool = True,
-               config: Config | None = None) -> FastAPI:
-    """Builds the app. `data_dir` overrides AUTOAPPLY_DATA_DIR; `config` replaces the env."""
+               config: Config | None = None, verifier: TokenVerifier | None = None) -> FastAPI:
+    """Builds the app. `data_dir` overrides AUTOAPPLY_DATA_DIR; `config` replaces the env;
+    `verifier` replaces the Clerk token check (tests sign their own tokens)."""
     if config is None:
         config = load_config(data_dir)
     elif data_dir is not None:
         config.data_dir = Path(data_dir).resolve()
 
     app = FastAPI(
-        title="AutoApply local API",
+        title="AutoApply API",
         lifespan=_lifespan,
         docs_url=f"{API_PREFIX}/docs",
         redoc_url=None,
@@ -111,17 +128,23 @@ def create_app(data_dir: Path | str | None = None, start_worker: bool = True,
     )
     app.state.config = config
     app.state.start_worker = start_worker
-    app.state.live_origins = CORS_ORIGINS  # pages allowed to open the live view socket
-    _install_services(app)
+    app.state.live_origins = list(config.allowed_origins)  # may open the live view socket
+    _install_services(app, verifier)
 
     install_error_handlers(app)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=CORS_ORIGINS,
+        allow_origins=list(config.allowed_origins),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     for module in ROUTE_MODULES:
         app.include_router(module.router, prefix=API_PREFIX)
+
+    @app.get("/", include_in_schema=False)
+    def root():
+        """Someone opened the server's address in a browser: say what it is."""
+        return {"service": "AutoApply API", "health": f"{API_PREFIX}/health",
+                "note": "This is the API only. Open the AutoApply web app to use it."}
     return app

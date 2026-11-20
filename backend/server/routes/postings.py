@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from agent.jobs.fit_ranker import FitRanker
 from agent.jobs.job_board import Posting
 from server import jobs
+from server.accounts import get_worker
 from server.config import Config, get_config
 from server.errors import ApiError, not_found
 from server.routes.jobs import add_from_link
@@ -93,5 +94,5 @@ def apply_to_posting(posting_id: str, request: Request, store: Store = Depends(g
     with store.tx() as db:
         _queued, deferred = jobs.apply(db, [record["id"]], store.now())
         job = jobs.to_api_job(jobs.find(db, record["id"]))
-    request.app.state.worker.wake()
+    get_worker(request).wake()
     return {"job": job, "deferred": bool(deferred)}

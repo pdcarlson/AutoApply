@@ -9,8 +9,8 @@ What the frontend calls and expects back. The TypeScript shapes in
 
 - Base path `/api` (configurable with `VITE_API_BASE_URL`). JSON in and out, except uploads
   (`multipart/form-data`, field `file`) and the data export.
-- Auth is a session cookie set by the backend. Every request sends it. A missing or expired
-  session returns `401 { "code": "unauthenticated" }`.
+- Auth depends on how the backend runs (see Auth below). A request that isn't signed in gets
+  `401 { "code": "unauthenticated" }`.
 - Timestamps are ISO 8601 (`2026-10-20T13:41:00Z`); calendar dates are `YYYY-MM-DD`.
 - Errors use any 4xx/5xx with this body. `code` is stable and the UI branches on it; `message` may
   be shown to the user.
@@ -31,6 +31,18 @@ Sign-in flow: the frontend POSTs `/auth/google`, sends the browser to `authoriza
 redirects to the backend's own callback, and the backend sets the cookie and redirects to
 `/auth/callback?returnTo=<path>`. On cancel or failure redirect to `/auth/callback?error=access_denied`
 (or another error code).
+
+That is the local backend (`AUTH_MODE=local`, one user) and the mock API. A hosted backend
+(`AUTH_MODE=clerk`) has many users and doesn't sign anyone in itself:
+
+- The frontend signs in with Clerk (Google) and sends Clerk's session token with every request
+  as `Authorization: Bearer <token>`. The token's user is whose data the request reads and
+  writes; `GET /session` returns that user. Every route except `/health` needs it.
+- `POST /auth/google` answers `400 use_clerk`; `POST /auth/logout` is a no-op (`204`).
+- The live view socket can't send headers: open it with the subprotocols
+  `["autoapply.live", <token>]`. Without a valid token it closes with code `4401`.
+- `screenshotUrl` needs the token too, so fetch it rather than putting it in an `<img src>`.
+- `DELETE /account` also deletes the Clerk user.
 
 ## Setup and profile
 

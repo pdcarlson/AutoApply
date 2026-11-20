@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { authToken } from '@/api/authToken';
 import { apiUrl } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { cx } from '@/lib/cx';
@@ -9,6 +10,7 @@ import {
   CLOSE_NO_BROWSER,
   isPaste,
   keyInput,
+  LIVE_PROTOCOL,
   modifiersOf,
   pictureBox,
   pointIn,
@@ -78,23 +80,34 @@ function connect(
     drawing = false;
   };
 
-  const open = () => {
-    socket = new WebSocket(socketUrl(url, apiUrl('/')));
-    socket.binaryType = 'blob';
-    socket.onmessage = (event) => {
-      if (event.data instanceof Blob) void draw(event.data);
-    };
-    socket.onclose = (event) => {
-      if (stopped) return;
-      if (FINAL_CLOSE_CODES.includes(event.code) || retries >= MAX_RETRIES) {
-        onStatus('ended');
-        return;
-      }
-      retries += 1;
-      onStatus('connecting');
-      retryTimer = setTimeout(open, RETRY_MS);
-    };
+  const retryOrEnd = (closeCode?: number) => {
+    if (stopped) return;
+    if ((closeCode && FINAL_CLOSE_CODES.includes(closeCode)) || retries >= MAX_RETRIES) {
+      onStatus('ended');
+      return;
+    }
+    retries += 1;
+    onStatus('connecting');
+    retryTimer = setTimeout(open, RETRY_MS);
   };
+
+  // A fresh token for every (re)connection: they only live for a minute.
+  function open() {
+    authToken()
+      .then((token) => {
+        if (stopped) return;
+        socket = new WebSocket(
+          socketUrl(url, apiUrl('/')),
+          token ? [LIVE_PROTOCOL, token] : undefined,
+        );
+        socket.binaryType = 'blob';
+        socket.onmessage = (event) => {
+          if (event.data instanceof Blob) void draw(event.data);
+        };
+        socket.onclose = (event) => retryOrEnd(event.code);
+      })
+      .catch(() => retryOrEnd());
+  }
 
   const box = () => pictureBox(canvas.getBoundingClientRect(), canvas.width, canvas.height);
   const mouse = (action: 'move' | 'down' | 'up', event: MouseEvent, button = event.button) =>

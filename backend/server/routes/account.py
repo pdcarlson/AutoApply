@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Request, Response
 
+from server.accounts import get_account, get_bank
 from server.store import Store, get_store
 
 log = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ def _public(record):
 
 @router.get("/account/export")
 def export_account(request: Request, store: Store = Depends(get_store)):
-    bank = request.app.state.answer_bank
+    bank = get_bank(request)
     with store.tx() as db:
         data = {
             "exportedAt": store.now_iso(),
@@ -52,10 +53,18 @@ def delete_account(request: Request, store: Store = Depends(get_store)):
     The current run, if any, is told to stop; its job is gone once the wipe is done. Filled
     form windows are left open (the software never closes one before it is submitted); they
     are no longer tied to any job, and the person closes them.
+
+    With real sign-in (AUTH_MODE=clerk) the whole account goes: its folder, its browsers
+    (nobody else could close them on a server) and the Clerk user.
     """
-    worker = request.app.state.worker
+    account = get_account(request)
+    worker = account.worker
     worker.cancel_current()
     store.wipe()
-    worker.wake()
+    accounts = request.app.state.accounts
+    if accounts.multi_user:
+        accounts.forget(account.user_id)
+    else:
+        worker.wake()
     log.info("Account data deleted")
     return Response(status_code=204)

@@ -10,6 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Request
 
+from server.accounts import get_bank, get_worker
 from server import jobs, questions
 from server.answer_bank import guess_category
 from server.errors import ApiError, not_found
@@ -68,7 +69,7 @@ def accept(job_id: str, request: Request, body: Any = Body(None),
     scope = body.get("scope") if isinstance(body, dict) else None
     if scope not in ("all", "company"):
         raise ApiError(422, "invalid_request", 'scope must be "all" or "company".')
-    bank = request.app.state.answer_bank
+    bank = get_bank(request)
     with store.tx() as db:  # the bank shares the store's lock, so this is one step
         job = _asking(db, job_id)
         question = job["question"]
@@ -88,5 +89,5 @@ def accept(job_id: str, request: Request, body: Any = Body(None),
         jobs.requeue_at_front(db, job)
         jobs.add_event(job, "accent", f"You answered “{label}”", store.now_iso())
         result = deepcopy(jobs.to_api_job(job))
-    request.app.state.worker.wake()
+    get_worker(request).wake()
     return result

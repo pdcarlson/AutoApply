@@ -14,9 +14,13 @@ Both are used the same way, so moving the browser off this machine only changes 
 run is given.
 """
 import socket
+import sys
 from dataclasses import dataclass
 
 LOOPBACK = "127.0.0.1"
+# Containers give /dev/shm very little room, and Chromium crashes when it fills up: on Linux it
+# keeps its shared memory in /tmp instead.
+PLATFORM_ARGS = ("--disable-dev-shm-usage",) if sys.platform.startswith("linux") else ()
 
 
 @dataclass(frozen=True)
@@ -55,12 +59,13 @@ class LocalBrowser:
     def open(self, playwright):
         """Launches the browser. Returns (browser, endpoint)."""
         if not self.expose:
-            return playwright.chromium.launch(headless=not self.show, slow_mo=self.slow_mo), ""
+            return playwright.chromium.launch(headless=not self.show, slow_mo=self.slow_mo,
+                                              args=list(PLATFORM_ARGS)), ""
         port = free_port()
         browser = playwright.chromium.launch(
             headless=not self.show, slow_mo=self.slow_mo,
             # Chromium listens on loopback only, and refuses connections made by web pages.
-            args=[f"--remote-debugging-port={port}"])
+            args=[*PLATFORM_ARGS, f"--remote-debugging-port={port}"])
         return browser, f"http://{LOOPBACK}:{port}"
 
 

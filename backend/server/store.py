@@ -1,4 +1,4 @@
-"""JSON-document storage for the single local user.
+"""JSON-document storage for one user (one data folder; see server.accounts).
 
 Every document in DOC_DEFAULTS lives in memory and in `<data_dir>/<name>.json`. One RLock guards
 all of them; use `with store.tx() as db:` for any read-modify-write. On a clean exit the docs the
@@ -328,5 +328,5 @@ class Store:
 
 
 def get_store(request: Request) -> Store:
-    """FastAPI dependency: the app's Store."""
-    return request.app.state.store
+    """FastAPI dependency: the signed-in user's Store (see server.accounts)."""
+    return request.app.state.accounts.of(request).store

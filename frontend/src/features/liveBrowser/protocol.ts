@@ -43,6 +43,11 @@ export const CLOSE_NO_BROWSER = 4404;
 export const CLOSE_BROWSER_GONE = 4410;
 /** This page isn't allowed to open the socket. */
 export const CLOSE_FORBIDDEN = 4403;
+/**
+ * A browser can't put an Authorization header on a WebSocket, so with token sign-in the socket
+ * is opened with two subprotocols: this name, then the session token.
+ */
+export const LIVE_PROTOCOL = 'autoapply.live';
 
 /** The WebSocket URL for a job's `liveView.url`, which may be a path, http(s) or ws(s). */
 export function socketUrl(url: string, base: string): string {

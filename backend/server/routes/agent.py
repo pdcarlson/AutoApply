@@ -3,6 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Request
 
+from server.accounts import get_worker
 from server import jobs
 from server.config import Config, get_config
 from server.errors import ApiError
@@ -49,7 +50,7 @@ def patch_settings(request: Request, patch: Any = Body(None), store: Store = Dep
         db.settings.update(clean)
         result = dict(db.settings)
         jobs.promote_waiting(db, store.now())  # a higher limit releases waiting jobs
-    request.app.state.worker.wake()
+    get_worker(request).wake()
     return result
 
 
@@ -65,7 +66,7 @@ def _set_paused(request: Request, store: Store, paused: bool) -> dict:
     with store.tx() as db:
         db.state["paused"] = paused
         status = agent_status(db, store.now())
-    request.app.state.worker.wake()
+    get_worker(request).wake()
     return status
 
 
@@ -88,4 +89,5 @@ def health(config: Config = Depends(get_config)):
         "submitRealForm": config.submit_real_form,
         "fakeGreenhouse": config.fake_greenhouse,
         "claude": config.claude_enabled,
+        "authMode": config.auth_mode,
     }

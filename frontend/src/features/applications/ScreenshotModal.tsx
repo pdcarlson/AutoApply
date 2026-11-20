@@ -1,4 +1,5 @@
 import { useApplication } from '@/api/queries';
+import { useApiImage } from '@/api/useApiImage';
 import { useOverlays } from '@/app/providers/overlays';
 import { Loading, LoadError } from '@/components/ui/DataDisplay';
 import { Modal, ModalHead } from '@/components/ui/Overlay';
@@ -10,6 +11,7 @@ export function ScreenshotModal({ applicationId }: { applicationId: string }) {
   const { close } = useOverlays();
   const app = useApplication(applicationId);
   const data = app.data;
+  const screenshot = useApiImage(data?.screenshotUrl);
   // A dry run never pressed Submit, so its screenshot is the filled form, not the page after.
   const dryRun = data?.submittedBy === 'agent' && !data.confirmation;
 
@@ -29,7 +31,7 @@ export function ScreenshotModal({ applicationId }: { applicationId: string }) {
           <div className={styles.screenshotFrame}>
             <img
               className={styles.screenshot}
-              src={data.screenshotUrl}
+              src={screenshot}
               alt={
                 dryRun
                   ? `The filled ${data.company} application form`

@@ -104,7 +104,8 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
     """Same interface as server.app.NullWorker: start, stop, wake, cancel_current, run_next."""
 
     def __init__(self, store: Store, bank: AnswerBank, config: Config,
-                 poll_seconds: float = POLL_SECONDS):
+                 poll_seconds: float = POLL_SECONDS,
+                 run_slots: threading.Semaphore | None = None):
         self.store = store
         self.bank = bank
         self.config = config
@@ -113,6 +114,8 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         self._stopping = threading.Event()
         self._wake = threading.Event()
         self._run_lock = threading.Lock()  # one browser run (fill or submit) at a time
+        # Shared by every user's worker: how many runs may go at once on this machine.
+        self._run_slots = run_slots or threading.Semaphore(1)
         self._exclusive_waiting = 0  # submits waiting for the lock; the loop holds back meanwhile
         self._exclusive_guard = threading.Lock()
         self._active: set[str] = set()  # run ids in progress (fill or submit)
@@ -153,6 +156,11 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
 
     def close_forms_for_tests(self) -> None:
         """Test teardown only: closes every held window so no Chromium outlives a test."""
+        self.forms.close_all_for_tests()
+
+    def close_forms(self) -> None:
+        """Closes every held window: the account was deleted on a server, where nobody else
+        could ever close them."""
         self.forms.close_all_for_tests()
 
     @property
@@ -207,11 +215,16 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
                 if session is not None and session.context is not None:
                     self._reuse_window(db, job, session)  # still open: no second window
                     return job_id
+                if not self._run_slots.acquire(blocking=False):  # pylint: disable=consider-using-with
+                    return None  # other users' runs fill the machine; it stays queued
                 jobs.reset_progress(job)
                 job["question"] = None
                 job["internal"]["question"] = None
                 run_id = self.claim(job)
-            self.run_job(job_id, run_id)
+            try:
+                self.run_job(job_id, run_id)
+            finally:
+                self._run_slots.release()
             return job_id
         finally:
             self._run_lock.release()
@@ -252,9 +265,11 @@ class AgentWorker:  # pylint: disable=too-many-instance-attributes
         finally:
             with self._exclusive_guard:
                 self._exclusive_waiting -= 1
+        self._run_slots.acquire()  # pylint: disable=consider-using-with
         try:
             yield
         finally:
+            self._run_slots.release()
             self._run_lock.release()
             self.wake()
 

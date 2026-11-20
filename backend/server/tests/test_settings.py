@@ -70,7 +70,8 @@ def test_preferences_round_trip(client):
 
 def test_health(client):
     body = client.get("/api/health").json()
-    assert body == {"ok": True, "submitRealForm": False, "fakeGreenhouse": True, "claude": False}
+    assert body == {"ok": True, "submitRealForm": False, "fakeGreenhouse": True, "claude": False,
+                    "authMode": "local"}
 
 
 def test_use_claude_switch(monkeypatch, tmp_path):
@@ -82,3 +83,8 @@ def test_use_claude_switch(monkeypatch, tmp_path):
     assert load_config(tmp_path).claude_enabled is True
     monkeypatch.setenv("USE_CLAUDE", "false")
     assert load_config(tmp_path).claude_enabled is False
+
+
+def test_root_says_it_is_the_api(client):
+    body = client.get("/").json()
+    assert body["service"] == "AutoApply API" and body["health"] == "/api/health"

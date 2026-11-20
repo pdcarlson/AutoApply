@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FilledField } from '@/api/types';
 import { useApplication } from '@/api/queries';
+import { useApiImage } from '@/api/useApiImage';
 import { useOverlays } from '@/app/providers/overlays';
 import { Chip } from '@/components/ui/Badges';
 import { Button, LinkButton } from '@/components/ui/Button';
@@ -36,6 +37,7 @@ export function ApplicationDrawer({ applicationId }: { applicationId: string }) 
   const { change, pending } = useStatusChange();
   const [showAll, setShowAll] = useState(false);
   const data = app.data;
+  const screenshot = useApiImage(data?.screenshotUrl);
 
   if (!data) {
     return (
@@ -137,7 +139,7 @@ export function ApplicationDrawer({ applicationId }: { applicationId: string }) 
             aria-label="Enlarge the screenshot"
             onClick={() => open({ type: 'screenshot', applicationId: data.id })}
           >
-            <img src={data.screenshotUrl} alt="" />
+            <img src={screenshot} alt="" />
           </button>
         </DrawerSection>
       )}

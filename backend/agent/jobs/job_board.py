@@ -8,27 +8,29 @@ from urllib.request import Request, urlopen
 
 from agent.forms import ashby_form, greenhouse_form
 from agent.forms.ashby_form import USER_AGENT
+from agent.jobs.job_link import Site
 
 # Company job boards the feed pulls from, by the name each site uses in its links
 COMPANY_BOARDS = {
-    "greenhouse": ["airbnb", "coinbase", "datadog", "discord", "duolingo", "figma", "instacart",
-                   "lyft", "mongodb", "pinterest", "reddit", "robinhood", "roblox", "samsara",
-                   "twitch", "verkada"],
+    Site.GREENHOUSE: ["airbnb", "coinbase", "datadog", "discord", "duolingo", "figma",
+                      "instacart", "lyft", "mongodb", "pinterest", "reddit", "robinhood",
+                      "roblox", "samsara", "twitch", "verkada"],
     # Only companies whose application page is on jobs.ashbyhq.com: some (Cursor) list their
     # jobs through Ashby but take applications on their own site, which the agent can't fill
-    "ashby": ["cohere", "docker", "elevenlabs", "linear", "notion", "perplexity",
-              "plaid", "ramp", "replit", "sentry", "skydio", "snowflake", "supabase", "vanta"],
+    Site.ASHBY: ["cohere", "docker", "elevenlabs", "linear", "notion", "perplexity",
+                 "plaid", "ramp", "replit", "sentry", "skydio", "snowflake", "supabase", "vanta"],
 }
 MAX_PER_BOARD = 150  # the newest postings kept from one board, so no company fills the feed
 TEXT_LIMIT = 3000    # how much of a description is kept to look for skills in
+API_TIMEOUT_S = 30
 INTERNSHIP = re.compile(r"\bintern(ship)?s?\b|\bco-?op\b", re.IGNORECASE)
 
 
 @dataclass
-class Posting:  # pylint: disable=too-many-instance-attributes
+class Posting:  # pylint: disable=too-many-instance-attributes  # one field per board column
     """One open job, in the same shape whichever site it came from."""
 
-    site: str
+    site: Site
     board: str  # the company's name in the site's links
     job_id: str
     company: str
@@ -40,13 +42,17 @@ class Posting:  # pylint: disable=too-many-instance-attributes
     posted_at: str = ""
     text: str = ""  # the description as plain text
 
+    def __post_init__(self):
+        """Accept the site as plain text too, as stored JSON gives it."""
+        self.site = Site(self.site)
+
     @property
-    def posting_id(self):
+    def posting_id(self) -> str:
         """Return an id that stays the same each time the board is read."""
         return f"{self.site}-{self.board}-{self.job_id}"
 
 
-def plain_text(markup):
+def plain_text(markup: str | None) -> str:
     """Return a description without its HTML tags, cut to TEXT_LIMIT."""
     text = re.sub(r"<[^>]+>", " ", html.unescape(markup or ""))
     return re.sub(r"\s+", " ", text).strip()[:TEXT_LIMIT]
@@ -55,40 +61,41 @@ def plain_text(markup):
 class JobBoard(ABC):
     """One company's job board on one applicant tracking system."""
 
-    site = ""
+    site: Site
 
-    def __init__(self, company, data=None):
+    def __init__(self, company: str, data: dict | None = None):
+        """Store the company's board name and any saved API data used instead of going online."""
         self.company = company
         # Tests pass in saved API data instead of going online
         self.data = data
 
     @abstractmethod
-    def api_url(self):
+    def api_url(self) -> str:
         """Return the address of the site's public list of this company's postings."""
 
     @abstractmethod
-    def to_posting(self, job):
+    def to_posting(self, job: dict) -> Posting:
         """Turn one job from the site's API into a Posting."""
 
     @abstractmethod
-    def read_form(self, posting):
+    def read_form(self, posting: Posting) -> dict:
         """Return the site's data for one posting's application form."""
 
     @abstractmethod
-    def required_questions(self, form):
+    def required_questions(self, form: dict) -> int:
         """Return how many required questions an application form asks."""
 
-    def read_json(self, url):
+    def read_json(self, url: str) -> dict:
         """Return what the site's API answers at this address."""
         request = Request(url, headers={"User-Agent": USER_AGENT})
-        with urlopen(request, timeout=30) as response:
+        with urlopen(request, timeout=API_TIMEOUT_S) as response:
             return json.load(response)
 
-    def is_listed(self, job):  # pylint: disable=unused-argument
+    def is_listed(self, job: dict) -> bool:  # pylint: disable=unused-argument  # Ashby's uses it
         """Return False for a job the company keeps off its public board."""
         return True
 
-    def postings(self):
+    def postings(self) -> list[Posting]:
         """Return the board's newest postings, newest first."""
         if self.data is None:
             self.data = self.read_json(self.api_url())
@@ -101,12 +108,14 @@ class JobBoard(ABC):
 class GreenhouseBoard(JobBoard):
     """A company's board on Greenhouse, read from the public Job Board API."""
 
-    site = "greenhouse"
+    site = Site.GREENHOUSE
 
-    def api_url(self):
+    def api_url(self) -> str:
+        """Return the Job Board API's list of this company's postings."""
         return f"https://boards-api.greenhouse.io/v1/boards/{self.company}/jobs?content=true"
 
-    def to_posting(self, job):
+    def to_posting(self, job: dict) -> Posting:
+        """Turn one Greenhouse job into a Posting."""
         title = job.get("title") or ""
         departments = job.get("departments") or [{}]
         return Posting(
@@ -120,26 +129,31 @@ class GreenhouseBoard(JobBoard):
             posted_at=job.get("first_published") or job.get("updated_at") or "",
             text=plain_text(job.get("content")))
 
-    def read_form(self, posting):
+    def read_form(self, posting: Posting) -> dict:
+        """Return the Job Board API's data for the posting's form."""
         return self.read_json(greenhouse_form.API_URL.format(company=self.company,
                                                              job_id=posting.job_id))
 
-    def required_questions(self, form):
+    def required_questions(self, form: dict) -> int:
+        """Return how many of the form's main questions are required."""
         return sum(1 for question in form.get("questions") or [] if question.get("required"))
 
 
 class AshbyBoard(JobBoard):
     """A company's board on Ashby, read from the public posting API."""
 
-    site = "ashby"
+    site = Site.ASHBY
 
-    def api_url(self):
+    def api_url(self) -> str:
+        """Return the posting API's list of this company's postings."""
         return f"https://api.ashbyhq.com/posting-api/job-board/{self.company}"
 
-    def is_listed(self, job):
+    def is_listed(self, job: dict) -> bool:
+        """Return False for a job Ashby marks as unlisted."""
         return job.get("isListed", True)
 
-    def to_posting(self, job):
+    def to_posting(self, job: dict) -> Posting:
+        """Turn one Ashby job into a Posting."""
         title = job.get("title") or ""
         return Posting(
             site=self.site, board=self.company, job_id=str(job["id"]),
@@ -151,19 +165,21 @@ class AshbyBoard(JobBoard):
             posted_at=job.get("publishedAt") or "",
             text=plain_text(job.get("descriptionPlain")))
 
-    def read_form(self, posting):
+    def read_form(self, posting: Posting) -> dict:
+        """Return Ashby's data for the posting's form."""
         return ashby_form.fetch_posting(self.company, posting.job_id)
 
-    def required_questions(self, form):
+    def required_questions(self, form: dict) -> int:
+        """Return how many visible questions on the form are required."""
         sections = (form.get("applicationForm") or {}).get("sections") or []
         return sum(1 for section in sections for entry in section.get("fieldEntries") or []
                    if entry.get("isRequired") and not entry.get("isHidden"))
 
 
-BOARDS = {"greenhouse": GreenhouseBoard, "ashby": AshbyBoard}
+BOARDS = {Site.GREENHOUSE: GreenhouseBoard, Site.ASHBY: AshbyBoard}
 
 
-def company_boards():
+def company_boards() -> list[JobBoard]:
     """Return a board for every company in COMPANY_BOARDS."""
     return [BOARDS[site](company) for site, companies in COMPANY_BOARDS.items()
             for company in companies]

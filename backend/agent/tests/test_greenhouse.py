@@ -1,39 +1,11 @@
 """Tests for reading Greenhouse forms and running a whole application on a fake one."""
-import json
 from pathlib import Path
 
 from agent.answers.answerer import Answerer
-from agent.applicant.profile import Profile
 from agent.forms.form_field import FieldAnswer
-from agent.forms.greenhouse_form import GreenhouseForm, fields_from_api
-from agent.jobs.job_link import JobLink
+from agent.forms.greenhouse_questions import fields_from_api
 from agent.runner.apply_run import ApplyRun
-from agent.settings import AGENT_DIR
-
-FAKE_FORMS = Path(__file__).parent / "fake_forms"
-API_DATA = json.loads((FAKE_FORMS / "greenhouse_api.json").read_text(encoding="utf-8"))
-LINK = JobLink.parse("https://job-boards.greenhouse.io/fakecompany/jobs/1001")
-
-
-def fake_form():
-    """Return a GreenhouseForm that uses the saved API data and the fake form page."""
-    return GreenhouseForm(LINK, job_data=API_DATA,
-                          url=(FAKE_FORMS / "greenhouse_form.html").resolve().as_uri())
-
-
-def example_profile(why_here=""):
-    """Load a fresh copy of the fake profile, with an answer to the essay question if given."""
-    profile = Profile.load(AGENT_DIR / "applicant" / "example_profile.json")
-    if why_here:
-        profile.save_answer("Why do you want to work here?", why_here)
-    return profile
-
-
-def fake_claude(form_field, _facts):
-    """Answer only the sponsorship question, like Claude would from the profile."""
-    if "sponsorship" in form_field.label:
-        return FieldAnswer("No", "claude", 95, "Profile says no sponsorship needed.")
-    return FieldAnswer("", "claude", 0, "Not in the profile.")
+from agent.tests.helpers import API_DATA, WHY_HERE, example_profile, fake_claude, fake_form
 
 
 def test_fields_from_api():
@@ -58,7 +30,7 @@ def test_missing_answer_stops_before_the_browser(tmp_path):
 
 def test_fills_and_submits_the_fake_form(tmp_path):
     """With every answer known, the agent fills the fake form, submits it and sees the thank-you."""
-    profile = example_profile("I like building tools people use.")
+    profile = example_profile(WHY_HERE)
     run = ApplyRun(Answerer(profile, fake_claude), tmp_path, submit=True)
     result = run.run(fake_form())
     assert result.status == "submitted", result.reason
@@ -70,7 +42,7 @@ def test_fills_and_submits_the_fake_form(tmp_path):
 
 def test_dry_run_fills_but_doesnt_submit(tmp_path):
     """With submitting off, the form is filled and left ready."""
-    profile = example_profile("I like building tools people use.")
+    profile = example_profile(WHY_HERE)
     result = ApplyRun(Answerer(profile, fake_claude), tmp_path).run(fake_form())
     assert result.status == "ready"
 
@@ -126,6 +98,7 @@ def test_compliance_questions_are_read():
 def test_work_authorization_is_answered_from_the_profile():
     """With the questions read, the answerer fills them instead of leaving them blank."""
     def claude(form_field, _facts):
+        """Answer the work authorization questions confidently."""
         value = "No" if "sponsorship" in form_field.label else "Yes"
         return FieldAnswer(value, "claude", 95, "From the profile.")
 
@@ -138,4 +111,5 @@ def test_work_authorization_is_answered_from_the_profile():
 def test_no_demographic_section():
     """Forms without the sections (or with them set to null) read as before."""
     data = dict(API_DATA, demographic_questions=None, compliance=None)
-    assert [f.key for f in fields_from_api(data)] == [f.key for f in fields_from_api(API_DATA)]
+    keys = [form_field.key for form_field in fields_from_api(data)]
+    assert keys == [form_field.key for form_field in fields_from_api(API_DATA)]

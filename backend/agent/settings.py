@@ -16,3 +16,9 @@ RUNS_DIR = AGENT_DIR / "runs"
 
 CLAUDE_MODEL = "claude-sonnet-5-5"
 CONFIDENCE_THRESHOLD = 90
+
+
+def has_anthropic_key() -> bool:
+    """Return True if an Anthropic API key is set."""
+    # Read on every call, not once: the server turns Claude off by clearing the key at runtime
+    return bool(os.getenv("ANTHROPIC_API_KEY"))

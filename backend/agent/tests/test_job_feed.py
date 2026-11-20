@@ -30,18 +30,23 @@ class DownBoard(JobBoard):
     site = "greenhouse"
 
     def api_url(self):
+        """Return a made-up address."""
         return ""
 
     def to_posting(self, job):
+        """Return the job unchanged."""
         return job
 
     def read_form(self, posting):
+        """Fail like a site that doesn't answer."""
         raise OSError("offline")
 
     def required_questions(self, form):
+        """Count no questions."""
         return 0
 
     def postings(self):
+        """Fail like a site that doesn't answer."""
         raise OSError("offline")
 
 
@@ -51,6 +56,7 @@ class SavedFormsBoard(GreenhouseBoard):
     forms = {"11": [True, True, False], "12": [True], "13": [True, True, True]}
 
     def read_form(self, posting):
+        """Return the saved form for the posting, or fail if there isn't one."""
         if posting.job_id not in self.forms:
             raise OSError("no form")
         return {"questions": [{"required": flag} for flag in self.forms[posting.job_id]]}

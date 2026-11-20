@@ -4,7 +4,7 @@ import copy
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile
 from agent.forms.form_field import FieldAnswer, FormField
-from agent.forms.greenhouse_form import fields_from_api
+from agent.forms.greenhouse_questions import fields_from_api
 from agent.settings import AGENT_DIR
 
 PROFILE = Profile.load(AGENT_DIR / "applicant" / "example_profile.json")

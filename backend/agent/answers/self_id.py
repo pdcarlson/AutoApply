@@ -1,15 +1,18 @@
-"""Picks the option for voluntary self-identification questions from the applicant's answers.
-
-Forms word these choices differently ("Decline To Self Identify", "I don't wish to answer",
-"I am not a protected veteran"), so each answer is matched to an option by its meaning rather
-than its exact wording. With no clear match the field is left for saved answers or Claude.
-"""
+"""Picks the option for voluntary self-identification questions from the applicant's answers."""
 import re
 
+from agent.forms.form_field import FormField
+
 DECLINE = "decline"
+HISPANIC = "Hispanic"
 # Profile attributes, which are also the profile_key of self-ID fields
 KEYS = ("gender", "hispanic_latino", "race", "veteran", "disability")
+MAX_LABEL_WORDS = 4
 
+# Forms word these choices differently ("Decline To Self Identify", "I don't wish to answer",
+# "I am not a protected veteran"), so each answer is matched to an option by its meaning
+# rather than its exact wording. With no clear match the field is left for saved answers or
+# Claude.
 DECLINES = re.compile(
     r"decline|don.?t (wish|want)|do not (wish|want)|prefer not|rather not|not (to )?(answer|"
     r"disclose|say|specify|self.?identify)|choose not", re.IGNORECASE)
@@ -42,33 +45,43 @@ MEANINGS = {
 HISPANIC_RACE = re.compile(r"hispanic|latin[oax]", re.IGNORECASE)
 
 
-def self_id_key(form_field):
-    """The profile attribute a field asks about ("gender", "race", ...), or "" if none."""
+def self_id_key(form_field: FormField) -> str:
+    """Return the profile attribute a field asks about ("gender", "race", ...), or ""."""
     if form_field.profile_key in KEYS:
         return form_field.profile_key
-    if not form_field.options or len(form_field.label.split()) > 4:
+    if not form_field.options or len(form_field.label.split()) > MAX_LABEL_WORDS:
         return ""
     return next((key for pattern, key in LABELS if pattern.search(form_field.label)), "")
 
 
-def choose(form_field, profile):
+def choose(form_field: FormField, profile) -> str:
     """Return the option matching the applicant's self-ID answer, or "" to leave it to others."""
     key = self_id_key(form_field)
     if not key or not form_field.options:
         return ""
-    answer = getattr(profile, key, "") or ("decline" if profile.eeo == DECLINE else "")
+    answer = _profile_answer(key, profile)
+    if not answer:
+        return ""
+    pattern = _meaning(key, answer)
+    matches = [option for option in form_field.options if pattern.search(option.strip())]
+    return matches[0] if len(matches) == 1 else ""
+
+
+def _profile_answer(key: str, profile) -> str:
+    """Return the applicant's answer to one self-ID question, DECLINE, HISPANIC or ""."""
+    answer = getattr(profile, key, "") or (DECLINE if profile.eeo == DECLINE else "")
     if key == "race" and not answer and profile.hispanic_latino == DECLINE:
         answer = DECLINE
     if key == "race" and not answer and profile.hispanic_latino == "Yes":
         # Forms that ask race in one list include "Hispanic or Latino" in it
-        answer = "Hispanic"
-    if not answer:
-        return ""
+        answer = HISPANIC
+    return answer
+
+
+def _meaning(key: str, answer: str) -> re.Pattern:
+    """Return the pattern an option has to match to mean this answer."""
     if answer == DECLINE:
-        pattern = DECLINES
-    elif answer == "Hispanic":
-        pattern = HISPANIC_RACE
-    else:
-        pattern = re.compile(MEANINGS.get((key, answer), re.escape(answer)), re.IGNORECASE)
-    matches = [option for option in form_field.options if pattern.search(option.strip())]
-    return matches[0] if len(matches) == 1 else ""
+        return DECLINES
+    if answer == HISPANIC:
+        return HISPANIC_RACE
+    return re.compile(MEANINGS.get((key, answer), re.escape(answer)), re.IGNORECASE)

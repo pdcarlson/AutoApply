@@ -5,16 +5,21 @@ from agent.answers.answerer import Answerer
 from agent.answers.claude import ask_claude
 from agent.applicant.profile import Profile
 from agent.forms import form_for
+from agent.forms.form_field import FieldKind, FormField
 from agent.jobs.application_log import ApplicationLog, DuplicateLink
 from agent.jobs.job_link import JobLink, UnsupportedLink
-from agent.runner.apply_run import ApplyRun, RunResult
-from agent.settings import PROFILE_PATH, RUNS_DIR, SUBMIT_REAL_FORM, SLOW_MO_MS
+from agent.runner.apply_run import ApplyRun, RunResult, RunStatus
+from agent.runner.held_form import HeldForm
+from agent.runner.run_result import CONFIRMED, WINDOW_CLOSED
+from agent.settings import PROFILE_PATH, RUNS_DIR, SLOW_MO_MS, SUBMIT_REAL_FORM
+
+POLL_MS = 1000  # how often to look for the thank-you page while the applicant finishes up
 
 
-def ask(form_field):
+def ask(form_field: FormField) -> str:
     """Ask the applicant one question in the terminal and return their answer."""
     print(f"\n{form_field.label}")
-    if form_field.kind == "file":
+    if form_field.kind is FieldKind.FILE:
         return input("Path to the file: ").strip().strip('"')
     if not form_field.options:
         answer = ""
@@ -29,7 +34,7 @@ def ask(form_field):
             return form_field.options[int(choice) - 1]
 
 
-def main():
+def main() -> None:
     """Parse the link, then run the application until it's filled or sent."""
     parser = argparse.ArgumentParser(description="Fill out a job application from a link.")
     parser.add_argument("url", help="a Greenhouse, Lever or Ashby job link")
@@ -47,7 +52,7 @@ def main():
         form = form_for(link)
     except UnsupportedLink as error:
         # Lever links are accepted and recorded, but can't be filled yet
-        log.update(link, RunResult("failed", str(error)))
+        log.update(link, RunResult(RunStatus.FAILED, str(error)))
         print(error)
         return
 
@@ -62,7 +67,7 @@ def main():
           f"{profile.last_name}...")
 
     result = runner.run(form)
-    while result.status == "needs_input":
+    while result.status is RunStatus.NEEDS_INPUT:
         print(f"\nThe agent needs {len(result.questions)} answer(s) from you.")
         for form_field in result.questions:
             profile.save_answer(form_field.label, ask(form_field))
@@ -75,7 +80,7 @@ def main():
     print_result(result)
 
 
-def review_and_submit(filled):
+def review_and_submit(filled: RunResult) -> RunResult:
     """Show what was filled, press Submit if the applicant says so, and wait for the thank-you page.
 
     The window is never closed here unless the application was confirmed and screenshotted, or
@@ -83,7 +88,7 @@ def review_and_submit(filled):
     """
     held = filled.held
     print_result(filled)
-    if filled.status == "handoff":  # a protected step, so the agent never presses Submit
+    if filled.status is RunStatus.HANDOFF:  # a protected step, so the agent never presses Submit
         print("\nThe agent left that step alone. Finish it in the open browser window and press "
               "Submit there.")
         keep_open_until_done(held)
@@ -97,32 +102,37 @@ def review_and_submit(filled):
 
     print("Pressing Submit...")
     sent = held.submit()
-    if sent.status != "submitted" and sent.pressed and held.window_open():
-        print("\nNo thank-you page yet.")
-        if sent.asked_for_code:
-            print("The site emailed you a verification code. Type it into the browser window.")
-        else:
-            print("Finish anything the site asks for in the browser window.")
-        print("Waiting for the thank-you page, with no time limit. Ctrl+C stops waiting.")
-        try:
-            while held.window_open():
-                if held.confirmed(timeout_ms=1000):
-                    held.save_screenshot(sent)
-                    sent.status, sent.reason = "submitted", "The site confirmed the application."
-                    break
-        except KeyboardInterrupt:
-            print("\nStopped waiting.")
-        if not held.window_open() and sent.status != "submitted":
-            sent.reason = "The form window was closed before the application was confirmed."
+    if sent.status is not RunStatus.SUBMITTED and sent.pressed and held.window_open():
+        _wait_for_thank_you(held, sent)
 
-    if sent.status == "submitted":
+    if sent.status is RunStatus.SUBMITTED:
         held.close()  # confirmed, and the screenshot is saved
     else:
         keep_open_until_done(held)
     return sent
 
 
-def keep_open_until_done(held):
+def _wait_for_thank_you(held: HeldForm, sent: RunResult) -> None:
+    """Wait with no time limit while the applicant finishes what the site asks for."""
+    print("\nNo thank-you page yet.")
+    if sent.asked_for_code:
+        print("The site emailed you a verification code. Type it into the browser window.")
+    else:
+        print("Finish anything the site asks for in the browser window.")
+    print("Waiting for the thank-you page, with no time limit. Ctrl+C stops waiting.")
+    try:
+        while held.window_open():
+            if held.confirmed(timeout_ms=POLL_MS):
+                held.save_screenshot(sent)
+                sent.end(RunStatus.SUBMITTED, CONFIRMED)
+                break
+    except KeyboardInterrupt:
+        print("\nStopped waiting.")
+    if not held.window_open() and sent.status is not RunStatus.SUBMITTED:
+        sent.reason = WINDOW_CLOSED
+
+
+def keep_open_until_done(held: HeldForm) -> None:
     """Leave the window open until the applicant presses Enter (or closes it themselves)."""
     if held.window_open():
         try:
@@ -133,7 +143,7 @@ def keep_open_until_done(held):
     held.close()
 
 
-def print_result(result: RunResult):
+def print_result(result: RunResult) -> None:
     """Show what the agent filled in and how the run ended."""
     print()
     for label, value, source in result.filled:

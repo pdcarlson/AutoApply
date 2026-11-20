@@ -9,6 +9,7 @@ PASTED = "https://job-boards.greenhouse.io/singlestore/jobs/8205389?jr_id=6aa9bc
 
 
 def test_keeps_the_pasted_link_but_still_means_the_same_job():
+    """The pasted link is kept, but it's the same job as its clean link."""
     link = JobLink.parse(PASTED)
     assert link.pasted == PASTED
     assert link.url == "https://job-boards.greenhouse.io/singlestore/jobs/8205389"
@@ -16,6 +17,7 @@ def test_keeps_the_pasted_link_but_still_means_the_same_job():
 
 
 def test_opens_the_pasted_link_unchanged():
+    """The form opens the link exactly as pasted."""
     assert GreenhouseForm(JobLink.parse(PASTED)).form_url() == PASTED
 
 

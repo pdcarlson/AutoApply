@@ -1,45 +1,13 @@
-"""Tests for holding a filled form open and submitting it later, on the local fake form only.
-
-The fake page's query string picks a variant: ?confirm_ms=N confirms N ms after Submit,
-?code=1 asks for an emailed verification code instead of confirming (its Verify button, or
-confirm_ms running out, shows the thank-you page), and ?code=boxes asks for it the way
-Greenhouse's job boards do (one box per character, then Submit again). All zeros is wrong.
-
-A HeldForm never closes its own window, so every test closes what it opened (`holding`).
-"""
+"""Tests for holding a filled form open and submitting it later, on the local fake form only."""
 import time
 
 import pytest
 
 from agent.answers.answerer import Answerer
-from agent.runner.apply_run import (CODE_REJECTED, FORM_GONE, NO_CODE_PROMPT,
-                                    WINDOW_CLOSED, ApplyRun)
-from agent.tests.test_apply_run_events import WHY_HERE, Recorder, spy_on_browsers
-from agent.tests.test_greenhouse import example_profile, fake_claude, fake_form
-
-
-def variant(query):
-    """The fake form, with a test-only variant picked by `query`."""
-    form = fake_form()
-    form.url += f"?{query}"
-    return form
-
-
-@pytest.fixture
-def holding(tmp_path):
-    """fill(form=None, **ApplyRun kwargs) -> RunResult; every held browser is closed afterwards."""
-    opened = []
-
-    def fill(form=None, **kwargs):
-        run = ApplyRun(Answerer(example_profile(WHY_HERE), fake_claude), tmp_path, hold=True,
-                       **kwargs)
-        result = run.run(form or fake_form(), shot_name="job-1")
-        if result.held is not None:
-            opened.append(result.held)
-        return result
-    yield fill
-    for held in opened:
-        held.close()
+from agent.runner.apply_run import ApplyRun
+from agent.runner.run_result import CODE_REJECTED, FORM_GONE, NO_CODE_PROMPT, WINDOW_CLOSED
+from agent.tests.helpers import (WHY_HERE, Recorder, example_profile, fake_claude,
+                                 spy_on_browsers, variant)
 
 
 def test_hold_keeps_the_browser_open_and_submit_uses_it(tmp_path, monkeypatch, holding):
@@ -139,6 +107,7 @@ def test_enter_code_with_a_wrong_code(holding, query):
 
 
 def test_enter_code_without_a_prompt_types_nothing(holding):
+    """With no code prompt on the page, nothing is typed and the form stays usable."""
     held = holding().held
     sent = held.enter_code("ABCD1234")
     assert sent.status == "failed" and sent.reason == NO_CODE_PROMPT and not sent.asked_for_code
@@ -146,6 +115,7 @@ def test_enter_code_without_a_prompt_types_nothing(holding):
 
 
 def test_should_stop_before_submit_presses_nothing(holding):
+    """A stop asked for before Submit cancels without pressing anything."""
     held = holding().held
     events = Recorder()
     sent = held.submit(on_event=events, should_stop=lambda: True)

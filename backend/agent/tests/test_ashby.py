@@ -8,7 +8,8 @@ from playwright.sync_api import sync_playwright
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile
 from agent.forms import form_for
-from agent.forms.ashby_form import AshbyForm, fields_from_api
+from agent.forms.ashby_form import AshbyForm
+from agent.forms.ashby_questions import fields_from_api
 from agent.forms.form_field import FieldAnswer
 from agent.jobs.job_link import JobLink
 from agent.runner.apply_run import ApplyRun
@@ -97,16 +98,20 @@ def test_a_country_only_location_box_is_answered_with_the_profile_country():
     posting = {"applicationForm": {"sections": [{"fieldEntries": [
         {"isRequired": True, "field": {"path": "q1", "title": "Location", "type": "Location",
                                        "locationTypes": ["Country"]}}]}]}}
-    [country] = fields_from_api(posting)
+    fields = fields_from_api(posting)
+    assert len(fields) == 1
+    country = fields[0]
     assert (country.kind, country.profile_key, country.required) == ("select", "country", True)
 
 
 def test_posting_summary():
+    """The posting's title and location come from Ashby's data."""
     assert fake_form().posting() == {"company": "", "title": "Software Engineering Intern",
                                      "location": "Troy, NY"}
 
 
 def test_full_name():
+    """The full name joins the first and last names."""
     assert example_profile().full_name == "Jordan Rivera"
 
 
@@ -118,9 +123,12 @@ def test_missing_answer_stops_before_the_browser(tmp_path):
     assert not result.filled
 
 
-def test_fills_every_kind_of_question(tmp_path):  # pylint: disable=unused-argument
-    """Each Ashby input type gets its answer: text, file, location, Yes/No buttons, radio
-    buttons, checkboxes, the type-to-search dropdown and the date picker."""
+def test_fills_every_kind_of_question():
+    """Each Ashby input type gets its answer, from text boxes to the date picker.
+
+    Covers text, file, location, Yes/No buttons, radio buttons, checkboxes, the
+    type-to-search dropdown and the date picker.
+    """
     profile = full_profile()
     profile.save_answer("Which languages do you speak?", "French")
     profile.save_answer("How did you hear about this job?", "LinkedIn")
@@ -163,6 +171,7 @@ def test_fills_and_submits_the_fake_form(tmp_path):
 
 
 def test_dry_run_fills_but_doesnt_submit(tmp_path):
+    """With submitting off, the form is filled and left ready."""
     result = ApplyRun(Answerer(full_profile(), fake_claude), tmp_path).run(fake_form())
     assert result.status == "ready", result.reason
 
@@ -173,20 +182,24 @@ def test_dry_run_fills_but_doesnt_submit(tmp_path):
 ])
 def test_read_fields_errors(monkeypatch, payload, error):
     """A posting Ashby doesn't have is PostingClosed; any other API error is a ValueError."""
-    class Response:  # pylint: disable=too-few-public-methods
+    class Response:  # pylint: disable=too-few-public-methods  # only what urlopen callers use
         """A stand-in for urlopen's response."""
         def __enter__(self):
+            """Open the response."""
             return self
 
         def __exit__(self, *args):
+            """Close the response."""
             return False
 
-        def read(self, *args):  # pylint: disable=unused-argument
+        def read(self, *_args):
+            """Return the payload as bytes."""
             return json.dumps(payload).encode()
 
     seen = {}
 
-    def fake_urlopen(request, timeout):  # pylint: disable=unused-argument
+    def fake_urlopen(request, timeout):  # pylint: disable=unused-argument  # urlopen's shape
+        """Record the User-Agent sent, and answer with the payload."""
         seen["agent"] = request.get_header("User-agent")
         return Response()
 

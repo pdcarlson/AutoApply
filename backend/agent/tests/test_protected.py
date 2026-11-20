@@ -1,7 +1,4 @@
-"""Tests for the steps the agent leaves to the applicant: CAPTCHA, sign-in, password and SSN.
-
-The fake page's ?protect=ssn|password|captcha variants add one such step to the form.
-"""
+"""Tests for the steps the agent leaves to the applicant: CAPTCHA, sign-in, password and SSN."""
 import copy
 
 import pytest
@@ -13,8 +10,8 @@ from agent.forms.protected import (CAPTCHA, LOGIN, PASSWORD, SSN, CaptchaCheck, 
                                    PageField, PasswordCheck, ProtectedFieldDetector, SsnCheck,
                                    handoff_reason)
 from agent.runner.apply_run import ApplyRun
-from agent.tests.test_apply_run_events import WHY_HERE
-from agent.tests.test_greenhouse import API_DATA, LINK, example_profile, fake_claude, fake_form
+from agent.tests.helpers import (API_DATA, LINK, WHY_HERE, example_profile, fake_claude,
+                                 fake_form, variant)
 
 
 class FakeCaptcha(CaptchaCheck):
@@ -30,9 +27,7 @@ def fake_detector():
 
 def protected_form(kind):
     """Return the fake form with one protected step of this kind on it."""
-    form = fake_form()
-    form.url += f"?protect={kind}"
-    return form
+    return variant(f"protect={kind}")
 
 
 def answerer():

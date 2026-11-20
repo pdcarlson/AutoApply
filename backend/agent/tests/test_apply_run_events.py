@@ -1,47 +1,12 @@
 """Tests for the hooks a server uses to watch and stop a run: events, cancel and screenshots."""
 import json
 
-from playwright.sync_api import Browser, BrowserType
-
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile
 from agent.runner.apply_run import ApplyRun
 from agent.settings import AGENT_DIR
-from agent.tests.test_greenhouse import example_profile, fake_claude, fake_form
-
-WHY_HERE = "I like building tools people use."
-
-
-class Recorder:
-    """Collects every on_event call as (kind, data)."""
-
-    def __init__(self):
-        self.events = []
-
-    def __call__(self, kind, **data):
-        self.events.append((kind, data))
-
-    def kinds(self):
-        """Return the events as short strings like 'phase:opening' or 'field'."""
-        return [f"phase:{data['name']}" if kind == "phase" else kind for kind, data in self.events]
-
-
-def spy_on_browsers(monkeypatch):
-    """Record how each browser is launched and whether it's closed."""
-    seen = {"launch": [], "closed": 0}
-    launch, close = BrowserType.launch, Browser.close
-
-    def spy_launch(self, *args, **kwargs):
-        seen["launch"].append(kwargs)
-        return launch(self, *args, **kwargs)
-
-    def spy_close(self, *args, **kwargs):
-        seen["closed"] += 1
-        return close(self, *args, **kwargs)
-
-    monkeypatch.setattr(BrowserType, "launch", spy_launch)
-    monkeypatch.setattr(Browser, "close", spy_close)
-    return seen
+from agent.tests.helpers import (WHY_HERE, Recorder, example_profile, fake_claude, fake_form,
+                                 spy_on_browsers)
 
 
 def test_events_arrive_in_order_and_filled_screenshot_is_taken(tmp_path):
@@ -55,8 +20,8 @@ def test_events_arrive_in_order_and_filled_screenshot_is_taken(tmp_path):
     assert kinds[:2] == ["phase:opening", "phase:filling"]
     assert kinds[2:] == ["field", "filled"] * len(result.filled)
     filled_events = [data for kind, data in events.events if kind == "filled"]
-    assert [(e["label"], e["value"], e["source"], e["confidence"]) for e in filled_events] \
-        == result.filled_detail
+    assert [(event["label"], event["value"], event["source"], event["confidence"])
+            for event in filled_events] == result.filled_detail
     field_labels = [data["label"] for kind, data in events.events if kind == "field"]
     assert field_labels == [label for label, _value, _source in result.filled]
 

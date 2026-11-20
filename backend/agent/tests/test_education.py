@@ -2,15 +2,16 @@
 import json
 
 import pytest
-from playwright.sync_api import sync_playwright
 
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile
 from agent.forms.form_field import FieldAnswer
-from agent.forms.greenhouse_form import (GreenhouseForm, education_config_from_page,
-                                         fields_from_api)
+from agent.forms.greenhouse_education import education_config_from_page
+from agent.forms.greenhouse_form import GreenhouseForm
+from agent.forms.greenhouse_questions import fields_from_api
 from agent.jobs.job_link import JobLink
 from agent.runner.apply_run import ApplyRun
+from agent.tests.helpers import open_page
 
 LINK = JobLink.parse("https://job-boards.greenhouse.io/fakecompany/jobs/1")
 # Part of what Greenhouse's API really lists
@@ -85,11 +86,13 @@ def education(setting):
 
 
 def test_no_education_section_unless_the_api_says_so():
+    """There are no Education boxes unless the API says the form has the section."""
     assert not education("")
     assert not education("education_hidden")
 
 
 def test_required_education_asks_for_school_degree_major_and_graduation():
+    """A required section requires the school, degree, major and graduation date."""
     fields = education("education_required")
     required = {key for key, f in fields.items() if f.required}
     assert required == {"school--0", "degree--0", "discipline--0", "end-month--0", "end-year--0"}
@@ -105,6 +108,7 @@ SCALE_CONFIG = {"id": 4666350005, "school_name": "required", "degree": "required
 
 
 def test_the_pages_education_config_says_which_boxes_are_shown_and_required():
+    """The page's education_config decides which boxes show and which are required."""
     job = {"questions": [], "education": "education_required"}
     fields = {f.key: f for f in fields_from_api(job, OPTIONS, SCALE_CONFIG)}
     assert {key: f.required for key, f in fields.items()} == {
@@ -114,6 +118,7 @@ def test_the_pages_education_config_says_which_boxes_are_shown_and_required():
 
 
 def test_reads_the_education_config_from_the_page():
+    """The education_config is read from the page's script, or None without one."""
     html = ('<script>window.__remixContext = {"job_post":{"education_config":'
             + json.dumps(SCALE_CONFIG) + ',"questions":[]}};</script>')
     assert education_config_from_page(html) == SCALE_CONFIG
@@ -121,6 +126,7 @@ def test_reads_the_education_config_from_the_page():
 
 
 def test_a_required_start_year_missing_from_the_profile_is_asked(tmp_path):
+    """A required start year the profile doesn't have is asked of the applicant."""
     job = {"questions": [], "education": "education_required"}
     form = GreenhouseForm(LINK, job_data=job, education_options=OPTIONS,
                           education_config=SCALE_CONFIG)
@@ -130,6 +136,7 @@ def test_a_required_start_year_missing_from_the_profile_is_asked(tmp_path):
 
 
 def test_profile_answers_use_the_dropdown_wording():
+    """Profile answers are given in each dropdown's own wording."""
     fields = education("education_required")
     answerer = Answerer(profile(school_start="Aug 2023"), no_claude)
     answers = {key: answerer.answer(f) for key, f in fields.items()}
@@ -146,6 +153,7 @@ def test_profile_answers_use_the_dropdown_wording():
     ("BSc", "Bachelor's Degree"), ("MBA", "Master of Business Administration (M.B.A.)"),
     ("Associate of Science", "Associate's Degree")])
 def test_degrees_written_many_ways_find_their_option(degree, option):
+    """A degree written many ways finds its option on the dropdown."""
     field = education("education_required")["degree--0"]
     assert Answerer(profile(degree=degree), no_claude).answer(field).value == option
 
@@ -158,28 +166,26 @@ def test_a_degree_with_no_clear_option_is_not_guessed():
 
 @pytest.fixture(name="page")
 def fixture_page():
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
-        page = browser.new_page()
-        page.set_default_timeout(5000)
-        page.set_content(PAGE)
-        yield page
-        browser.close()
+    """Return a browser page showing the Education section."""
+    yield from open_page(PAGE, timeout_ms=5000)
 
 
 def test_picks_the_school_from_the_list(page):
+    """A school on the list is picked from it."""
     school = education("education_optional")["school--0"]
     assert GreenhouseForm(LINK).fill(page, school, "rensselaer polytechnic institute") is None
     assert page.locator("#picked-school").inner_text() == "Rensselaer Polytechnic Institute"
 
 
 def test_picks_other_for_a_school_not_on_the_list(page):
+    """A school that isn't on the list picks Other."""
     school = education("education_optional")["school--0"]
     assert GreenhouseForm(LINK).fill(page, school, "Example State University") == "Other"
     assert page.locator("#picked-school").inner_text() == "Other"
 
 
 def test_fills_the_section_and_skips_boxes_the_form_left_out(tmp_path):
+    """The section is filled, and boxes the form doesn't show are skipped."""
     job = {"questions": [], "education": "education_required"}
     url = tmp_path / "form.html"
     url.write_text(PAGE, encoding="utf-8")

@@ -1,40 +1,13 @@
 """The applicant's profile, which is everything the agent is allowed to put on a form."""
 import json
 import os
-import re
-from calendar import month_name
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from agent.applicant.saved_answer import SavedAnswer, normalize
+from agent.forms.dates import month_and_year
 
-def normalize(question):
-    """Lowercase a question and drop extra spaces so the same question always matches."""
-    return " ".join(question.lower().split()).rstrip("*").strip()
-
-
-def yes_no(value):
-    """Turn True/False/None into the words Claude reads."""
-    if value is None:
-        return "Unknown (ask the applicant)"
-    return "Yes" if value else "No"
-
-
-def month_and_year(text):
-    """Split a date like "May 2027", "Aug. 2023" or "05/2027" into ("May", "2027").
-
-    Either part comes back empty when the text doesn't have it.
-    """
-    year = re.search(r"\b(\d{4})\b", text)
-    month = ""
-    for number in range(1, 13):
-        if re.search(rf"\b{month_name[number][:3]}", text, re.IGNORECASE):
-            month = month_name[number]
-            break
-    numeric = re.search(r"\b(\d{1,2})\s*[/-]\s*\d{4}\b|\b\d{4}\s*[/-]\s*(\d{1,2})\b", text)
-    if not month and numeric and 1 <= int(numeric.group(1) or numeric.group(2)) <= 12:
-        month = month_name[int(numeric.group(1) or numeric.group(2))]
-    return month, year.group(1) if year else ""
-
+__all__ = ["Profile", "SavedAnswer", "normalize"]
 
 # Self-ID attribute -> how Claude's facts name it
 SELF_ID_FACTS = {
@@ -44,18 +17,19 @@ SELF_ID_FACTS = {
     "veteran": "Protected veteran",
     "disability": "Has a disability",
 }
+# Keys a saved profile file leaves out when they're empty, so saving never adds a new key
+OMITTED_WHEN_EMPTY = ("extra_facts", "middle_name", "school_start", *SELF_ID_FACTS)
+
+
+def _yes_no(value: bool | None) -> str:
+    """Turn True/False/None into the words Claude reads."""
+    if value is None:
+        return "Unknown (ask the applicant)"
+    return "Yes" if value else "No"
 
 
 @dataclass
-class SavedAnswer:
-    """An answer the applicant already gave to a form question."""
-
-    question: str
-    answer: str
-
-
-@dataclass
-class Profile:  # pylint: disable=too-many-instance-attributes
+class Profile:  # pylint: disable=too-many-instance-attributes  # one field per form question
     """Facts about the applicant, shaped around what application forms ask."""
 
     first_name: str
@@ -97,37 +71,37 @@ class Profile:  # pylint: disable=too-many-instance-attributes
     extra_facts: list[str] = field(default_factory=list)  # more lines for Claude to read
 
     @property
-    def full_name(self):
+    def full_name(self) -> str:
         """Return the first and last name, for forms with a single Name box (like Ashby)."""
         return " ".join(filter(None, [self.first_name, self.last_name]))
 
     @property
-    def location(self):
+    def location(self) -> str:
         """Return the city and state, the way location boxes want them."""
         return f"{self.city}, {self.state}" if self.city else ""
 
     @property
-    def school_start_month(self):
-        """The month school started, like "August"."""
+    def school_start_month(self) -> str:
+        """Return the month school started, like "August"."""
         return month_and_year(self.school_start)[0]
 
     @property
-    def school_start_year(self):
-        """The year school started, like "2023"."""
+    def school_start_year(self) -> str:
+        """Return the year school started, like "2023"."""
         return month_and_year(self.school_start)[1]
 
     @property
-    def graduation_month(self):
-        """The graduation month, like "May"."""
+    def graduation_month(self) -> str:
+        """Return the graduation month, like "May"."""
         return month_and_year(self.graduation)[0]
 
     @property
-    def graduation_year(self):
-        """The graduation year, like "2027"."""
+    def graduation_year(self) -> str:
+        """Return the graduation year, like "2027"."""
         return month_and_year(self.graduation)[1]
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path) -> "Profile":
         """Read a profile from a JSON file."""
         path = Path(path)
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -138,43 +112,40 @@ class Profile:  # pylint: disable=too-many-instance-attributes
             profile.resume_path = str((path.parent / profile.resume_path).resolve())
         return profile
 
-    def save(self, path):
+    def save(self, path) -> None:
         """Write the profile back to a JSON file."""
         data = asdict(self)
         if self.resume_path:
             data["resume_path"] = os.path.relpath(self.resume_path, Path(path).parent)
-        # Leave the key out when unused, so saving never adds a new key to a profile file
-        if not self.extra_facts:
-            del data["extra_facts"]
-        for key in ("middle_name", "school_start", *SELF_ID_FACTS):
+        for key in OMITTED_WHEN_EMPTY:
             if not data[key]:
                 del data[key]
         Path(path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-    def saved_answer(self, question):
+    def saved_answer(self, question: str) -> str | None:
         """Return the saved answer to this question, or None."""
         for saved in self.answers:
-            if normalize(saved.question) == normalize(question):
+            if saved.answers(question):
                 return saved.answer
         return None
 
-    def save_answer(self, question, answer):
+    def save_answer(self, question: str, answer: str) -> None:
         """Remember an answer so the agent doesn't ask again."""
-        self.answers = [saved for saved in self.answers
-                        if normalize(saved.question) != normalize(question)]
+        self.answers = [saved for saved in self.answers if not saved.answers(question)]
         self.answers.append(SavedAnswer(question, answer))
 
-    def self_id_fact(self, key):
-        """How Claude reads one self-ID answer."""
+    def self_id_fact(self, key: str) -> str:
+        """Return how Claude reads one self-ID answer."""
         value = getattr(self, key) or ("decline" if self.eeo == "decline" else "")
         if value == "decline":
             return "decline to answer"
         return value or "unknown (ask the applicant)"
 
-    def facts(self):
+    def facts(self) -> str:
         """Return the profile as short lines Claude can read."""
+        names = filter(None, [self.first_name, self.middle_name, self.last_name])
         lines = [
-            "Name: " + " ".join(filter(None, [self.first_name, self.middle_name, self.last_name])),
+            "Name: " + " ".join(names),
             f"Preferred name: {self.preferred_name or self.first_name}",
             f"Email: {self.email}",
             f"Phone: {self.phone}",
@@ -190,9 +161,9 @@ class Profile:  # pylint: disable=too-many-instance-attributes
             f"Graduation: {self.graduation}",
             f"Started school: {self.school_start or 'unknown'}",
             f"Earliest start date: {self.earliest_start}",
-            f"Authorized to work in the United States: {yes_no(self.work_authorized_us)}",
-            f"Needs visa sponsorship now or in the future: {yes_no(self.needs_sponsorship)}",
-            f"Willing to relocate: {yes_no(self.willing_to_relocate)}",
+            f"Authorized to work in the United States: {_yes_no(self.work_authorized_us)}",
+            f"Needs visa sponsorship now or in the future: {_yes_no(self.needs_sponsorship)}",
+            f"Willing to relocate: {_yes_no(self.willing_to_relocate)}",
         ]
         lines += [f"{label}: {self.self_id_fact(key)}" for key, label in SELF_ID_FACTS.items()]
         if self.middle_name:

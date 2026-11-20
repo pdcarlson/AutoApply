@@ -1,18 +1,4 @@
-"""Where a run's browser comes from, and how something else can watch and drive it.
-
-A run asks a browser source for a browser and gets back a `(browser, endpoint)` pair. `endpoint`
-is the browser's Chrome DevTools Protocol (CDP) address, or "" when it has none. With the page's
-target id it makes a `PageAddress`: anything that speaks CDP can attach to that page next to
-Playwright (the web app's live view does, in server.live_view), from any thread or machine that
-can reach the address.
-
-- `LocalBrowser` launches Chromium on this machine with a DevTools port on 127.0.0.1.
-- `RemoteBrowser` drives a Chromium that is already running somewhere else (a VM, a browser
-  service) through its CDP address. Set BROWSER_CDP_URL to use it.
-
-Both are used the same way, so moving the browser off this machine only changes which one the
-run is given.
-"""
+"""Where a run's browser comes from, and the address other tools use to watch and drive it."""
 import socket
 import sys
 from dataclasses import dataclass
@@ -25,15 +11,18 @@ PLATFORM_ARGS = ("--disable-dev-shm-usage",) if sys.platform.startswith("linux")
 
 @dataclass(frozen=True)
 class PageAddress:
-    """One open page: the CDP `endpoint` of its browser (`http://host:port`, or a `ws://` or
-    `wss://` URL) and the page's CDP `target_id` in it."""
+    """One open page, which anything that speaks the Chrome DevTools Protocol can attach to.
+
+    `endpoint` is its browser's CDP address (`http://host:port`, or a `ws://` or `wss://` URL)
+    and `target_id` is the page's CDP target id in that browser.
+    """
 
     endpoint: str
     target_id: str
 
 
 def page_address(page, endpoint: str) -> PageAddress:
-    """The address of a Playwright `page` in the browser at `endpoint`."""
+    """Return the address of a Playwright `page` in the browser at `endpoint`."""
     session = page.context.new_cdp_session(page)
     try:
         return PageAddress(endpoint, session.send("Target.getTargetInfo")["targetInfo"]["targetId"])
@@ -42,7 +31,7 @@ def page_address(page, endpoint: str) -> PageAddress:
 
 
 def free_port() -> int:
-    """A TCP port nothing is listening on right now."""
+    """Return a TCP port nothing is listening on right now."""
     with socket.socket() as probe:
         probe.bind((LOOPBACK, 0))
         return probe.getsockname()[1]
@@ -56,8 +45,8 @@ class LocalBrowser:
     slow_mo: int = 0
     expose: bool = True
 
-    def open(self, playwright):
-        """Launches the browser. Returns (browser, endpoint)."""
+    def open(self, playwright) -> tuple:
+        """Launch the browser, and return it with its CDP endpoint ("" when not exposed)."""
         if not self.expose:
             return playwright.chromium.launch(headless=not self.show, slow_mo=self.slow_mo,
                                               args=list(PLATFORM_ARGS)), ""
@@ -71,7 +60,7 @@ class LocalBrowser:
 
 @dataclass
 class RemoteBrowser:
-    """A Chromium that already runs elsewhere, reached through its CDP address.
+    """A Chromium that already runs elsewhere (a VM, a browser service), reached over CDP.
 
     `endpoint` is what the browser's host gives out: `http://host:port` or a `ws://`/`wss://`
     URL. Closing the returned browser disconnects from it and closes the pages the run opened.
@@ -80,7 +69,7 @@ class RemoteBrowser:
     endpoint: str
     slow_mo: int = 0
 
-    def open(self, playwright):
-        """Connects to the browser. Returns (browser, endpoint)."""
+    def open(self, playwright) -> tuple:
+        """Connect to the browser, and return it with its CDP endpoint."""
         browser = playwright.chromium.connect_over_cdp(self.endpoint, slow_mo=self.slow_mo)
         return browser, self.endpoint

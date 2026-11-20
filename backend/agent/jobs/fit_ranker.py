@@ -1,6 +1,8 @@
-"""Ranks postings by how well they fit the applicant (US15)."""
+"""Ranks postings by how well they fit the applicant."""
 import re
 from dataclasses import dataclass, field
+
+from agent.jobs.job_board import Posting
 
 FEED_SIZE = 200       # the most postings one ranking hands back
 MAX_PER_COMPANY = 10  # so one big company can't take over the list
@@ -10,6 +12,10 @@ SKILL_POINTS = 8      # for each skill the posting mentions, up to MAX_SKILLS
 MAX_SKILLS = 4
 LEVEL_POINTS = 18
 PLACE_POINTS = 10
+# The share of an interest's words a title needs before it's named as a reason
+CLOSE_ROLE_SHARE = 0.5
+# Words are cut to this length, so "engineer" and "engineering" count as the same word
+WORD_STEM_LENGTH = 6
 
 SENIOR = re.compile(r"\b(senior|sr|staff|principal|lead|manager|director|head|vp)\b",
                     re.IGNORECASE)
@@ -23,21 +29,21 @@ class Fit:
     """How well one posting fits, and why."""
 
     score: int = 0  # 0 to 100
-    reasons: list = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
 
 
-def key_words(text):
-    """Return the words that say what kind of work a title is, cut short so that
-    "engineer" and "engineering" count as the same word."""
-    return {word[:6] for word in re.findall(r"[a-z+#]+", text.lower())
+def key_words(text: str) -> set[str]:
+    """Return the shortened words that say what kind of work a title is."""
+    return {word[:WORD_STEM_LENGTH] for word in re.findall(r"[a-z+#]+", text.lower())
             if len(word) > 2 and word not in FILLER}
 
 
 class FitRanker:
     """Scores postings against one applicant's skills, interests and places."""
 
-    def __init__(self, skills=(), interests=(), places=(), wants_internship=True,
-                 wants_full_time=True):
+    def __init__(self, skills=(), interests=(), places=(), wants_internship: bool = True,
+                 wants_full_time: bool = True):
+        """Clean up the applicant's skills, interests and places, and build the skill pattern."""
         self.skills = [skill for skill in skills if skill.strip()]
         # One pattern for every skill, longest first so "C++" isn't read as "C"
         longest_first = sorted(map(re.escape, self.skills), key=len, reverse=True)
@@ -50,17 +56,17 @@ class FitRanker:
         self.wants_internship = wants_internship
         self.wants_full_time = wants_full_time
 
-    def fit(self, posting):
+    def fit(self, posting: Posting) -> Fit:
         """Return the posting's Fit."""
         fit = Fit()
-        for points, reason in (self.role(posting), self.skill(posting), self.level(posting),
-                               self.place(posting)):
+        for points, reason in (self._role(posting), self._skill(posting),
+                               self._level(posting), self._place(posting)):
             fit.score += points
             if reason:
                 fit.reasons.append(reason)
         return fit
 
-    def role(self, posting):
+    def _role(self, posting: Posting) -> tuple[int, str]:
         """Score how close the job title is to a role the applicant wants."""
         title = key_words(f"{posting.title} {posting.department}")
         best, share = "", 0.0
@@ -69,9 +75,9 @@ class FitRanker:
             shared = len(words & title) / len(words)
             if shared > share:
                 best, share = interest, shared
-        return round(ROLE_POINTS * share), f"Close to {best}" if share >= 0.5 else ""
+        return round(ROLE_POINTS * share), f"Close to {best}" if share >= CLOSE_ROLE_SHARE else ""
 
-    def skill(self, posting):
+    def _skill(self, posting: Posting) -> tuple[int, str]:
         """Score how many of the applicant's skills the posting mentions."""
         if not self.skills:
             return 0, ""
@@ -80,7 +86,7 @@ class FitRanker:
         found = [skill for skill in self.skills if skill.lower() in mentioned][:MAX_SKILLS]
         return SKILL_POINTS * len(found), "Asks for " + ", ".join(found) if found else ""
 
-    def level(self, posting):
+    def _level(self, posting: Posting) -> tuple[int, str]:
         """Score whether the job is at the applicant's level."""
         if posting.internship:
             return (LEVEL_POINTS, "Internship") if self.wants_internship else (0, "")
@@ -89,16 +95,18 @@ class FitRanker:
         # Someone looking for internships sees those above the full-time jobs
         return LEVEL_POINTS // 2 if self.wants_internship else LEVEL_POINTS, ""
 
-    def place(self, posting):
+    def _place(self, posting: Posting) -> tuple[int, str]:
         """Score whether the job is somewhere the applicant wants to work."""
         location = posting.location.lower()
         if any(place and place in location for place in self.places):
             return PLACE_POINTS, f"In {posting.location}"
         return 0, ""
 
-    def rank(self, postings):
-        """Return up to FEED_SIZE (Fit, Posting) pairs, best fit first and newest first
-        among equals, with no more than MAX_PER_COMPANY from one company."""
+    def rank(self, postings: list[Posting]) -> list[tuple[Fit, Posting]]:
+        """Return up to FEED_SIZE (Fit, Posting) pairs, best fit first, then newest first.
+
+        No more than MAX_PER_COMPANY come from one company.
+        """
         newest = sorted(postings, key=lambda posting: posting.posted_at, reverse=True)
         scored = sorted(((self.fit(posting), posting) for posting in newest),
                         key=lambda pair: pair[0].score, reverse=True)

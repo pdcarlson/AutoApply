@@ -1,11 +1,9 @@
 """Picking a city suggestion in Greenhouse's location box, on a local page that mimics it."""
 import pytest
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import sync_playwright
 
 from agent.forms.form_field import FormField
-from agent.forms.greenhouse_form import GreenhouseForm
-from agent.jobs.job_link import JobLink
+from agent.tests.helpers import bare_form, open_page
 
 # What Greenhouse really suggested for "Mechanicville" on the Cloudflare form
 SUGGESTIONS = ["City of Mechanicville, New York, United States",
@@ -43,31 +41,26 @@ LOCATION = FormField("candidate-location", "Location (City)", "location", True,
 
 @pytest.fixture(name="page")
 def fixture_page():
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
-        page = browser.new_page()
-        page.set_content(PAGE)
-        yield page
-        browser.close()
-
-
-def _form():
-    return GreenhouseForm(JobLink.parse("https://job-boards.greenhouse.io/fakecompany/jobs/1"))
+    """Return a browser page showing the location box."""
+    yield from open_page(PAGE)
 
 
 @pytest.mark.parametrize("value", ["Mechanicville, NY", "Mechanicville, New York",
                                    "mechanicville, ny"])
 def test_picks_the_city_in_the_right_state(page, value):
-    _form().fill(page, LOCATION, value)
+    """The city is picked in the state given, however the state is written."""
+    bare_form().fill(page, LOCATION, value)
     assert page.locator("#picked").inner_text() == "Mechanicville, New York, United States"
 
 
 def test_other_state_by_abbreviation(page):
-    _form().fill(page, LOCATION, "Mechanicville, LA")
+    """A state's abbreviation finds that state's city."""
+    bare_form().fill(page, LOCATION, "Mechanicville, LA")
     assert page.locator("#picked").inner_text() == "Mechanicville, Louisiana, United States"
 
 
 def test_never_picks_a_same_named_city_in_another_state(page):
+    """With no city in the right state, filling fails instead of picking another."""
     with pytest.raises(PlaywrightError, match="No location suggestion matches"):
-        _form().fill(page, LOCATION, "Mechanicville, TX")
+        bare_form().fill(page, LOCATION, "Mechanicville, TX")
     assert page.locator("#picked").inner_text() == ""

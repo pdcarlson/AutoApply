@@ -1,10 +1,8 @@
 """Ticking Greenhouse's checkbox questions, on a local page shaped like the Cloudflare form."""
 import pytest
-from playwright.sync_api import sync_playwright
 
 from agent.forms.form_field import FormField
-from agent.forms.greenhouse_form import GreenhouseForm
-from agent.jobs.job_link import JobLink
+from agent.tests.helpers import bare_form, open_page
 
 TERMS = "question_69554629[]"
 ACK = "question_69554602[]"
@@ -56,24 +54,18 @@ ACK_FIELD = FormField(ACK, "Please review and acknowledge Cloudflare's Candidate
 
 @pytest.fixture(name="page")
 def fixture_page():
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
-        page = browser.new_page()
-        page.set_content(PAGE)
-        yield page
-        browser.close()
-
-
-def _form():
-    return GreenhouseForm(JobLink.parse("https://job-boards.greenhouse.io/fakecompany/jobs/1"))
+    """Return a browser page showing the checkbox form."""
+    yield from open_page(PAGE)
 
 
 def _picked(page, key):
+    """Return the option ids the page's script saw picked for one question."""
     return page.evaluate("key => picked[key] || []", key)
 
 
 def test_ticks_only_the_chosen_box_and_the_page_sees_it(page):
-    form = _form()
+    """Only the chosen box is ticked, and the page's own script sees it."""
+    form = bare_form()
     form.fill(page, TERMS_FIELD, "Summer (May - September 2027)")
     form.fill(page, ACK_FIELD, "Acknowledge/Confirm")
     assert page.locator(f'[id="{TERMS}_754011949"]').is_checked()
@@ -84,7 +76,8 @@ def test_ticks_only_the_chosen_box_and_the_page_sees_it(page):
 
 
 def test_boxes_stay_ticked_after_later_fields_are_filled(page):
-    form = _form()
+    """Filling later fields doesn't untick the boxes."""
+    form = bare_form()
     form.fill(page, TERMS_FIELD, "Summer (May - September 2027)")
     form.fill(page, FormField("first_name", "First Name", "text"), "Test")
     form.fill(page, ACK_FIELD, "Acknowledge/Confirm")
@@ -116,5 +109,5 @@ def test_picks_from_a_dropdown_when_the_question_has_no_checkboxes(page):
     page.set_content(DROPDOWN_PAGE)
     field = FormField("4033069002", "Race or Ethnicity (optional)", "multi_select",
                       options=["South Asian", "I don't wish to answer"])
-    _form().fill(page, field, "I don't wish to answer")
+    bare_form().fill(page, field, "I don't wish to answer")
     assert page.locator('[id="4033069002"]').input_value() == "I don't wish to answer"

@@ -13,7 +13,7 @@ from agent.forms.ashby_questions import fields_from_api
 from agent.forms.form_field import FieldAnswer
 from agent.jobs.job_link import JobLink
 from agent.runner.apply_run import ApplyRun
-from agent.settings import AGENT_DIR
+from agent.tests.helpers import EXAMPLE_PROFILE
 
 FAKE_FORMS = Path(__file__).parent / "fake_forms"
 API_DATA = json.loads((FAKE_FORMS / "ashby_api.json").read_text(encoding="utf-8"))
@@ -32,7 +32,7 @@ def fake_form():
 
 def example_profile(**answers):
     """A fresh copy of the example profile, with saved answers to the given questions."""
-    profile = Profile.load(AGENT_DIR / "applicant" / "example_profile.json")
+    profile = Profile.load(EXAMPLE_PROFILE)
     for question, answer in answers.items():
         profile.save_answer(question, answer)
     return profile

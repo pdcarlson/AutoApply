@@ -3,9 +3,9 @@ import threading
 import time
 
 import pytest
-from fastapi.testclient import TestClient
 
 from server import jobs
+from server.tests.clerk_helpers import signed_in_client
 from server.applications.reasons import WATCHING_CODE, WINDOW_CLOSED
 from server.applications.submitter import REFILLED
 from server.jobs import RESTART_WINDOW_GONE
@@ -93,17 +93,6 @@ def test_cancel_keeps_the_window(client, app):
     apply(client, job_id)
     assert app.state.worker.run_next() == job_id
     assert job_detail(client, job_id)["state"] == "ready" and held(app, job_id) is session
-
-
-@pytest.mark.usefixtures("profile")
-def test_delete_account_keeps_every_window(client, app):
-    """Deleting the account leaves every held window open."""
-    first = make_ready(client, app)
-    second = make_ready(client, app, SECOND_URL)
-    sessions = [held(app, first), held(app, second)]
-    assert client.delete("/api/account").status_code == 204
-    time.sleep(1.5)  # a watch tick or two
-    assert all(s.alive for s in sessions)
 
 
 @pytest.mark.usefixtures("profile")
@@ -265,8 +254,7 @@ def test_a_restart_says_the_watched_window_is_gone(client, app, monkeypatch, mak
     """The window ends with the old process; after a restart the handoff reason says so."""
     job_id = submit_unconfirmed(client, app, monkeypatch)
     restarted = make_app()
-    with TestClient(restarted) as other:
-        other.post("/api/auth/google", json={"returnTo": "/"})
+    with signed_in_client(restarted) as other:
         detail = job_detail(other, job_id)
     assert detail["state"] == "handoff" and detail["reason"] == RESTART_WINDOW_GONE
 
@@ -308,7 +296,7 @@ def test_shutdown_leaves_the_windows_to_the_process(make_app):
     """The lifespan's worker.stop() closes nothing; the windows end with the process (here,
     the test teardown closes them)."""
     app = make_app(start_worker=True)
-    with TestClient(app) as client:
+    with signed_in_client(app) as client:
         set_up_profile(client)
         seed_fake_form_answers(app)
         job = add_job(client)

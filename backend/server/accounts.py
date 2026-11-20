@@ -14,11 +14,10 @@ from server.answer_bank import AnswerBank
 from server.clerk import ClerkUsers, TokenVerifier, bearer_token, unauthenticated
 from server.config import Config
 from server.store import Store
-from server.store_docs import DEMO_USER, default_profile
+from server.store_docs import default_profile
 
 log = logging.getLogger(__name__)
 
-LOCAL_USER_ID = DEMO_USER["id"]
 USERS_DIR = "users"
 # Clerk user ids look like `user_2abcDEF...`. Anything else never becomes a folder name.
 USER_ID = re.compile(r"^[A-Za-z0-9_]{1,80}$")
@@ -37,14 +36,13 @@ class Account:
 class Accounts:
     """The accounts by user id. Thread-safe.
 
-    With AUTH_MODE=local there is one account, "local", whose files sit directly in the data
-    folder and nothing checks who is asking. With AUTH_MODE=clerk the Clerk session token's user
-    id picks the account, whose files live in `<data_dir>/users/<user id>/`; every account on
-    disk is loaded at startup so its queue keeps going after a restart.
+    The Clerk session token's user id picks the account, whose files live in
+    `<data_dir>/users/<user id>/`. Every account on disk is loaded at startup so its queue keeps
+    going after a restart.
     """
 
     def __init__(self, config: Config, make_worker: Callable[[Store, AnswerBank], object],
-                 verifier: TokenVerifier | None = None, clerk_users: ClerkUsers | None = None):
+                 verifier: TokenVerifier, clerk_users: ClerkUsers | None = None):
         self.config = config
         self.verifier = verifier
         self.clerk_users = clerk_users or ClerkUsers()
@@ -52,22 +50,9 @@ class Accounts:
         self._lock = threading.RLock()
         self._accounts: dict[str, Account] = {}
         self._running = False
-        if self.multi_user:
-            for folder in sorted(self._users_dir().glob("*")):
-                if folder.is_dir() and USER_ID.match(folder.name):
-                    self._open(folder.name)
-        else:
-            self._open(LOCAL_USER_ID)
-
-    @property
-    def multi_user(self) -> bool:
-        """Return True with real sign-in, where each user has an account of their own."""
-        return self.config.auth_mode == "clerk"
-
-    @property
-    def local(self) -> Account | None:
-        """Return the one account of AUTH_MODE=local, or None with real sign-in."""
-        return self._accounts.get(LOCAL_USER_ID) if not self.multi_user else None
+        for folder in sorted(self._users_dir().glob("*")):
+            if folder.is_dir() and USER_ID.match(folder.name):
+                self._open(folder.name)
 
     def all(self) -> list[Account]:
         """Return every open account."""
@@ -82,7 +67,7 @@ class Accounts:
 
     def _folder(self, user_id: str) -> Path:
         """Return the data folder of one user."""
-        return self._users_dir() / user_id if self.multi_user else Path(self.config.data_dir)
+        return self._users_dir() / user_id
 
     # ----- opening and closing -----
 
@@ -90,8 +75,6 @@ class Accounts:
         """Load (or create) the account's files and build its worker."""
         store = Store(self._folder(user_id))
         bank = AnswerBank(store)
-        if self.config.seed_bank_from_profile and not self.multi_user:
-            bank.seed_from_profile(self.config.profile_path)  # once per data dir
         with store.tx() as db:  # jobs a previous process left mid-run
             jobs.recover_after_restart(db, store.now())
         account = Account(user_id, store, bank, self._make_worker(store, bank))
@@ -110,12 +93,12 @@ class Accounts:
                 return account
             is_new = not self._folder(user_id).exists()
             account = self._open(user_id)
-        if is_new and self.multi_user:
+        if is_new:
             self._greet(account)
         return account
 
     def _greet(self, account: Account) -> None:
-        """Start a new account with the person's own name and email, not the demo user's."""
+        """Start a new account with the person's name and email from Clerk."""
         who = self.clerk_users.identity(account.user_id)
         with account.store.tx() as db:
             db.state["user"] = {"name": " ".join(filter(None, (who["firstName"], who["lastName"]))),
@@ -126,7 +109,7 @@ class Accounts:
         log.info("New account %s", account.user_id)
 
     def forget(self, user_id: str) -> None:
-        """Remove an account for DELETE /account with real sign-in.
+        """Remove an account for DELETE /account.
 
         Stops the worker, closes its browsers (nobody else can reach them), and removes the
         folder and the Clerk user.
@@ -163,8 +146,6 @@ class Accounts:
 
         `token` is for sockets, which can't send an Authorization header.
         """
-        if not self.multi_user:
-            return self._accounts[LOCAL_USER_ID]
         cached = getattr(connection.state, "account", None)
         if cached is not None:
             return cached

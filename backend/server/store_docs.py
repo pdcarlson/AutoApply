@@ -1,25 +1,21 @@
 """The JSON documents a Store keeps, their default values, and upgrades for older versions."""
 from typing import Any, Callable
 
-from server.names import migrate_profile, split_name
+from server.names import migrate_profile
 from server.self_id import migrate_common_answers
 
 SCHEMA = 1
-DEMO_USER = {"id": "local", "name": "Demo User", "email": "demo@example.com"}
 
 
 def default_state() -> dict:
-    """Return state.json for a new user: signed out, nothing confirmed, an empty queue."""
-    return {"schema": SCHEMA, "signedIn": False, "profileConfirmed": False, "paused": False,
-            "queue": []}
+    """Return state.json for a new user: nothing confirmed, an empty queue."""
+    return {"schema": SCHEMA, "profileConfirmed": False, "paused": False, "queue": []}
 
 
 def default_profile() -> dict:
-    """Return the empty profile the frontend's mock starts with, under the demo user's name."""
-    first, middle, last = split_name(DEMO_USER["name"])
+    """Return the empty profile a new user starts with."""
     return {
-        "firstName": first, "middleName": middle, "lastName": last,
-        "email": DEMO_USER["email"],
+        "firstName": "", "middleName": "", "lastName": "", "email": "",
         "phone": "", "street": "", "street2": "", "city": "", "state": "", "zip": "",
         "country": "United States",
         "links": [

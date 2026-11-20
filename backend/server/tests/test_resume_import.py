@@ -7,10 +7,11 @@ from server import autoapply_modules
 from server.resume.dates import read_dates
 from server.resume.layout import split_line
 from server.resume.mapper import sections_to_profile
+from server.tests.job_helpers import EXAMPLE_PDF
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-# What resumeRead returns for backend/agent/applicant/example_resume.pdf.
+# What resumeRead returns for backend/test_fixtures/example_resume.pdf.
 EXAMPLE_OTHER = [
     "Jordan Rivera",
     "jordan.rivera@example.com | (555) 010-4477 | Poughkeepsie, NY",
@@ -353,10 +354,9 @@ def test_split_line_takes_a_right_hand_date_column():
 
 def test_example_resume_pdf_parses():
     """The example resume PDF reads into the expected lines."""
-    pdf = Path(__file__).resolve().parents[2] / "agent" / "applicant" / "example_resume.pdf"
-    sections = autoapply_modules.read_resume(pdf)
+    sections = autoapply_modules.read_resume(EXAMPLE_PDF)
     assert sections["Other"] == EXAMPLE_OTHER
-    assert autoapply_modules.page_count(pdf) == 1
+    assert autoapply_modules.page_count(EXAMPLE_PDF) == 1
 
 
 def test_header_fixture_pdf_parses_with_case_insensitive_headers(header_resume_pdf):

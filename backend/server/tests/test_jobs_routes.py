@@ -3,9 +3,9 @@ import json
 import urllib.error
 
 import pytest
-from fastapi.testclient import TestClient
 
 from server import jobs
+from server.tests.clerk_helpers import signed_in_client
 from server.job_queue import JobQueue
 from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, FAKE_URL, add_job, apply,
                                       job_detail, refuse_network, set_up_profile)
@@ -21,9 +21,9 @@ def fixture_offline(monkeypatch):
     refuse_network(monkeypatch)
 
 
-def test_add_fake_greenhouse_job(signed_in, app):
+def test_add_fake_greenhouse_job(client, app):
     """Adding the fake link reads its form, counts what's uncovered, and stores the link."""
-    job = add_job(signed_in)
+    job = add_job(client)
     assert set(job) == JOB_KEYS
     assert job["company"] == "Fake Company"
     assert job["role"] == "Software Engineering Intern"
@@ -44,9 +44,9 @@ def test_add_fake_greenhouse_job(signed_in, app):
                                           "pasted": FAKE_URL}
     assert stored["internal"]["jobData"]["id"] == 1001
     assert stored["timeline"][0]["text"] == "You added the link"
-    listed = signed_in.get("/api/jobs").json()
+    listed = client.get("/api/jobs").json()
     assert [j["id"] for j in listed] == [job["id"]] and set(listed[0]) == JOB_KEYS
-    detail = job_detail(signed_in, job["id"])
+    detail = job_detail(client, job["id"])
     assert detail["fields"] == [] and detail["currentField"] is None
     assert "internal" not in detail and "timeline" not in detail
 
@@ -64,10 +64,10 @@ def test_form_summary_counts_profile_and_bank(client, app):
                                         "Answer bank yet")
 
 
-def test_duplicate_link_is_already_in_inbox(signed_in):
+def test_duplicate_link_is_already_in_inbox(client):
     """Another link to a posting already in the Inbox is a 409 that names the job."""
-    job = add_job(signed_in)
-    again = signed_in.post("/api/jobs", json={
+    job = add_job(client)
+    again = client.post("/api/jobs", json={
         "url": "https://boards.greenhouse.io/fakecompany/jobs/1001"})
     assert again.status_code == 409
     body = again.json()
@@ -76,13 +76,13 @@ def test_duplicate_link_is_already_in_inbox(signed_in):
                                "role": "Software Engineering Intern", "jobId": job["id"]}
 
 
-def test_already_applied(signed_in, app):
+def test_already_applied(client, app):
     """A posting already applied to is a 409 that says when it was sent."""
     with app.state.store.tx() as db:
         db.applications.append({"id": "app-x", "url": FAKE_URL, "company": "Fake Company",
                                 "role": "Software Engineering Intern", "submittedBy": "agent",
                                 "submittedAt": "2026-10-20T13:41:00Z"})
-    response = signed_in.post("/api/jobs", json={"url": FAKE_URL})
+    response = client.post("/api/jobs", json={"url": FAKE_URL})
     assert response.status_code == 409
     assert response.json()["details"] == {
         "code": "already_applied", "company": "Fake Company",
@@ -97,41 +97,41 @@ def test_already_applied(signed_in, app):
     ("ftp://job-boards.greenhouse.io/fakecompany/jobs/1001", "invalid_url"),
     ("https://app.ashbyhq.com/x", "invalid_url"),
 ])
-def test_rejected_links(signed_in, url, code):
+def test_rejected_links(client, url, code):
     """Links that aren't a supported job posting are refused with the right code."""
-    response = signed_in.post("/api/jobs", json={"url": url})
+    response = client.post("/api/jobs", json={"url": url})
     assert response.status_code == 422
     assert response.json()["code"] == code
-    assert signed_in.get("/api/jobs").json() == []
+    assert client.get("/api/jobs").json() == []
 
 
-def test_unsupported_site_message_names_the_host(signed_in):
+def test_unsupported_site_message_names_the_host(client):
     """The unsupported-site message names the host."""
-    body = signed_in.post("/api/jobs", json={"url": "https://www.linkedin.com/jobs/view/1"}).json()
+    body = client.post("/api/jobs", json={"url": "https://www.linkedin.com/jobs/view/1"}).json()
     assert body["message"] == ("Auto Apply adds jobs from Greenhouse and Ashby links. "
                                "This one is from www.linkedin.com.")
 
 
-def test_real_greenhouse_closed_posting(signed_in, monkeypatch):
+def test_real_greenhouse_closed_posting(client, monkeypatch):
     """A real (non-fake) Greenhouse posting that the Job Board API 404s is posting_closed."""
     def gone(url, timeout):
         raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
     monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", gone)
-    response = signed_in.post("/api/jobs", json={
+    response = client.post("/api/jobs", json={
         "url": "https://job-boards.greenhouse.io/othercompany/jobs/42"})
     assert response.status_code == 422 and response.json()["code"] == "posting_closed"
 
     def broken(url, timeout):
         raise urllib.error.URLError("offline")
     monkeypatch.setattr("agent.forms.greenhouse_form.urlopen", broken)
-    response = signed_in.post("/api/jobs", json={
+    response = client.post("/api/jobs", json={
         "url": "https://job-boards.greenhouse.io/othercompany/jobs/42"})
     assert response.status_code == 502 and response.json()["code"] == "fetch_failed"
 
 
-def test_add_ashby_job(signed_in):
+def test_add_ashby_job(client):
     """An Ashby link's form is read like a Greenhouse one: title, location and question count."""
-    job = add_job(signed_in, FAKE_ASHBY_URL)
+    job = add_job(client, FAKE_ASHBY_URL)
     assert job["ats"] == "Ashby" and job["company"] == "Fakecompany"
     assert job["role"] == "Software Engineering Intern" and job["location"] == "Troy, NY"
     assert job["formSummary"]["totalFields"] == 12
@@ -139,21 +139,21 @@ def test_add_ashby_job(signed_in):
 
 
 @pytest.mark.usefixtures("unfillable")
-def test_add_job_on_a_site_the_agent_cant_fill(signed_in):
+def test_add_job_on_a_site_the_agent_cant_fill(client):
     """A site the agent can't fill is added with a warning, to finish on the site."""
-    job = add_job(signed_in, ASHBY_URL)
+    job = add_job(client, ASHBY_URL)
     assert job["ats"] == "Ashby" and job["company"] == "Acme" and job["role"] == "Ashby posting"
     assert job["formSummary"] is None and job["location"] == ""
     assert job["checks"] == [{"status": "warn", "text": "AutoApply can't fill Ashby forms yet. "
                                                         "You'll finish this one on the site."}]
 
 
-def test_apply_needs_a_confirmed_profile(signed_in):
+def test_apply_needs_a_confirmed_profile(client):
     """Apply is refused until the profile is confirmed."""
-    job = add_job(signed_in)
-    response = signed_in.post("/api/jobs/apply", json={"jobIds": [job["id"]]})
+    job = add_job(client)
+    response = client.post("/api/jobs/apply", json={"jobIds": [job["id"]]})
     assert response.status_code == 409 and response.json()["code"] == "profile_not_confirmed"
-    assert job_detail(signed_in, job["id"])["state"] == "open"
+    assert job_detail(client, job["id"])["state"] == "open"
 
 
 def test_apply_queues_the_job(client):
@@ -250,20 +250,20 @@ def test_skip_and_restore(client):
     assert client.post(f"/api/jobs/{job['id']}/restore").status_code == 404
 
 
-def test_adding_a_skipped_link_restores_it(signed_in):
+def test_adding_a_skipped_link_restores_it(client):
     """Adding a skipped job's link again restores it."""
-    job = add_job(signed_in)
-    signed_in.post(f"/api/jobs/{job['id']}/skip")
-    again = signed_in.post("/api/jobs", json={"url": FAKE_URL})
+    job = add_job(client)
+    client.post(f"/api/jobs/{job['id']}/skip")
+    again = client.post("/api/jobs", json={"url": FAKE_URL})
     assert again.status_code == 201
     assert again.json()["id"] == job["id"] and again.json()["state"] == "open"
 
 
-def test_unknown_job_ids_are_404(signed_in):
+def test_unknown_job_ids_are_404(client):
     """Unknown job ids are 404 not_found."""
     for method, path in [("get", "/api/jobs/job-nope"), ("post", "/api/jobs/job-nope/skip"),
                          ("post", "/api/jobs/job-nope/restore")]:
-        response = getattr(signed_in, method)(path)
+        response = getattr(client, method)(path)
         assert response.status_code == 404 and response.json()["code"] == "not_found"
 
 
@@ -281,17 +281,17 @@ def _running_job(job_id: str, phase: str) -> dict:
                          "runId": "run-old", "cancelRequested": False}}
 
 
-def test_restart_recovery(data_dir, make_app):
+def test_restart_recovery(user_dir, make_app):
     """A restart queues interrupted fills first and hands off interrupted submits."""
-    data_dir.mkdir(parents=True)
+    user_dir.mkdir(parents=True)
     other = {**_running_job("job-other", "filling"), "state": "queued", "phase": None}
-    (data_dir / "jobs.json").write_text(json.dumps([
+    (user_dir / "jobs.json").write_text(json.dumps([
         other, _running_job("job-filling", "filling"), _running_job("job-sending", "submitting"),
     ]), encoding="utf-8")
-    (data_dir / "state.json").write_text(json.dumps({"queue": ["job-other", "job-filling"]}),
+    (user_dir / "state.json").write_text(json.dumps({"queue": ["job-other", "job-filling"]}),
                                          encoding="utf-8")
     app = make_app()
-    with TestClient(app) as client:
+    with signed_in_client(app) as client:
         assert client.get("/api/agent/status").json()["queue"] == ["job-filling", "job-other"]
         filling = job_detail(client, "job-filling")
         assert filling["state"] == "queued" and filling["phase"] is None
@@ -302,5 +302,5 @@ def test_restart_recovery(data_dir, make_app):
         assert sending["reason"] == "The server restarted while submitting; check the site"
     stored = {j["id"]: j for j in app.state.store.read("jobs")}
     assert stored["job-filling"]["internal"]["runId"] is None
-    assert json.loads((data_dir / "jobs.json").read_text(encoding="utf-8"))[1]["state"] \
+    assert json.loads((user_dir / "jobs.json").read_text(encoding="utf-8"))[1]["state"] \
         == "queued"

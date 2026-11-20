@@ -3,10 +3,10 @@ import time
 import urllib.request
 
 import pytest
-from fastapi.testclient import TestClient
 from playwright.sync_api import Page
 
-from server.agent_bridge import FAKE_FORMS
+from server.tests.clerk_helpers import signed_in_client
+from server.tests.fake_site import FAKE_FORMS
 from server.tests.job_helpers import (FAKE_URL, SPONSORSHIP, WHY_HERE, add_job, apply,
                                       upload_resume, wait_for_state)
 
@@ -49,7 +49,7 @@ def fixture_opened_urls(monkeypatch):
 def fixture_live(make_app, network_calls):  # pylint: disable=unused-argument  # it cuts the network
     """An app whose AgentWorker thread is running, and a client for it."""
     app = make_app(start_worker=True)
-    with TestClient(app) as client:
+    with signed_in_client(app) as client:
         assert app.state.worker.alive
         yield app, client
     assert not app.state.worker.alive
@@ -75,9 +75,7 @@ def ok(response, status=200):
 
 
 def set_up(client):
-    """Steps 1-5: sign in, resume, profile country, common answers, confirm."""
-    assert client.get("/api/session").status_code == 401
-    ok(client.post("/api/auth/google", json={"returnTo": "/"}))
+    """Steps 1-5: session, resume, profile country, common answers, confirm."""
     assert ok(client.get("/api/session"))["profileConfirmed"] is False
 
     parse = upload_resume(client)

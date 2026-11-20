@@ -32,7 +32,7 @@ def export_account(request: Request, store: Store = Depends(get_store)):
             "commonAnswers": db.common_answers,
             "preferences": db.preferences,
             "settings": db.settings,
-            "answers": bank.list() if bank is not None else [],
+            "answers": bank.list(),
             "applications": [
                 {k: v for k, v in _public(app).items() if k != "screenshotUrl"}
                 for app in db.applications
@@ -48,24 +48,15 @@ def export_account(request: Request, store: Store = Depends(get_store)):
 
 
 @router.delete("/account", status_code=204)
-def delete_account(request: Request, store: Store = Depends(get_store)):
-    """Delete everything in the data folder but .gitignore and sign the user out.
+def delete_account(request: Request):
+    """Delete the whole account: its folder, its browsers and the Clerk user.
 
-    The current run, if any, is told to stop; its job is gone once the wipe is done. Filled
-    form windows are left open (the software never closes one before it is submitted); they
-    are no longer tied to any job, and the person closes them.
-
-    With real sign-in (AUTH_MODE=clerk) the whole account goes: its folder, its browsers
-    (nobody else could close them on a server) and the Clerk user.
+    The current run, if any, is told to stop. The browsers go too, as nobody else could close
+    them on a server.
     """
     account = get_account(request)
-    worker = account.worker
-    worker.cancel_current()
-    store.wipe()
-    accounts = request.app.state.accounts
-    if accounts.multi_user:
-        accounts.forget(account.user_id)
-    else:
-        worker.wake()
+    account.worker.cancel_current()
+    account.store.wipe()  # drops the current run's result: its job is gone
+    request.app.state.accounts.forget(account.user_id)
     log.info("Account data deleted")
     return Response(status_code=204)

@@ -33,7 +33,7 @@ class RunSetup:
                 raise KeyError(job_id)
             snapshot = {"internal": dict(job["internal"]), "company": job.get("company", "")}
             threshold = int(db.settings["confidenceThreshold"])
-        form = make_form(snapshot, self.config)
+        form = make_form(snapshot)
         profile, ids = build_agent_profile(self.store, self.bank, snapshot["company"])
         ask = cached_claude(self.store, job_id) if self.config.claude_enabled else no_claude
         answerer = Answerer(profile, ask, threshold=threshold)

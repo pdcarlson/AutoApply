@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Iterator
 
 AUTOAPPLY_DIR = Path(__file__).resolve().parents[1] / "AutoApply"
-# The folder is a flat set of scripts with bare imports (`import AnswerBankManager`), run as
-# `python main.py` from inside it. Appending it to sys.path (rather than making it a package)
-# keeps that working, and its `tests`, `main` and `User` never shadow anything of ours.
+# The folder is a flat set of scripts with bare imports (`import AnswerBankManager`).
+# Appending it to sys.path (rather than making it a package) keeps those working, and its
+# `User` never shadows anything of ours.
 if str(AUTOAPPLY_DIR) not in sys.path:
     sys.path.append(str(AUTOAPPLY_DIR))
 

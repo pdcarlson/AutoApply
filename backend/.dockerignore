@@ -5,5 +5,4 @@ data
 **/.idea
 agent/.env
 agent/runs
-server/e2e
 *.pyc

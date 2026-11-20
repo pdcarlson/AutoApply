@@ -10,7 +10,6 @@ from server import jobs
 from server.agent_bridge import link_to_dict, make_form, no_claude
 from server.agent_profile import build_agent_profile
 from server.answer_bank import AnswerBank
-from server.config import Config
 from server.errors import ApiError
 from server.jobs import EventKind, JobState
 from server.store import Db, Store, new_id
@@ -26,10 +25,9 @@ FETCH_FAILED = "Couldn't load that posting from the site. Try again in a minute.
 class JobIntake:  # pylint: disable=too-few-public-methods  # one entry point: add
     """Turns pasted links and job board picks into Inbox jobs for one user."""
 
-    def __init__(self, store: Store, bank: AnswerBank, config: Config):
+    def __init__(self, store: Store, bank: AnswerBank):
         self.store = store
         self.bank = bank
-        self.config = config
 
     def add(self, url: str, posted_at: str | None = None) -> dict:
         """Add the posting at `url` to the Inbox and return its record.
@@ -57,8 +55,7 @@ class JobIntake:  # pylint: disable=too-few-public-methods  # one entry point: a
     def _form_details(self, link: JobLink, ats: str) -> dict:
         """Read the form and work out the Inbox details for it."""
         try:
-            form = make_form({"internal": {"link": link_to_dict(link), "jobData": None}},
-                             self.config)
+            form = make_form({"internal": {"link": link_to_dict(link), "jobData": None}})
         except UnsupportedLink:
             return _handoff_details(link, ats)
         try:

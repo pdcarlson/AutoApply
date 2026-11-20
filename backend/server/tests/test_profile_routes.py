@@ -1,9 +1,9 @@
 """Resume upload and parse, profile and confirm routes."""
 import io
 import time
-from pathlib import Path
 
-EXAMPLE_PDF = Path(__file__).resolve().parents[2] / "agent" / "applicant" / "example_resume.pdf"
+from server.tests.job_helpers import EXAMPLE_PDF
+
 PDF = "application/pdf"
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -171,11 +171,11 @@ def test_coursework_without_education_becomes_a_custom_field(client, app):
                                   "value": "Compilers"}]
 
 
-def test_confirm_profile(signed_in):
+def test_confirm_profile(client):
     """Confirming the profile shows in the session."""
-    response = signed_in.post("/api/profile/confirm")
+    response = client.post("/api/profile/confirm")
     assert response.status_code == 200 and response.json()["profileConfirmed"] is True
-    assert signed_in.get("/api/session").json()["profileConfirmed"] is True
+    assert client.get("/api/session").json()["profileConfirmed"] is True
 
 
 def test_docx_resume_parses(client):
@@ -208,10 +208,10 @@ def test_docx_resume_parses(client):
     assert profile["skills"] == ["Python", "R", "LaTeX"]
 
 
-def test_delete_account_removes_the_resume(signed_in, app):
+def test_delete_account_removes_the_resume(client, app):
     """Delete account removes the resume."""
-    _upload_example(signed_in)
-    assert signed_in.delete("/api/account").status_code == 204
+    _upload_example(client)
+    assert client.delete("/api/account").status_code == 204
     assert not app.state.store.path("resume").exists()
-    assert signed_in.get("/api/resume/parse").status_code == 404
-    assert signed_in.get("/api/profile").json()["resume"] is None
+    assert client.get("/api/resume/parse").status_code == 404
+    assert client.get("/api/profile").json()["resume"] is None

@@ -94,7 +94,5 @@ def health(config: Config = Depends(get_config)):
     return {
         "ok": True,
         "submitRealForm": config.submit_real_form,
-        "fakeGreenhouse": config.fake_greenhouse,
         "claude": config.claude_enabled,
-        "authMode": config.auth_mode,
     }

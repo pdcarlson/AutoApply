@@ -8,9 +8,10 @@ import pytest
 
 from server import autoapply_modules
 from server.common_answers import COMMON_QUESTION_KEYS
-from server.tests.conftest import AUTOAPPLY_BANK, file_digest
+from server.tests.job_helpers import EXAMPLE_PDF
 
 ABM = autoapply_modules.AnswerBankManager
+USER = autoapply_modules.Onboarding.User
 
 
 @pytest.fixture(name="bank_file")
@@ -22,9 +23,8 @@ def fixture_bank_file(tmp_path, monkeypatch):
     return path
 
 
-def test_default_bank_path_is_next_to_the_module():
+def test_folder_is_appended_to_sys_path():
     """The folder is appended to sys.path, after everything of ours."""
-    assert autoapply_modules.AUTOAPPLY_DIR.joinpath("Bank.json").samefile(AUTOAPPLY_BANK)
     assert str(autoapply_modules.AUTOAPPLY_DIR) in sys.path
     assert sys.path.index(str(autoapply_modules.AUTOAPPLY_DIR)) > 0  # appended, never shadows
 
@@ -106,6 +106,30 @@ def test_autoapply_folder_still_imports_on_its_own():
     assert result.returncode == 0, result.stderr
 
 
-def test_bank_json_is_unchanged_so_far(autoapply_bank_untouched):
-    """The session fixture checks again at the very end."""
-    assert file_digest(AUTOAPPLY_BANK) == autoapply_bank_untouched != "missing"
+# ----- the checks from the AutoApply folder's own tests.py -----
+
+def test_read_resume_returns_its_lines():
+    """resumeRead reads the example resume into sections of text lines."""
+    resume = autoapply_modules.resumeRead.readResume(str(EXAMPLE_PDF))
+    assert resume is not None and resume["Other"]
+    assert all(isinstance(line, str) for lines in resume.values() for line in lines)
+
+
+def test_onboarding_asks_the_first_two_questions(bank_file, monkeypatch):
+    """Asking questions 0 and 1 for the test user saves both replies."""
+    monkeypatch.setattr("builtins.input", lambda *args: "x")
+    user_id = USER.getTestUserID()
+    autoapply_modules.Onboarding.askQuestion(user_id, "0")
+    autoapply_modules.Onboarding.askQuestion(user_id, "1")
+    assert ABM.LoadUser(user_id) == {"Name": "x", "Age": "x"}
+
+
+def test_saved_resume_sections_load_back_and_clear(bank_file):
+    """A whole resume saved for the test user loads back by section, and clearing empties it."""
+    user_id = USER.getTestUserID()
+    resume = autoapply_modules.resumeRead.readResume(str(EXAMPLE_PDF))
+    ABM.SaveResponseDictionary(user_id, resume)
+    for header, lines in resume.items():
+        assert ABM.LoadData(user_id, header) == lines
+    ABM.ClearUser(user_id)
+    assert ABM.LoadUser(user_id) == {}

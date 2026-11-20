@@ -79,8 +79,7 @@ def test_preferences_round_trip(client):
 def test_health(client):
     """GET /health answers ok, with the switches the server runs with."""
     body = client.get("/api/health").json()
-    assert body == {"ok": True, "submitRealForm": False, "fakeGreenhouse": True, "claude": False,
-                    "authMode": "local"}
+    assert body == {"ok": True, "submitRealForm": False, "claude": False}
 
 
 def test_use_claude_switch(monkeypatch, tmp_path):

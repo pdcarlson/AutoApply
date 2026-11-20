@@ -2,8 +2,8 @@
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 
+from server.tests.clerk_helpers import signed_in_client
 from server.names import full_name, migrate_profile, split_name
 from server.store import Store
 
@@ -60,13 +60,12 @@ def test_store_migrates_a_legacy_profile_on_load(tmp_path):
     assert "name" not in saved and saved["firstName"] == "Jordan"
 
 
-def test_legacy_profile_works_through_the_api(make_app, data_dir):
+def test_legacy_profile_works_through_the_api(make_app, user_dir):
     """A profile with a single name reads through the API as three."""
-    data_dir.mkdir(parents=True, exist_ok=True)
-    (data_dir / "profile.json").write_text(json.dumps({"name": "Mary Ann Smith"}),
+    user_dir.mkdir(parents=True, exist_ok=True)
+    (user_dir / "profile.json").write_text(json.dumps({"name": "Mary Ann Smith"}),
                                            encoding="utf-8")
-    with TestClient(make_app()) as client:
-        client.post("/api/auth/google", json={"returnTo": "/"})
+    with signed_in_client(make_app()) as client:
         profile = client.get("/api/profile").json()
         assert (profile["firstName"], profile["middleName"], profile["lastName"]) == (
             "Mary", "Ann", "Smith")

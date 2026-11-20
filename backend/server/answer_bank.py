@@ -1,7 +1,6 @@
 """The Answer bank: one user's saved answers, stored through the AutoApply AnswerBankManager."""
 from __future__ import annotations  # the `list` method would shadow list[...] annotations
 
-import json
 import logging
 from datetime import timedelta
 from pathlib import Path
@@ -12,16 +11,14 @@ from server import autoapply_modules
 from server.answer_record import (ANSWER_CATEGORIES, AnswerOrigin, AnswerRecord, clean_company,
                                   guess_category, same_company)
 from server.store import Store, new_id, parse_iso
-from server.store_docs import DEMO_USER
 
 __all__ = ["ANSWER_CATEGORIES", "AnswerBank", "guess_category", "same_company"]
 
 log = logging.getLogger(__name__)
 
-USER = DEMO_USER["id"]
+USER = "local"  # the one key each user's own bank file keeps its answers under
 USED_ON_CAP = 20
 RECENT = timedelta(hours=24)
-IMPORT_SOURCE = "Imported from your agent profile"
 
 
 class AnswerBank:
@@ -252,35 +249,3 @@ class AnswerBank:
         wanted = normalize(wording)
         return wanted == normalize(record.question) or any(
             normalize(match.get("wording", "")) == wanted for match in record.also_matches)
-
-    # ----- one-time import -----
-
-    def seed_from_profile(self, profile_path: Path | str) -> int:
-        """Import an agent profile JSON's `answers` into an empty bank; return how many.
-
-        Runs once per data folder (marked by `state.bankSeeded`) and never writes that file.
-        """
-        with self.store.tx() as db:
-            if db.state.get("bankSeeded"):
-                return 0
-            db.state["bankSeeded"] = True
-            if not self.is_empty():
-                return 0
-            try:
-                data = json.loads(Path(profile_path).read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                log.warning("Couldn't read %s for the Answer bank import", profile_path)
-                return 0
-            items = data.get("answers") if isinstance(data, dict) else None
-            count = 0
-            for item in items or []:
-                if not isinstance(item, dict):
-                    continue
-                question = str(item.get("question") or "").strip()
-                answer = str(item.get("answer") or "").strip()
-                if question and answer:
-                    self.create({"question": question, "answer": answer},
-                                origin=AnswerOrigin.IMPORT, source=IMPORT_SOURCE)
-                    count += 1
-            log.info("Imported %d answers from the agent profile into the Answer bank", count)
-            return count

@@ -31,8 +31,7 @@ RUN useradd --create-home --uid 1000 app \
 
 ENV AUTOAPPLY_HOST=0.0.0.0 \
     AUTOAPPLY_PORT=8080 \
-    AUTOAPPLY_DATA_DIR=/data \
-    AUTH_MODE=clerk
+    AUTOAPPLY_DATA_DIR=/data
 
 VOLUME /data
 EXPOSE 8080

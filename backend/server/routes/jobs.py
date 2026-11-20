@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 from server import jobs
 from server.accounts import get_bank, get_worker
-from server.config import Config, get_config
 from server.errors import ApiError, not_found
 from server.job_intake import JobIntake
 from server.job_queue import JobQueue
@@ -44,10 +43,9 @@ def get_job(job_id: str, store: Store = Depends(get_store)):
 
 
 @router.post("/jobs", status_code=201)
-def add_job(body: AddJobBody, request: Request, store: Store = Depends(get_store),
-            config: Config = Depends(get_config)):
+def add_job(body: AddJobBody, request: Request, store: Store = Depends(get_store)):
     """Add a pasted job link to the Inbox."""
-    return jobs.to_api_job(JobIntake(store, get_bank(request), config).add(body.url))
+    return jobs.to_api_job(JobIntake(store, get_bank(request)).add(body.url))
 
 
 @router.post("/jobs/apply")

@@ -12,7 +12,6 @@ import agent.settings as agent_settings
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_DIR = BACKEND_DIR / "data"
 DEFAULT_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
-AUTH_MODES = ("local", "clerk")
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -45,21 +44,15 @@ class Config:  # pylint: disable=too-many-instance-attributes
     port: int = 8080
     submit_real_form: bool = False
     claude_enabled: bool = False
-    profile_path: Path = agent_settings.PROFILE_PATH
-    fake_greenhouse: bool = False
     show_browser: bool = False
     slow_mo_ms: int = 0
     resume_parse_step_ms: int = 300
-    seed_bank_from_profile: bool = False
     # After Submit, how long the request waits for the thank-you page before it answers (the
     # job then goes to `handoff`, and the open window keeps being watched with no time limit).
     confirm_timeout_s: int = 90
     # The CDP address of a Chromium running somewhere else (agent.browser.RemoteBrowser). Empty:
     # each run launches its own Chromium on this machine.
     browser_cdp_url: str = ""
-    # "local": one user, no real sign-in (the demo on your own machine). "clerk": many users;
-    # every request carries a Clerk session token and each user has their own data folder.
-    auth_mode: str = "local"
     clerk_publishable_key: str = ""
     clerk_secret_key: str = ""
     clerk_issuer: str = ""  # derived from the publishable key when empty
@@ -76,14 +69,6 @@ def _env_list(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return items or default
 
 
-def _auth_mode() -> str:
-    """Return AUTH_MODE ("local" or "clerk"); raise ValueError for anything else."""
-    mode = (os.getenv("AUTH_MODE") or "local").strip().lower()
-    if mode not in AUTH_MODES:
-        raise ValueError(f"AUTH_MODE must be one of {AUTH_MODES}, got {mode!r}")
-    return mode
-
-
 def load_config(data_dir: Path | str | None = None) -> Config:
     """Return a Config from the current environment; `data_dir` overrides AUTOAPPLY_DATA_DIR."""
     if data_dir is None:
@@ -97,15 +82,11 @@ def load_config(data_dir: Path | str | None = None) -> Config:
         # USE_CLAUDE=false turns Claude off even when agent/.env has a key: Windows shells
         # can't set ANTHROPIC_API_KEY to an empty value (they delete it, and .env fills it in).
         claude_enabled=bool(os.getenv("ANTHROPIC_API_KEY")) and _env_bool("USE_CLAUDE", True),
-        profile_path=Path(agent_settings.PROFILE_PATH),
-        fake_greenhouse=_env_bool("FAKE_GREENHOUSE", False),
         show_browser=_env_bool("AGENT_SHOW_BROWSER", False),
         slow_mo_ms=_env_int("AGENT_SLOW_MO_MS", 0),
         resume_parse_step_ms=_env_int("RESUME_PARSE_STEP_MS", 300),
-        seed_bank_from_profile=_env_bool("SEED_BANK_FROM_PROFILE", False),
         confirm_timeout_s=_env_int("CONFIRM_TIMEOUT_S", 90),
         browser_cdp_url=(os.getenv("BROWSER_CDP_URL") or "").strip(),
-        auth_mode=_auth_mode(),
         # The Next.js-style name is accepted too, as Clerk's dashboard offers it.
         clerk_publishable_key=(os.getenv("CLERK_PUBLISHABLE_KEY")
                                or os.getenv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY") or "").strip(),

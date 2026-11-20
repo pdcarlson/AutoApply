@@ -3,7 +3,6 @@ import copy
 
 import pytest
 
-from agent.__main__ import review_and_submit
 from agent.answers.answerer import Answerer
 from agent.forms.greenhouse_form import GreenhouseForm
 from agent.forms.protected import (CAPTCHA, LOGIN, PASSWORD, SSN, CaptchaCheck, LoginCheck,
@@ -115,17 +114,3 @@ def test_protected_question_is_never_answered_or_asked(tmp_path):
     assert not result.questions
     assert all(form_field.key != "question_2099" for form_field, _answer in result.answered)
     assert [handoff.kind for handoff in result.protected] == [SSN]
-
-
-def test_terminal_review_never_presses_submit_on_a_protected_form(tmp_path, monkeypatch):
-    """Even typing "submit" in the terminal doesn't send a form with a protected step."""
-    result = ApplyRun(answerer(), tmp_path, hold=True, detector=fake_detector()).run(
-        protected_form("captcha"))
-    held = result.held
-    monkeypatch.setattr("builtins.input", lambda prompt="": "submit")
-    monkeypatch.setattr(held, "submit", lambda *a, **k: (_ for _ in ()).throw(AssertionError))
-    try:
-        assert review_and_submit(result).status == "handoff"
-        assert held.closed  # after the applicant said they were done with it
-    finally:
-        held.close()

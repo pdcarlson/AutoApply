@@ -4,9 +4,9 @@ import copy
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile
 from agent.forms.form_field import FieldAnswer, FormField
-from agent.settings import AGENT_DIR
+from agent.tests.helpers import EXAMPLE_PROFILE
 
-PROFILE = Profile.load(AGENT_DIR / "applicant" / "example_profile.json")
+PROFILE = Profile.load(EXAMPLE_PROFILE)
 SPONSORSHIP = FormField("question_1", "Do you need sponsorship?", "select", True, ["Yes", "No"])
 
 

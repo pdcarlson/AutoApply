@@ -142,30 +142,6 @@ def test_saved_recently_expires_after_a_day(app):
     assert bank.get(created["id"])["savedRecently"] is False
 
 
-def test_seed_import_from_profile_reads_but_never_writes_it(make_app, tmp_path, monkeypatch):
-    """Seed import from profile reads but never writes it."""
-    profile = tmp_path / "profile.json"
-    text = json.dumps({"first_name": "A", "answers": [
-        {"question": "How did you hear about this job?", "answer": "LinkedIn"},
-        {"question": "Are you over 18?", "answer": "Yes"}]})
-    profile.write_text(text, encoding="utf-8")
-    monkeypatch.setenv("SEED_BANK_FROM_PROFILE", "true")
-
-    from server.config import load_config  # pylint: disable=import-outside-toplevel  # only this test needs it
-    config = load_config(tmp_path / "data")
-    config.profile_path = profile
-    app = make_app(config=config)
-    answers = app.state.answer_bank.list()
-    assert {a["question"] for a in answers} == {"How did you hear about this job?",
-                                                "Are you over 18?"}
-    assert all(a["source"] == "Imported from your agent profile" for a in answers)
-    assert profile.read_text(encoding="utf-8") == text
-    for answer in answers:
-        app.state.answer_bank.delete(answer["id"])
-    again = make_app(config=config)  # once per data dir: an emptied bank stays empty
-    assert again.state.answer_bank.list() == []
-
-
 def test_guess_category():
     """Questions get the category their keywords suggest."""
     assert guess_category("Will you require visa sponsorship?") == "Eligibility"
@@ -176,18 +152,8 @@ def test_guess_category():
     assert guess_category("Why do you want to work here?") == "Experience"
 
 
-def test_export_includes_answers(signed_in):
+def test_export_includes_answers(client):
     """Export includes answers."""
-    _add(signed_in)
-    exported = signed_in.get("/api/account/export").json()
+    _add(client)
+    exported = client.get("/api/account/export").json()
     assert len(exported["answers"]) == 1 and set(exported["answers"][0]) == ANSWER_KEYS
-
-
-def test_bank_starts_empty_by_default(make_app, tmp_path, monkeypatch):
-    """The example profile's answers are test data; they must never appear in a user's bank."""
-    monkeypatch.delenv("SEED_BANK_FROM_PROFILE", raising=False)
-    from server.config import load_config  # pylint: disable=import-outside-toplevel  # only this test needs it
-    config = load_config(tmp_path / "data")
-    assert config.seed_bank_from_profile is False
-    app = make_app(config=config)
-    assert app.state.answer_bank.list() == []

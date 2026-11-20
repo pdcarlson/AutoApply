@@ -4,9 +4,8 @@ import json
 from agent.answers.answerer import Answerer
 from agent.applicant.profile import Profile
 from agent.runner.apply_run import ApplyRun
-from agent.settings import AGENT_DIR
-from agent.tests.helpers import (WHY_HERE, Recorder, example_profile, fake_claude, fake_form,
-                                 spy_on_browsers)
+from agent.tests.helpers import (EXAMPLE_PROFILE, WHY_HERE, Recorder, example_profile,
+                                 fake_claude, fake_form, spy_on_browsers)
 
 
 def test_events_arrive_in_order_and_filled_screenshot_is_taken(tmp_path):
@@ -105,7 +104,7 @@ def test_unknown_yes_no_facts_and_extra_facts():
 def test_save_leaves_out_empty_extra_facts(tmp_path):
     """Saving the example profile never adds an extra_facts or middle_name key, and a set one
     round-trips."""
-    profile = Profile.load(AGENT_DIR / "applicant" / "example_profile.json")
+    profile = Profile.load(EXAMPLE_PROFILE)
     profile.save(tmp_path / "profile.json")
     saved = json.loads((tmp_path / "profile.json").read_text(encoding="utf-8"))
     assert "extra_facts" not in saved and "middle_name" not in saved

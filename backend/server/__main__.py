@@ -19,9 +19,8 @@ def main() -> None:
     config = load_config()
     app = create_app(config=config, start_worker=True)
     logging.getLogger("server").info(
-        "Data dir %s; AUTH_MODE=%s; SUBMIT_REAL_FORM=%s; FAKE_GREENHOUSE=%s; Claude %s",
-        config.data_dir, config.auth_mode, config.submit_real_form, config.fake_greenhouse,
-        "on" if config.claude_enabled else "off")
+        "Data dir %s; SUBMIT_REAL_FORM=%s; Claude %s",
+        config.data_dir, config.submit_real_form, "on" if config.claude_enabled else "off")
     # Never --reload or several workers: on Windows uvicorn then switches asyncio to the Selector
     # loop, and sync Playwright can't launch Chromium under it. One process per data folder, too.
     uvicorn.run(app, host=config.host, port=config.port, reload=False, workers=1)

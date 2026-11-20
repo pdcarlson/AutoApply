@@ -1,9 +1,9 @@
-# Fly.io: one always-on machine with a volume. From backend/:
+# Fly.io: one machine with a volume, stopped when idle. From backend/:
 #   fly launch --no-deploy --copy-config      (once; pick your own app name and region)
 #   fly volumes create autoapply_data --size 3
 #   fly secrets set CLERK_PUBLISHABLE_KEY=pk_... CLERK_SECRET_KEY=sk_... ALLOWED_ORIGINS=http://localhost:5173
 #   fly deploy
-# See README.md, "Run it in the cloud".
+# See README.md, "Deploy the backend".
 app = "autoapply-api-b97199"
 primary_region = "iad"
 
@@ -11,7 +11,6 @@ primary_region = "iad"
   dockerfile = "Dockerfile"
 
 [env]
-  AUTH_MODE = "clerk"
   AUTOAPPLY_DATA_DIR = "/data"
   SUBMIT_REAL_FORM = "false"
   MAX_CONCURRENT_RUNS = "2"

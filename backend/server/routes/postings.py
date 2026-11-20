@@ -5,7 +5,6 @@ from agent.jobs.fit_ranker import Fit, FitRanker
 from agent.jobs.job_board import Posting
 from server import jobs
 from server.accounts import get_bank, get_worker
-from server.config import Config, get_config
 from server.errors import ApiError, not_found
 from server.job_intake import JobIntake
 from server.job_queue import JobQueue
@@ -87,15 +86,14 @@ def list_postings(request: Request, store: Store = Depends(get_store)):
 
 
 @router.post("/postings/{posting_id}/apply")
-def apply_to_posting(posting_id: str, request: Request, store: Store = Depends(get_store),
-                     config: Config = Depends(get_config)):
+def apply_to_posting(posting_id: str, request: Request, store: Store = Depends(get_store)):
     """Add the posting to the Inbox and start its application, like a pasted link."""
     posting = request.app.state.job_feed.find(posting_id)
     if posting is None:
         raise not_found("Posting")
     if not store.read("state").get("profileConfirmed"):
         raise ApiError(409, "profile_not_confirmed", "Confirm your profile before applying.")
-    record = JobIntake(store, get_bank(request), config).add(
+    record = JobIntake(store, get_bank(request)).add(
         posting.url, posted_at=posting.posted_at or store.now_iso())
     with store.tx() as db:
         _queued, deferred = JobQueue(db, store.now()).apply([record["id"]])

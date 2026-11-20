@@ -25,54 +25,43 @@ def _set_profile(app, **changes):
         db.profile.update(changes)
 
 
-def test_fake_greenhouse_form_is_local(app, monkeypatch):
+def test_fake_greenhouse_form_is_local(monkeypatch):
     """The fake Greenhouse link gets the local fake form, read without the network."""
     refuse_network(monkeypatch)
-    form = make_form(_job(FAKE_URL), app.state.config)
+    form = make_form(_job(FAKE_URL))
     assert isinstance(form, GreenhouseForm)
     assert form.form_url().startswith("file:///")
     assert form.form_url().endswith("agent/tests/fake_forms/greenhouse_form.html")
     assert len(form.read_fields()) == 11
 
 
-def test_fake_routing_needs_the_flag(app):
-    """Without FAKE_GREENHOUSE the fake link is a real posting, using its cached data."""
-    app.state.config.fake_greenhouse = False
-    form = make_form(_job(FAKE_URL, job_data={"title": "Cached", "questions": []}),
-                     app.state.config)
-    assert form.url is None  # the real embed page
-    assert form.job_data == {"title": "Cached", "questions": []}  # no fetch at run time
-
-
 @pytest.mark.parametrize("url", [
     "https://job-boards.greenhouse.io/fakecompany/jobs/6218749",  # fake company, real-looking id
     "https://job-boards.greenhouse.io/cloudflare/jobs/1001",       # real company, fake id
 ])
-def test_only_the_exact_test_postings_are_faked(app, url):
+def test_only_the_exact_test_postings_are_faked(url):
     """Only the exact test postings go to the fake form."""
-    assert app.state.config.fake_greenhouse
-    form = make_form(_job(url, job_data={"title": "Cached", "questions": []}), app.state.config)
+    form = make_form(_job(url, job_data={"title": "Cached", "questions": []}))
     assert form.url is None  # the real Greenhouse page, not the local fake form
 
 
-def test_other_sites_are_unsupported(app):
+def test_other_sites_are_unsupported():
     """A site the agent can't fill raises UnsupportedLink."""
     with pytest.raises(UnsupportedLink):
-        make_form(_job("https://jobs.lever.co/acme/123"), app.state.config)
+        make_form(_job("https://jobs.lever.co/acme/123"))
 
 
-def test_ashby_links_get_an_ashby_form(app):
+def test_ashby_links_get_an_ashby_form():
     """An Ashby link gets an Ashby form with the posting read when it was added."""
-    form = make_form(_job("https://jobs.ashbyhq.com/acme/123", job_data={"title": "Cached"}),
-                     app.state.config)
+    form = make_form(_job("https://jobs.ashbyhq.com/acme/123", job_data={"title": "Cached"}))
     assert isinstance(form, AshbyForm) and form.url is None
     assert form.job_data == {"title": "Cached"}  # the posting read when the job was added
 
 
-def test_fake_ashby_form_is_local(app, monkeypatch):
+def test_fake_ashby_form_is_local(monkeypatch):
     """The fake Ashby link gets the local fake Ashby form."""
     refuse_network(monkeypatch, "agent.forms.ashby_form")
-    form = make_form(_job(FAKE_ASHBY_URL), app.state.config)
+    form = make_form(_job(FAKE_ASHBY_URL))
     assert form.url.endswith("ashby_form.html")
     assert len(form.read_fields()) == 12
 
@@ -146,7 +135,7 @@ def test_profile_defaults_and_missing_resume(app):
     _set_profile(app, _resumePath="resume/gone.pdf",
                  education=[{"school": "RPI", "end": "2027-05"}])
     profile, _ids = build_agent_profile(app.state.store, app.state.answer_bank, None)
-    assert (profile.first_name, profile.middle_name, profile.last_name) == ("Demo", "", "User")
+    assert (profile.first_name, profile.middle_name, profile.last_name) == ("Alice", "", "Tester")
     assert profile.resume_path == ""  # the file isn't there
     assert profile.work_authorized_us is False and profile.needs_sponsorship is True
     assert profile.willing_to_relocate is True

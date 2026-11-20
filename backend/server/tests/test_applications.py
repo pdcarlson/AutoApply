@@ -21,14 +21,14 @@ def _record(app_id, submitted_at, **extra):
 
 
 @pytest.fixture(name="seeded")
-def fixture_seeded(signed_in, app):
+def fixture_seeded(client, app):
     """A signed-in client with one old and one new application stored."""
     store = app.state.store
     now = store.now()
     with store.tx() as db:
         db.applications = [_record("app-old", iso(now - timedelta(days=3))),
                            _record("app-new", iso(now - timedelta(hours=1)))]
-    return signed_in
+    return client
 
 
 def test_list_is_newest_first_without_detail_keys(seeded):

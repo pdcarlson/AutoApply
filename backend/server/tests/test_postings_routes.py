@@ -23,10 +23,10 @@ def postings(client) -> list[dict]:
     return response.json()["postings"]
 
 
-def test_lists_postings_from_both_sites(signed_in, app):
+def test_lists_postings_from_both_sites(client, app):
     """The fake Greenhouse and Ashby boards are both listed, in the API shape."""
     app.state.job_feed.refresh()
-    body = signed_in.get("/api/postings").json()
+    body = client.get("/api/postings").json()
     assert body["fetchedAt"] and body["refreshing"] is False
     listed = body["postings"]
     assert {posting["ats"] for posting in listed} == {"Greenhouse", "Ashby"}
@@ -39,12 +39,12 @@ def test_lists_postings_from_both_sites(signed_in, app):
     assert {posting["url"] for posting in listed} == {FAKE_URL, FAKE_ASHBY_URL}
 
 
-def test_first_request_collects_the_postings(signed_in, app):
+def test_first_request_collects_the_postings(client, app):
     """An empty feed starts collecting by itself, and the list fills in."""
     assert app.state.job_feed.postings == []
-    signed_in.get("/api/postings")
+    client.get("/api/postings")
     for _ in range(200):
-        body = signed_in.get("/api/postings").json()
+        body = client.get("/api/postings").json()
         if body["postings"] and not body["refreshing"]:
             break
     assert len(body["postings"]) == 2
@@ -98,13 +98,13 @@ def test_apply_waits_for_tomorrow_at_the_daily_limit(client, app):
     assert body["deferred"] is True and body["job"]["state"] == "waiting"
 
 
-def test_apply_needs_a_confirmed_profile_and_a_known_posting(signed_in, app):
+def test_apply_needs_a_confirmed_profile_and_a_known_posting(client, app):
     """Applying needs a confirmed profile and a posting the feed knows."""
     app.state.job_feed.refresh()
-    response = signed_in.post(f"/api/postings/{FAKE_POSTING}/apply")
+    response = client.post(f"/api/postings/{FAKE_POSTING}/apply")
     assert response.status_code == 409 and response.json()["code"] == "profile_not_confirmed"
     assert app.state.store.read("jobs") == []
-    assert signed_in.post("/api/postings/greenhouse-nobody-1/apply").status_code == 404
+    assert client.post("/api/postings/greenhouse-nobody-1/apply").status_code == 404
 
 
 def test_applying_to_postings_one_after_another_queues_them_in_order(client, app):

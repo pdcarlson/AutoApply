@@ -8,9 +8,9 @@ from agent.applicant.profile import Profile
 from agent.forms.form_field import AnswerSource, FieldAnswer
 from agent.forms.greenhouse_form import GreenhouseForm
 from agent.jobs.job_link import JobLink
-from agent.settings import AGENT_DIR
 
 FAKE_FORMS = Path(__file__).parent / "fake_forms"
+EXAMPLE_PROFILE = Path(__file__).resolve().parents[2] / "test_fixtures" / "example_profile.json"
 API_DATA = json.loads((FAKE_FORMS / "greenhouse_api.json").read_text(encoding="utf-8"))
 LINK = JobLink.parse("https://job-boards.greenhouse.io/fakecompany/jobs/1001")
 WHY_HERE = "I like building tools people use."
@@ -54,7 +54,7 @@ def open_page(html: str, timeout_ms: float | None = None):
 
 def example_profile(why_here: str = "") -> Profile:
     """Load a fresh copy of the fake profile, with an answer to the essay question if given."""
-    profile = Profile.load(AGENT_DIR / "applicant" / "example_profile.json")
+    profile = Profile.load(EXAMPLE_PROFILE)
     if why_here:
         profile.save_answer("Why do you want to work here?", why_here)
     return profile

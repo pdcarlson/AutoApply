@@ -2,11 +2,11 @@
 import threading
 
 import pytest
-from fastapi.testclient import TestClient
 
 from agent.forms.form_field import FieldAnswer, FormField
 from agent.runner.apply_run import RunResult
 from server import jobs
+from server.tests.clerk_helpers import signed_in_client
 from server.questions import make_question
 from server.tests.job_helpers import (ASHBY_URL, FAKE_ASHBY_URL, SPONSORSHIP, WHY_HERE, add_job,
                                       apply, job_detail, refuse_network,
@@ -84,6 +84,7 @@ def test_essay_question_after_sponsorship_is_answered(client, app, applied):
 def test_claude_guess_is_quoted_and_cached(client, app, applied, monkeypatch):
     """A low-confidence Claude guess is quoted in the question and cached for the next run."""
     app.state.answer_bank.upsert_by_question(SPONSORSHIP, "No", origin="manual")
+    app.state.config.claude_enabled = True  # as if agent/.env had a key
     calls = []
 
     def fake_ask(form_field, _facts):
@@ -92,7 +93,6 @@ def test_claude_guess_is_quoted_and_cached(client, app, applied, monkeypatch):
             return FieldAnswer("I like the team.", "claude", 60, "A guess.")
         return FieldAnswer("", "claude", 0, "Not in the profile.")
     monkeypatch.setattr("server.agent_bridge.ask_claude", fake_ask)
-    app.state.config.claude_enabled = True  # as if agent/.env had a key
 
     app.state.worker.run_next()
     question = job_detail(client, applied)["question"]
@@ -285,7 +285,7 @@ def test_worker_thread_fills_in_the_background(make_app):
         seen_threads.append(threading.current_thread().name)
         return original(ctx, submit)
     worker.execute = spy
-    with TestClient(app) as client:
+    with signed_in_client(app) as client:
         assert worker.alive
         set_up_profile(client)
         seed_fake_form_answers(app)
@@ -318,7 +318,7 @@ def test_worker_stop_mid_run_puts_the_job_back_in_line(client, app, applied, mon
 
 @pytest.mark.usefixtures("applied")
 def test_delete_account_mid_run(client, app, monkeypatch):
-    """Deleting the account mid-run wipes the job, and the run's result is dropped."""
+    """Deleting the account mid-run removes its folder, and the run's result is dropped."""
     seed_fake_form_answers(app)
     worker = app.state.worker
     original = worker.on_event
@@ -329,7 +329,8 @@ def test_delete_account_mid_run(client, app, monkeypatch):
             assert client.delete("/api/account").status_code == 204
     monkeypatch.setattr(worker, "on_event", wipe_after_first_fill)
     worker.run_next()
-    assert app.state.store.read("jobs") == []
+    assert not app.state.store.data_dir.exists()
+    assert app.state.accounts.all() == []
 
 
 @pytest.mark.parametrize("form_field,guess,expected", [

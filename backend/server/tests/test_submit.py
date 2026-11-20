@@ -3,10 +3,10 @@ import threading
 import time
 
 import pytest
-from fastapi.testclient import TestClient
 
 from agent.runner.apply_run import NOT_CONFIRMED, RunResult
 from server import jobs
+from server.tests.clerk_helpers import signed_in_client
 from server.applications.reasons import WATCHING
 from server.applications.submitter import REFILLED
 from server.tests.job_helpers import (ASHBY_URL, FAKE_URL, SECOND_URL, SPONSORSHIP, add_job,
@@ -126,8 +126,7 @@ def test_submit_after_a_restart_fills_again(ready, make_app):
     """A restarted server has no held window: it fills the form again, then submits."""
     restarted = make_app()
     restarted.state.config.submit_real_form = True
-    with TestClient(restarted) as other:
-        assert other.post("/api/auth/google", json={"returnTo": "/"}).status_code == 200
+    with signed_in_client(restarted) as other:
         response = post_submit(other, ready)
         assert response.status_code == 200, response.text
         detail = other.get(f"/api/applications/app-{ready}").json()

@@ -1,96 +1,26 @@
-"""AUTH_MODE=clerk: every request needs a Clerk session token, and each user has their own data."""
-# The tests sign their own tokens with a throwaway RSA key (the app is given a verifier that
-# trusts it), and Clerk's Backend API is replaced by `FakeClerkUsers`. Nothing goes online.
+"""Clerk sign-in: every request needs a session token, and each user has their own data."""
 import time
 
 import jwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from server.app import create_app
-from server.clerk import TokenVerifier, bearer_token, issuer_from_publishable_key
-from server.config import load_config
+from server.clerk import bearer_token, issuer_from_publishable_key
 from server.routes.live import CLOSE_NO_BROWSER
 from server.routes.live import CLOSE_UNAUTHENTICATED, LIVE_PROTOCOL
+from server.tests.clerk_helpers import (ALICE, BOB, ISSUER, OTHER_KEY, FakeClerkUsers, as_user,
+                                        token)
 from server.tests.job_helpers import add_job, apply, upload_resume
-
-ISSUER = "https://example-app.clerk.accounts.dev"
-ORIGIN = "http://localhost:5173"
-ALICE, BOB = "user_alice123", "user_bob456"
-
-KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-OTHER_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-
-
-def token(user_id: str = ALICE, *, key=KEY, issuer: str = ISSUER, azp: str | None = ORIGIN,
-          expires_in: int = 60) -> str:
-    """Return a Clerk-style session token signed with the test key."""
-    now = int(time.time())
-    claims = {"sub": user_id, "iss": issuer, "iat": now, "nbf": now - 5, "exp": now + expires_in,
-              "sid": "sess_1"}
-    if azp:
-        claims["azp"] = azp
-    return jwt.encode(claims, key, algorithm="RS256")
-
-
-def as_user(user_id: str = ALICE) -> dict:
-    """Return the Authorization header for a user."""
-    return {"Authorization": f"Bearer {token(user_id)}"}
-
-
-class FakeClerkUsers:
-    """Stands in for server.clerk.ClerkUsers."""
-
-    def __init__(self):
-        self.deleted = []
-
-    def identity(self, user_id: str) -> dict:
-        """Return the name and email Clerk would have for the user."""
-        first = user_id.split("_")[1].rstrip("0123456789").title()
-        return {"firstName": first, "lastName": "Tester", "email": f"{first.lower()}@example.com"}
-
-    def delete(self, user_id: str) -> bool:
-        """Record the deleted user and say Clerk confirmed it."""
-        self.deleted.append(user_id)
-        return True
-
-
-@pytest.fixture(name="make_clerk_app")
-def fixture_make_clerk_app(data_dir, server_env):  # pylint: disable=unused-argument  # sets the env
-    """Builds apps with Clerk sign-in, a test signing key and a fake Clerk API."""
-    built_apps = []
-
-    def build(**overrides):
-        """Build one app."""
-        config = load_config(data_dir)
-        config.auth_mode = "clerk"
-        config.allowed_origins = (ORIGIN,)
-        config.submit_real_form = False
-        for name, value in overrides.items():
-            setattr(config, name, value)
-        built = create_app(config=config, start_worker=False, verifier=TokenVerifier(
-            ISSUER, config.allowed_origins, key_for=lambda _token: KEY.public_key()))
-        built.state.accounts.clerk_users = FakeClerkUsers()
-        built_apps.append(built)
-        return built
-    yield build
-    for built in built_apps:
-        for account in built.state.accounts.all():
-            account.worker.close_forms_for_tests()
-
-
-@pytest.fixture(name="clerk_app")
-def fixture_clerk_app(make_clerk_app):
-    """An app with Clerk sign-in."""
-    return make_clerk_app()
 
 
 @pytest.fixture(name="api")
-def fixture_api(clerk_app):
-    """A TestClient for the Clerk app; each request says who it is for."""
-    with TestClient(clerk_app) as test_client:
+def fixture_api(make_app):
+    """A TestClient over a fresh data folder; each request says who it is for."""
+    app = make_app()
+    app.state.accounts.forget(ALICE)  # make_app opens Alice's account; these tests start bare
+    app.state.accounts.clerk_users = FakeClerkUsers()
+    with TestClient(app) as test_client:
         yield test_client
 
 
@@ -125,8 +55,7 @@ def test_every_route_needs_a_token(api, path):
 
 def test_health_needs_no_token(api):
     """Health needs no token."""
-    body = api.get("/api/health").json()
-    assert body["ok"] is True and body["authMode"] == "clerk"
+    assert api.get("/api/health").status_code == 200
 
 
 @pytest.mark.parametrize("bad", [
@@ -190,32 +119,25 @@ def test_users_only_see_their_own_data(api, data_dir):
     assert not (data_dir / "users" / BOB / "answer_bank.json").exists()
 
 
-def test_accounts_come_back_after_a_restart(api, make_clerk_app):
+def test_accounts_come_back_after_a_restart(api, make_app):
     """Accounts come back after a restart."""
     api.get("/api/session", headers=as_user(ALICE))
     assert api.post("/api/profile/confirm", headers=as_user(ALICE)).status_code == 200
-    again = make_clerk_app()
+    again = make_app()
     assert [account.user_id for account in again.state.accounts.all()] == [ALICE]
     with TestClient(again) as client:
         assert client.get("/api/session", headers=as_user(ALICE)).json()["profileConfirmed"]
 
 
-def test_local_sign_in_is_off(api):
-    """With Clerk, the local /auth/google sign-in is refused."""
-    response = api.post("/api/auth/google", json={"returnTo": "/"})
-    assert response.status_code == 400 and response.json()["code"] == "use_clerk"
-    assert api.post("/api/auth/logout").status_code == 204
-
-
-def test_delete_account_removes_only_that_user(api, clerk_app, data_dir):
+def test_delete_account_removes_only_that_user(api, data_dir):
     """Delete account removes only that user."""
     api.get("/api/session", headers=as_user(ALICE))
     api.get("/api/session", headers=as_user(BOB))
     assert api.delete("/api/account", headers=as_user(ALICE)).status_code == 204
     assert not (data_dir / "users" / ALICE).exists()
     assert (data_dir / "users" / BOB / "state.json").is_file()
-    assert clerk_app.state.accounts.clerk_users.deleted == [ALICE]
-    assert [account.user_id for account in clerk_app.state.accounts.all()] == [BOB]
+    assert api.app.state.accounts.clerk_users.deleted == [ALICE]
+    assert [account.user_id for account in api.app.state.accounts.all()] == [BOB]
 
 
 # ----- the live view socket -----
@@ -244,22 +166,22 @@ def test_the_socket_takes_the_token_as_a_subprotocol(api):
 
 # ----- sharing the machine -----
 
-def test_a_full_machine_leaves_the_job_queued(api, clerk_app):
+def test_a_full_machine_leaves_the_job_queued(api):
     """All workers share the run slots: with none free, the job waits instead of opening a
     browser."""
     upload_resume(_As(api, ALICE))
     assert api.post("/api/profile/confirm", headers=as_user(ALICE)).status_code == 200
     job = add_job(_As(api, ALICE))
     apply(_As(api, ALICE), job["id"])
-    alice = clerk_app.state.accounts.get(ALICE)
-    bob = clerk_app.state.accounts.get(BOB)
+    alice = api.app.state.accounts.get(ALICE)
+    bob = api.app.state.accounts.get(BOB)
     assert alice.worker._run_slots is bob.worker._run_slots  # pylint: disable=protected-access  # checks the shared slots
     slots = alice.worker._run_slots  # pylint: disable=protected-access  # checks the shared slots
     taken = 0
     while slots.acquire(blocking=False):  # pylint: disable=consider-using-with  # drains the slots on purpose
         taken += 1
     try:
-        assert taken == clerk_app.state.config.max_concurrent_runs
+        assert taken == api.app.state.config.max_concurrent_runs
         assert alice.worker.run_next() is None
         state = api.get(f"/api/jobs/{job['id']}", headers=as_user(ALICE)).json()["state"]
         assert state == "queued"

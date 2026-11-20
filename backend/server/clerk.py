@@ -1,4 +1,4 @@
-"""Clerk sign-in for AUTH_MODE=clerk: checking session tokens and looking users up."""
+"""Clerk sign-in: checking session tokens and looking users up."""
 import base64
 import binascii
 import logging
@@ -48,7 +48,7 @@ class TokenVerifier:  # pylint: disable=too-few-public-methods  # one job: verif
     def __init__(self, issuer: str, allowed_origins: tuple[str, ...] = (),
                  key_for: Callable[[str], object] | None = None):
         if not issuer:
-            raise ValueError("AUTH_MODE=clerk needs CLERK_PUBLISHABLE_KEY (or CLERK_ISSUER).")
+            raise ValueError("The server needs CLERK_PUBLISHABLE_KEY (or CLERK_ISSUER).")
         self.issuer = issuer.rstrip("/")
         self.allowed_origins = tuple(allowed_origins)
         if key_for is None:

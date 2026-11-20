@@ -7,7 +7,7 @@ from playwright.sync_api import BrowserType
 
 import server.runs.run_setup
 
-# conftest turns FAKE_GREENHOUSE on, so these map to backend/agent/tests/fake_forms.
+# conftest's fake_forms fixture maps these to backend/agent/tests/fake_forms.
 FAKE_URL = "https://job-boards.greenhouse.io/fakecompany/jobs/1001"
 FAKE_ASHBY_URL = "https://jobs.ashbyhq.com/fakecompany/00000000-0000-4000-8000-000000001001"
 SECOND_URL = "https://job-boards.greenhouse.io/fakecompany/jobs/1002"
@@ -15,7 +15,7 @@ SECOND_URL = "https://job-boards.greenhouse.io/fakecompany/jobs/1002"
 ASHBY_URL = "https://jobs.ashbyhq.com/acme/0a1b2c3d"
 SPONSORSHIP = "Will you now or in the future require visa sponsorship to work in the United States?"
 WHY_HERE = "Why do you want to work here?"
-EXAMPLE_PDF = Path(__file__).resolve().parents[2] / "agent" / "applicant" / "example_resume.pdf"
+EXAMPLE_PDF = Path(__file__).resolve().parents[2] / "test_fixtures" / "example_resume.pdf"
 
 
 def refuse_network(monkeypatch, *modules: str) -> None:
@@ -28,7 +28,7 @@ def refuse_network(monkeypatch, *modules: str) -> None:
 
 
 def upload_resume(client, timeout: float = 30.0) -> dict:
-    """Upload agent/applicant/example_resume.pdf and wait for the parse to finish."""
+    """Upload test_fixtures/example_resume.pdf and wait for the parse to finish."""
     response = client.post("/api/resume", files={
         "file": ("example_resume.pdf", EXAMPLE_PDF.read_bytes(), "application/pdf")})
     assert response.status_code == 202, response.text
@@ -43,12 +43,11 @@ def upload_resume(client, timeout: float = 30.0) -> dict:
 
 
 def set_up_profile(client, *, resume: bool = True, confirm: bool = True) -> None:
-    """Sign in, upload the example resume, answer the common questions, and confirm.
+    """Upload the example resume, answer the common questions, and confirm.
 
     The common answers cover sponsorship only in setup's own wording, which doesn't match the
     fake form's label, so a run still asks about it.
     """
-    assert client.post("/api/auth/google", json={"returnTo": "/"}).status_code == 200
     if resume:
         upload_resume(client)
     common = client.get("/api/common-answers").json()
@@ -98,8 +97,8 @@ def use_fake_form_variant(monkeypatch, query: str) -> None:
     """
     original = server.runs.run_setup.make_form
 
-    def make_form(job, config):
-        form = original(job, config)
+    def make_form(job):
+        form = original(job)
         assert form.url and form.url.startswith("file://"), "only the local fake form"
         form.url += f"?{query}"
         return form

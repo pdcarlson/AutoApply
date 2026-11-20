@@ -255,7 +255,7 @@ components, hooks and typed modules instead.
 | `src/layouts/` | The page frames around screens (`AppShell`, `Page`) |
 | `src/features/<area>/` | One folder per screen or area (`inbox`, `profile`, `settings`) |
 | `src/lib/` | Plain TypeScript helpers with no React (`format`, `jobLinks`, `jobStatus`) |
-| `src/mocks/` | The MSW fake backend used in development and tests |
+| `src/mocks/` | The MSW fake backend used in tests |
 | `src/styles/` | Global CSS and design tokens |
 | `src/test/` | Test setup and shared test helpers |
 
@@ -404,8 +404,8 @@ library.
 
 ## 22. Configuration
 
-- **Read `import.meta.env` only in a config spot:** `src/api/client.ts` (API URL),
-  `src/auth/config.ts` (Clerk) and `src/main.tsx` (mocking). Everything else imports from
+- **Read `import.meta.env` only in a config spot:** `src/api/client.ts` (API URL)
+  and `src/auth/config.ts` (Clerk). Everything else imports from
   those.
 - **Magic numbers become named constants** at the top of the file, with the unit in the name
   (`LIVE_POLL_MS = 2000`).

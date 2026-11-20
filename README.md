@@ -1,161 +1,179 @@
 # AutoApply
 
-## Run it locally
+AutoApply fills in job applications for you. You upload a resume and answer a few setup
+questions; the agent then opens Greenhouse and Ashby job forms in a browser, fills them, asks you
+about anything it can't answer, and waits for your review before it submits.
 
-You need Python 3.11+ and Node 20+. Commands are for Windows PowerShell.
+## Repo layout
 
-1. Set up the backend (once), from `backend/`:
+| Folder               | What it holds                                                                  |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `backend/agent/`     | The agent: reads job forms, drafts answers, drives the browser with Playwright |
+| `backend/server/`    | The FastAPI web API, per-user storage and the job queue                        |
+| `backend/AutoApply/` | Answer bank, onboarding questions and resume reading, used by the server       |
+| `frontend/`          | The React + TypeScript web app (see [frontend/README.md](frontend/README.md))  |
 
-   ```powershell
-   python -m venv .venv
-   .venv\Scripts\python -m pip install -r server/requirements.txt
-   .venv\Scripts\python -m playwright install chromium
-   copy agent\.env.example agent\.env
+## Run the web app
+
+The backend runs on Fly.io at https://autoapply-api-b97199.fly.dev. There is no hosted frontend;
+you run it on your machine against that API. You need Node 20+.
+
+1. From `frontend/`, run `npm install`.
+2. Copy `frontend/.env.example` to `frontend/.env.local` and fill in:
+
+   ```
+   VITE_API_BASE_URL=https://autoapply-api-b97199.fly.dev/api
+   VITE_CLERK_PUBLISHABLE_KEY=pk_...
    ```
 
-2. Set up the frontend (once), from `frontend/`:
+3. Run `npm run dev` and open http://localhost:5173 (it must be listed in the backend's
+   `ALLOWED_ORIGINS`), or run `npm run build` for a production build in `frontend/dist/`.
 
-   ```powershell
-   npm install
-   ```
+Sign in with Google, upload your resume, check your profile and answer the setup questions. Then
+paste a job link into the Inbox, or press **Apply** on a posting under **Jobs**.
 
-3. Start it, from the repo root:
+## Deploy the backend
 
-   ```powershell
-   .\scripts\demo.ps1
-   ```
+The API, the agent and its browser run together in one container, built from
+`backend/Dockerfile` and configured by `backend/fly.toml`. People sign in through
+[Clerk](https://clerk.com); create a Clerk application with Google sign-in and copy its
+publishable (`pk_...`) and secret (`sk_...`) keys.
 
-4. Open http://localhost:5173, sign in, upload your resume, check your profile, and answer the
-   setup questions.
-5. Paste a Greenhouse or Ashby job link into the Inbox and press **Apply**, or open **Jobs** and press
-   **Apply** on a posting there. Answer any questions the agent asks, then review the filled form and
-   press **Submit**.
-
-Press Ctrl+C to stop.
-
-## Try it without applying anywhere
+With [flyctl](https://fly.io/docs/flyctl/) signed in, from `backend/`:
 
 ```powershell
-.\scripts\demo.ps1 -Offline -Reset
-```
-
-Upload `backend/agent/applicant/example_resume.pdf`, finish setup, then paste
-`https://job-boards.greenhouse.io/fakecompany/jobs/1001` (or the Ashby one,
-`https://jobs.ashbyhq.com/fakecompany/00000000-0000-4000-8000-000000001001`) and press **Apply**.
-The agent fills a local test form, so nothing goes online.
-
-## Run it in the cloud
-
-The API, the agent and its browser run together in one container on a server; the web app
-(still on your machine for now) talks to it, and people sign in with Google through
-[Clerk](https://clerk.com). Each person's data is kept in their own folder on the server's disk.
-
-**1. Clerk (once).** Create an application at clerk.com with **Google** as the only sign-in
-option. From its *API keys* page copy the publishable key (`pk_...`) and the secret key
-(`sk_...`).
-
-**2. The server.** With [Fly.io](https://fly.io) (`fly auth login` first), from `backend/`:
-
-```powershell
-fly launch --no-deploy --copy-config
-fly volumes create autoapply_data --size 3
 fly secrets set CLERK_PUBLISHABLE_KEY=pk_... CLERK_SECRET_KEY=sk_... ALLOWED_ORIGINS=http://localhost:5173
 fly deploy
 ```
 
-`https://<your-app>.fly.dev/api/health` should answer `{"ok": true, ... "authMode": "clerk"}`.
-Any other machine with Docker works the same way: copy `backend/deploy/api.env.example` to
-`backend/deploy/api.env`, fill it in, and run `docker compose up --build` from `backend/` (put
-HTTPS in front of port 8080).
+`https://autoapply-api-b97199.fly.dev/api/health` answers `{"ok": true, ...}` once it is up.
 
-**3. The web app.** Create `frontend/.env.cloud.local`:
+To run the same server somewhere else, install the dependencies (see [Run the tests](#run-the-tests)),
+set the environment variables below, and run `python -m server` from `backend/`. It listens on
+`127.0.0.1:8080` unless `AUTOAPPLY_HOST` and `AUTOAPPLY_PORT` say otherwise.
 
-```
-VITE_API_BASE_URL=https://<your-app>.fly.dev/api
-VITE_CLERK_PUBLISHABLE_KEY=pk_...
-```
-
-Then, from `frontend/`, run `npm run dev:cloud` and open http://localhost:5173.
-
-Server settings (`fly secrets set NAME=value`, or `deploy/api.env`):
-
-| Setting                 | What it does                                                               |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `AUTH_MODE`             | `clerk` in the container. `local` (the default elsewhere) is the one-user demo with no real sign-in. |
-| `CLERK_PUBLISHABLE_KEY` | Which Clerk application's sign-ins are accepted.                           |
-| `CLERK_SECRET_KEY`      | Lets the server read a new person's name and email, and delete their Clerk user when they delete their account. |
-| `ALLOWED_ORIGINS`       | Comma-separated addresses the web app is served from. Only those pages may call the API. |
-| `MAX_CONCURRENT_RUNS`   | How many browsers may fill or submit at once, across everyone. Default `2`. |
-| `SUBMIT_REAL_FORM`, `ANTHROPIC_API_KEY`, `CONFIRM_TIMEOUT_S`, `FAKE_GREENHOUSE` | As in Notes below, for everyone on the server. |
-
-Things to know:
+How it runs on Fly:
 
 - **One machine, stopped when idle.** Fly stops the machine a few minutes after the last request
-  (nothing is charged for it while stopped; the data volume is) and starts it again on the next
-  one, so the first page after a pause takes a little longer. The web app keeps checking job
-  progress while it is open, so the machine only stops once nobody has it open. Stopping,
-  restarting or redeploying closes the open browsers: a form waiting for review is filled again
-  at Submit, and queued jobs wait until the machine is started. For always-on, set
-  `auto_stop_machines = "off"` and `min_machines_running = 1` in `backend/fly.toml`. Never scale
-  to several machines: a filled form is an open browser inside one server process.
-- **Nobody sees the server's browser window**, so the live browser in the web app is the only way
-  to reach a form (for a CAPTCHA, say). Sites may challenge a data-center address more often than
-  your home one.
-- **Data** is in the volume mounted at `/data`, one folder per person under `users/`. *Delete
-  account* removes that folder and the person's Clerk user.
+  and starts it again on the next one, so the first request after a pause is slower. Stopping or
+  redeploying closes open browsers: a form waiting for review is filled again at Submit, and
+  queued jobs wait until the machine starts. For always-on, set `auto_stop_machines = "off"` and
+  `min_machines_running = 1` in `fly.toml`. Never scale to more than one machine: a filled form
+  is an open browser inside one server process.
+- **Data** lives on the volume mounted at `/data`, in one folder per Clerk user. **Delete
+  account** removes that folder and the person's Clerk user.
+- **Nobody sees the server's browser**, so the live view in the web app is the way to reach a
+  form yourself (for a CAPTCHA, say).
+
+## Environment variables
+
+Set them with `fly secrets set NAME=value` (or in `backend/fly.toml` under `[env]`), or in the
+environment when running `python -m server`.
+
+| Variable                | Required | What it does                                                                   |
+| ----------------------- | -------- | ------------------------------------------------------------------------------ |
+| `CLERK_PUBLISHABLE_KEY` | Yes\*    | Which Clerk application's sign-ins are accepted. \*Or set `CLERK_ISSUER`.      |
+| `CLERK_SECRET_KEY`      | Yes      | Reads a new user's name and email; deletes the Clerk user on Delete account.   |
+| `ALLOWED_ORIGINS`       | Yes      | Comma-separated web app addresses allowed to call the API.                     |
+| `ANTHROPIC_API_KEY`     | No       | With a key, Claude drafts answers. Without one, the agent asks the user.       |
+| `SUBMIT_REAL_FORM`      | No       | `false` (default): Submit records the application but never sends it.          |
+| `AUTOAPPLY_DATA_DIR`    | No       | Where user data is kept. Default `backend/data` (`/data` on Fly).              |
+| `MAX_CONCURRENT_RUNS`   | No       | How many browsers may fill or submit at once, across all users. Default `2`.   |
+| `CONFIRM_TIMEOUT_S`     | No       | How long Submit waits for the thank-you page. Default `90`.                    |
+| `BROWSER_CDP_URL`       | No       | DevTools address of a Chromium running elsewhere, used instead of a local one. |
 
 ## Run the tests
 
-From `backend/`:
+Backend, from `backend/` (Python 3.11+):
 
 ```powershell
-.venv\Scripts\python -m pytest agent/tests server/tests
-.venv\Scripts\python server/e2e/run_browser_e2e.py
+python -m venv .venv
+.venv\Scripts\python -m pip install -r server/requirements.txt
+.venv\Scripts\python -m playwright install chromium
+.venv\Scripts\python -m pytest
 ```
 
-The second command clicks through the whole app in a hidden browser against the test form. Stop
-the demo first, because it needs ports 8080 and 5173.
+Frontend, from `frontend/`: `npm test`. It needs no `.env` file.
 
-From `frontend/`:
+## API
 
-```powershell
-npm test
+All paths are under `/api`. Requests and responses are JSON, except uploads (`multipart/form-data`,
+field `file`), the data export and screenshots. The TypeScript shapes in
+`frontend/src/api/types.ts` describe every body, and `frontend/src/api/endpoints.ts` has one
+function per endpoint.
+
+**Auth.** Every route except `/health` needs a Clerk session token as
+`Authorization: Bearer <token>`; the token's user is whose data the request reads and writes. The
+live view socket can't send headers, so it passes the token as a subprotocol:
+`["autoapply.live", <token>]`. Screenshots need the token too, so fetch them rather than using an
+`<img src>`.
+
+**Errors.** Every 4xx/5xx response has the body below. `code` is stable and the UI branches on
+it; `message` may be shown to the user. A request without a valid token gets
+`401 unauthenticated`.
+
+```json
+{ "code": "unsupported_site", "message": "…", "details": {} }
 ```
 
-## Notes
+**Session and setup**
 
-- **Settings** are in `backend/agent/.env`. Restart after changing them.
+- `GET /health`: server is up, with its `submitRealForm` and `claude` switches (no auth)
+- `GET /session`: the signed-in user and whether their profile is confirmed
+- `POST /resume`: upload a resume and start parsing it (`202`)
+- `GET /resume/parse`: parse progress; poll while `status` is `parsing`
+- `PUT /resume/file`: replace the resume file without re-parsing
+- `GET /profile`, `PUT /profile`: read or save the profile
+- `POST /profile/unplaced/:id`: accept or dismiss a resume section that wasn't placed
+- `POST /profile/confirm`: finish setup
+- `GET /common-answers`, `PUT /common-answers`: the setup questions' answers
+- `GET /preferences`, `PUT /preferences`: job preferences used to rank postings
 
-  | Setting              | What it does                                                                  |
-  | -------------------- | ----------------------------------------------------------------------------- |
-  | `SUBMIT_REAL_FORM`   | `false` (default): Submit records the application but never sends it. `true`: Submit really applies. |
-  | `ANTHROPIC_API_KEY`  | Optional. With a key, Claude drafts answers. Without one, the agent asks you. |
-  | `AGENT_SHOW_BROWSER` | `true` shows the browser window while the agent fills the form.              |
-  | `AGENT_SLOW_MO_MS`   | Slows the browser down so you can follow it, e.g. `250`.                      |
-  | `CONFIRM_TIMEOUT_S`  | How long Submit waits for the thank-you page. Default `90`.                   |
-  | `BROWSER_CDP_URL`    | Optional. Use a Chromium that is already running elsewhere (its DevTools address, e.g. `http://host:9222` or a `wss://` URL) instead of launching one here. |
+**Agent**
 
-- **The live browser.** While the agent fills a form, and afterwards while you review it, the
-  form's browser is shown live to the left of its answers (open a job from **Applying now**, or
-  **Review**). Click the picture to scroll, click and type in the form yourself; click outside
-  it to stop. It works with `AGENT_SHOW_BROWSER` off, and it is how you reach the form when the
-  browser runs on another machine.
+- `GET /settings`, `PATCH /settings`: confidence threshold (0–100) and daily limit (1–50)
+- `GET /agent/status`: paused or running, and the queue in work order
+- `POST /agent/pause`, `POST /agent/resume`: stop or restart new jobs
 
-- **Submit** presses the Submit button on the form the agent already filled. If the site emails
-  you a verification code (Greenhouse does this), the app asks you for it: type it into the box
-  in AutoApply, and the agent enters it into the form and submits it. No need to find the
-  browser window, and it works with `AGENT_SHOW_BROWSER` off too. A filled form's window is
-  never closed until the application is confirmed and screenshotted,
-  you close it yourself, or the server stops.
-- **Your data** (profile, resume, answers, jobs, screenshots) stays on your computer in
-  `backend/data/` when you run it locally, which is never committed. `.\scripts\demo.ps1 -Reset` deletes it and starts
-  fresh.
-- **Supported sites:** Greenhouse and Ashby forms are filled automatically. Other links are
-  handed to you to finish by hand. On Ashby, questions the agent can't fill yet (dates, rating
-  scales) and the optional demographic survey are left for you to fill in the browser window.
-- **Two terminals instead of `demo.ps1`** (also how to run it on macOS/Linux, using
-  `.venv/bin/python`): run `.venv\Scripts\python -m server` from `backend/`, and
-  `npm run dev:api` from `frontend/`.
-- **The agent on its own, without the web app:** from `backend/`, run
-  `.venv\Scripts\python -m agent <greenhouse or ashby job link> --show`. It reads its profile from
-  `PROFILE_PATH` in `backend/agent/.env`, not from the web app.
+**Jobs**
+
+- `GET /jobs`: every job not yet submitted or skipped
+- `GET /jobs/:id`: one job with its fields
+- `POST /jobs`: add a Greenhouse or Ashby link (`409` if already applied or in the Inbox)
+- `POST /jobs/apply`, `POST /jobs/cancel`: queue jobs, or undo that
+- `POST /jobs/:id/skip`, `POST /jobs/:id/restore`: skip a job, or undo that
+- `POST /jobs/:id/submit`: submit a filled (`ready`) job; `409 protected_step` for CAPTCHAs,
+  sign-ins and similar steps the user must do
+- `POST /jobs/:id/verification-code`: pass on a code the site emailed to the user
+- `POST /jobs/:id/mark-submitted`: the user finished a `handoff` job themselves
+- `WS /jobs/:id/live`: live JPEG frames of the job's browser; the client sends mouse, wheel, key
+  and text messages back
+
+**Agent questions**
+
+- `POST /jobs/:id/question/messages`: reply to the agent's question
+- `PUT /jobs/:id/question/answer`, `DELETE /jobs/:id/question/answer`: pick an option, or clear
+  the proposed answer
+- `POST /jobs/:id/question/accept`: save the answer to the Answer bank and requeue the job
+
+**Job board**
+
+- `GET /postings`: open postings ranked by fit against the profile
+- `POST /postings/:id/apply`: add a posting to the Inbox and queue it
+
+**Applications**
+
+- `GET /applications`: submitted applications, newest first
+- `GET /applications/:id`: one application with fields, timeline and `screenshotUrl`
+- `PATCH /applications/:id`: set `status` (`submitted`, `interviewing`, `offer`, `rejected`)
+- `GET /screenshots/:name`: a confirmation screenshot (PNG)
+
+**Answer bank**
+
+- `GET /answers`, `POST /answers`: list or add saved answers
+- `PATCH /answers/:id`, `DELETE /answers/:id`: edit or remove one
+
+**Account**
+
+- `GET /account/export`: download all the user's data as a file
+- `DELETE /account`: delete the user's data and their Clerk user (`204`)
